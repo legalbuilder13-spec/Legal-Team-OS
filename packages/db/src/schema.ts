@@ -10,6 +10,7 @@ import {
   index,
   uniqueIndex,
   bigint,
+  boolean,
   customType,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
@@ -19,6 +20,24 @@ const bytea = customType<{ data: Buffer; default: false }>({
     return 'bytea';
   },
 });
+
+function vector(dimensions: number) {
+  return customType<{ data: number[]; default: false }>({
+    dataType() {
+      return `vector(${dimensions})`;
+    },
+    toDriver(value: number[]) {
+      return `[${value.join(',')}]`;
+    },
+    fromDriver(value: unknown) {
+      if (typeof value === 'string') {
+        const inner = value.slice(1, -1);
+        return inner ? inner.split(',').map(Number) : [];
+      }
+      return value as number[];
+    },
+  });
+}
 
 export const practiceArea = pgEnum('practice_area', [
   'commercial',
@@ -57,6 +76,30 @@ export const jobKind = pgEnum('job_kind', [
   'sla_check',
   'daily_digest',
   'slack_notify',
+  'generate_embedding',
+  'enrich_counterparty_memory',
+  'analyze_portfolio',
+]);
+
+export const insightKind = pgEnum('insight_kind', [
+  'volume_spike',
+  'playbook_deviation',
+  'workload_imbalance',
+  'counterparty_pattern',
+  'sla_trend',
+  'self_service_opportunity',
+]);
+
+export const insightStatus = pgEnum('insight_status', [
+  'active',
+  'dismissed',
+  'actioned',
+]);
+
+export const playbookSuggestionStatus = pgEnum('playbook_suggestion_status', [
+  'pending',
+  'approved',
+  'rejected',
 ]);
 
 export const userRole = pgEnum('user_role', ['attorney', 'legal_ops', 'admin', 'requester']);
@@ -87,6 +130,18 @@ export const counterparties = pgTable(
     domain: text('domain'),
     salesforceAccountId: text('salesforce_account_id'),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
+    behavioralProfile: jsonb('behavioral_profile')
+      .$type<{
+        summary?: string;
+        totalMatters?: number;
+        avgCycleTimeDays?: number;
+        lastContactAt?: string;
+        practiceAreas?: Array<{ area: string; count: number }>;
+        commonRedlines?: string[];
+        escalationTriggers?: string[];
+        typicalPositions?: string[];
+      }>()
+      .default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -116,6 +171,7 @@ export const matters = pgTable(
     slaDueAt: timestamp('sla_due_at', { withTimezone: true }),
     triageMetadata: jsonb('triage_metadata').$type<Record<string, unknown>>().default({}),
     context: jsonb('context').$type<Record<string, unknown>>().default({}),
+    embedding: vector(1536)('embedding'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
     closedAt: timestamp('closed_at', { withTimezone: true }),
@@ -236,6 +292,103 @@ export const routingRules = pgTable(
   }),
 );
 
+export const playbooks = pgTable(
+  'playbooks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    practiceArea: practiceArea('practice_area').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    version: integer('version').notNull().default(1),
+    createdById: uuid('created_by_id').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    practiceAreaIdx: index('playbooks_practice_area_idx').on(t.practiceArea),
+  }),
+);
+
+export const playbookVersions = pgTable(
+  'playbook_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    playbookId: uuid('playbook_id')
+      .notNull()
+      .references(() => playbooks.id, { onDelete: 'cascade' }),
+    versionNumber: integer('version_number').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    changeSummary: text('change_summary'),
+    createdById: uuid('created_by_id').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    playbookIdx: index('playbook_versions_playbook_idx').on(t.playbookId, t.versionNumber),
+  }),
+);
+
+export const playbookSuggestions = pgTable(
+  'playbook_suggestions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    playbookId: uuid('playbook_id').references(() => playbooks.id, { onDelete: 'cascade' }),
+    practiceArea: practiceArea('practice_area').notNull(),
+    suggestedTitle: text('suggested_title').notNull(),
+    suggestedBody: text('suggested_body').notNull(),
+    rationale: text('rationale').notNull(),
+    evidenceMatterIds: jsonb('evidence_matter_ids').$type<string[]>().default([]),
+    status: playbookSuggestionStatus('status').notNull().default('pending'),
+    proposedById: uuid('proposed_by_id').references(() => users.id),
+    reviewedById: uuid('reviewed_by_id').references(() => users.id),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    statusIdx: index('playbook_suggestions_status_idx').on(t.status),
+  }),
+);
+
+export const knowledgeArticles = pgTable(
+  'knowledge_articles',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    practiceArea: practiceArea('practice_area').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    tags: text('tags').array().default([]).notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    viewCount: integer('view_count').notNull().default(0),
+    createdById: uuid('created_by_id').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    practiceAreaIdx: index('knowledge_articles_practice_area_idx').on(t.practiceArea),
+    activeIdx: index('knowledge_articles_active_idx').on(t.isActive),
+  }),
+);
+
+export const systemInsights = pgTable(
+  'system_insights',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: insightKind('kind').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    severity: text('severity').notNull().default('medium'),
+    evidence: jsonb('evidence').$type<Record<string, unknown>>().default({}),
+    status: insightStatus('status').notNull().default('active'),
+    dismissedById: uuid('dismissed_by_id').references(() => users.id),
+    dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    statusIdx: index('system_insights_status_idx').on(t.status, t.createdAt),
+  }),
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   requestedMatters: many(matters, { relationName: 'requester' }),
   assignedMatters: many(matters, { relationName: 'assignee' }),
@@ -286,3 +439,10 @@ export type NewJob = typeof jobs.$inferInsert;
 export type Counterparty = typeof counterparties.$inferSelect;
 export type AuditLogEntry = typeof auditLog.$inferSelect;
 export type RoutingRule = typeof routingRules.$inferSelect;
+export type Playbook = typeof playbooks.$inferSelect;
+export type NewPlaybook = typeof playbooks.$inferInsert;
+export type PlaybookVersion = typeof playbookVersions.$inferSelect;
+export type PlaybookSuggestion = typeof playbookSuggestions.$inferSelect;
+export type KnowledgeArticle = typeof knowledgeArticles.$inferSelect;
+export type NewKnowledgeArticle = typeof knowledgeArticles.$inferInsert;
+export type SystemInsight = typeof systemInsights.$inferSelect;

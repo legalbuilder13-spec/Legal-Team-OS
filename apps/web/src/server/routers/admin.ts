@@ -1,6 +1,15 @@
 import { z } from 'zod';
-import { asc, eq } from 'drizzle-orm';
-import { users, routingRules, auditLog } from '@legal/db';
+import { asc, desc, eq } from 'drizzle-orm';
+import {
+  users,
+  routingRules,
+  auditLog,
+  playbooks,
+  playbookVersions,
+  playbookSuggestions,
+  knowledgeArticles,
+  systemInsights,
+} from '@legal/db';
 import { PracticeAreaSchema } from '@legal/types';
 import { adminProcedure, router } from '../trpc.js';
 
@@ -82,6 +91,250 @@ export const adminRouter = router({
       .leftJoin(users, eq(routingRules.defaultAssigneeId, users.id))
       .orderBy(asc(routingRules.practiceArea));
   }),
+
+  listPlaybooks: adminProcedure.query(async ({ ctx }) => {
+    return ctx.db
+      .select()
+      .from(playbooks)
+      .orderBy(asc(playbooks.practiceArea), asc(playbooks.createdAt));
+  }),
+
+  upsertPlaybook: adminProcedure
+    .input(
+      z.object({
+        id: z.string().uuid().optional(),
+        practiceArea: PracticeAreaSchema,
+        title: z.string().min(1),
+        body: z.string().min(1),
+        isActive: z.boolean().default(true),
+        changeSummary: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.id) {
+        const existing = await ctx.db.query.playbooks.findFirst({
+          where: eq(playbooks.id, input.id),
+        });
+        if (existing && (existing.body !== input.body || existing.title !== input.title)) {
+          await ctx.db.insert(playbookVersions).values({
+            playbookId: existing.id,
+            versionNumber: existing.version,
+            title: existing.title,
+            body: existing.body,
+            changeSummary: input.changeSummary ?? null,
+            createdById: ctx.user.id,
+          });
+        }
+        const nextVersion = existing
+          ? existing.body !== input.body || existing.title !== input.title
+            ? existing.version + 1
+            : existing.version
+          : 1;
+        const [updated] = await ctx.db
+          .update(playbooks)
+          .set({
+            practiceArea: input.practiceArea,
+            title: input.title,
+            body: input.body,
+            isActive: input.isActive,
+            version: nextVersion,
+            updatedAt: new Date(),
+          })
+          .where(eq(playbooks.id, input.id))
+          .returning();
+        return updated;
+      }
+      const [created] = await ctx.db
+        .insert(playbooks)
+        .values({
+          practiceArea: input.practiceArea,
+          title: input.title,
+          body: input.body,
+          isActive: input.isActive,
+          createdById: ctx.user.id,
+        })
+        .returning();
+      return created;
+    }),
+
+  listPlaybookVersions: adminProcedure
+    .input(z.object({ playbookId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db
+        .select()
+        .from(playbookVersions)
+        .where(eq(playbookVersions.playbookId, input.playbookId))
+        .orderBy(desc(playbookVersions.versionNumber));
+    }),
+
+  proposePlaybookSuggestion: adminProcedure
+    .input(
+      z.object({
+        playbookId: z.string().uuid().optional(),
+        practiceArea: PracticeAreaSchema,
+        suggestedTitle: z.string().min(1),
+        suggestedBody: z.string().min(1),
+        rationale: z.string().min(1),
+        evidenceMatterIds: z.array(z.string().uuid()).default([]),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [created] = await ctx.db
+        .insert(playbookSuggestions)
+        .values({
+          playbookId: input.playbookId ?? null,
+          practiceArea: input.practiceArea,
+          suggestedTitle: input.suggestedTitle,
+          suggestedBody: input.suggestedBody,
+          rationale: input.rationale,
+          evidenceMatterIds: input.evidenceMatterIds,
+          proposedById: ctx.user.id,
+        })
+        .returning();
+      return created;
+    }),
+
+  listPlaybookSuggestions: adminProcedure
+    .input(z.object({ status: z.enum(['pending', 'approved', 'rejected']).optional() }).default({}))
+    .query(async ({ ctx, input }) => {
+      const base = ctx.db.select().from(playbookSuggestions);
+      return input.status
+        ? base.where(eq(playbookSuggestions.status, input.status)).orderBy(desc(playbookSuggestions.createdAt))
+        : base.orderBy(desc(playbookSuggestions.createdAt));
+    }),
+
+  reviewPlaybookSuggestion: adminProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        decision: z.enum(['approved', 'rejected']),
+        applyToPlaybook: z.boolean().default(false),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const suggestion = await ctx.db.query.playbookSuggestions.findFirst({
+        where: eq(playbookSuggestions.id, input.id),
+      });
+      if (!suggestion) throw new Error('suggestion not found');
+
+      await ctx.db
+        .update(playbookSuggestions)
+        .set({
+          status: input.decision,
+          reviewedById: ctx.user.id,
+          reviewedAt: new Date(),
+        })
+        .where(eq(playbookSuggestions.id, input.id));
+
+      if (input.decision === 'approved' && input.applyToPlaybook && suggestion.playbookId) {
+        const existing = await ctx.db.query.playbooks.findFirst({
+          where: eq(playbooks.id, suggestion.playbookId),
+        });
+        if (existing) {
+          await ctx.db.insert(playbookVersions).values({
+            playbookId: existing.id,
+            versionNumber: existing.version,
+            title: existing.title,
+            body: existing.body,
+            changeSummary: `Applied suggestion: ${suggestion.rationale.slice(0, 200)}`,
+            createdById: ctx.user.id,
+          });
+          await ctx.db
+            .update(playbooks)
+            .set({
+              title: suggestion.suggestedTitle,
+              body: suggestion.suggestedBody,
+              version: existing.version + 1,
+              updatedAt: new Date(),
+            })
+            .where(eq(playbooks.id, existing.id));
+        }
+      }
+    }),
+
+  deletePlaybook: adminProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db.delete(playbooks).where(eq(playbooks.id, input.id));
+    }),
+
+  listKnowledgeArticles: adminProcedure.query(async ({ ctx }) => {
+    return ctx.db
+      .select()
+      .from(knowledgeArticles)
+      .orderBy(asc(knowledgeArticles.practiceArea), asc(knowledgeArticles.createdAt));
+  }),
+
+  upsertKnowledgeArticle: adminProcedure
+    .input(
+      z.object({
+        id: z.string().uuid().optional(),
+        practiceArea: PracticeAreaSchema,
+        title: z.string().min(1),
+        body: z.string().min(1),
+        tags: z.array(z.string()).default([]),
+        isActive: z.boolean().default(true),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.id) {
+        const [updated] = await ctx.db
+          .update(knowledgeArticles)
+          .set({
+            practiceArea: input.practiceArea,
+            title: input.title,
+            body: input.body,
+            tags: input.tags,
+            isActive: input.isActive,
+            updatedAt: new Date(),
+          })
+          .where(eq(knowledgeArticles.id, input.id))
+          .returning();
+        return updated;
+      }
+      const [created] = await ctx.db
+        .insert(knowledgeArticles)
+        .values({
+          practiceArea: input.practiceArea,
+          title: input.title,
+          body: input.body,
+          tags: input.tags,
+          isActive: input.isActive,
+          createdById: ctx.user.id,
+        })
+        .returning();
+      return created;
+    }),
+
+  deleteKnowledgeArticle: adminProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db.delete(knowledgeArticles).where(eq(knowledgeArticles.id, input.id));
+    }),
+
+  listInsights: adminProcedure
+    .input(z.object({ status: z.enum(['active', 'dismissed', 'actioned']).default('active') }).default({}))
+    .query(async ({ ctx, input }) => {
+      return ctx.db
+        .select()
+        .from(systemInsights)
+        .where(eq(systemInsights.status, input.status))
+        .orderBy(desc(systemInsights.createdAt))
+        .limit(50);
+    }),
+
+  dismissInsight: adminProcedure
+    .input(z.object({ id: z.string().uuid(), decision: z.enum(['dismissed', 'actioned']) }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .update(systemInsights)
+        .set({
+          status: input.decision,
+          dismissedById: ctx.user.id,
+          dismissedAt: new Date(),
+        })
+        .where(eq(systemInsights.id, input.id));
+    }),
 
   upsertRoutingRule: adminProcedure
     .input(

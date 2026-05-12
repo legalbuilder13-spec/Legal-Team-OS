@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { matters, matterNotes, matterEvents, users, auditLog, jobs } from '@legal/db';
+import { matters, matterNotes, matterEvents, users, auditLog, jobs, type Matter } from '@legal/db';
 import { MatterStatusSchema, PracticeAreaSchema, PrioritySchema } from '@legal/types';
 import { protectedProcedure, staffProcedure, router } from '../trpc.js';
 import { TRPCError } from '@trpc/server';
@@ -130,6 +130,13 @@ export const mattersRouter = router({
           },
         });
       }
+      if (input.status === 'closed' && updated?.counterpartyId) {
+        await ctx.db.insert(jobs).values({
+          kind: 'enrich_counterparty_memory',
+          matterId: updated.id,
+          payload: { counterparty_id: updated.counterpartyId },
+        });
+      }
       return updated;
     }),
 
@@ -154,6 +161,97 @@ export const mattersRouter = router({
         details: { assigneeId: input.assigneeId },
       });
       return updated;
+    }),
+
+  archiveSearch: protectedProcedure
+    .input(
+      z.object({
+        query: z.string().optional(),
+        practiceArea: PracticeAreaSchema.optional(),
+        counterpartyId: z.string().uuid().optional(),
+        limit: z.number().int().min(1).max(100).default(25),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const conditions = [eq(matters.status, 'closed')];
+      if (input.practiceArea) conditions.push(eq(matters.practiceArea, input.practiceArea));
+      if (input.counterpartyId) conditions.push(eq(matters.counterpartyId, input.counterpartyId));
+
+      if (!input.query || input.query.trim().length === 0) {
+        return ctx.db
+          .select({
+            id: matters.id,
+            shortId: matters.shortId,
+            title: matters.title,
+            summary: matters.summary,
+            practiceArea: matters.practiceArea,
+            priority: matters.priority,
+            closedAt: matters.closedAt,
+            counterpartyId: matters.counterpartyId,
+          })
+          .from(matters)
+          .where(and(...conditions))
+          .orderBy(desc(matters.closedAt))
+          .limit(input.limit);
+      }
+
+      const searchText = input.query.slice(0, 500);
+      const result = await ctx.db.execute(sql`
+        SELECT id, short_id, title, summary, practice_area, priority, closed_at, counterparty_id,
+          ts_rank(
+            to_tsvector('english', coalesce(title, '') || ' ' || coalesce(request_text, '') || ' ' || coalesce(summary, '')),
+            plainto_tsquery('english', ${searchText})
+          ) as rank
+        FROM matters
+        WHERE status = 'closed'
+          ${input.practiceArea ? sql`AND practice_area = ${input.practiceArea}` : sql``}
+          ${input.counterpartyId ? sql`AND counterparty_id = ${input.counterpartyId}` : sql``}
+          AND to_tsvector('english', coalesce(title, '') || ' ' || coalesce(request_text, '') || ' ' || coalesce(summary, ''))
+              @@ plainto_tsquery('english', ${searchText})
+        ORDER BY rank DESC, closed_at DESC NULLS LAST
+        LIMIT ${input.limit}
+      `);
+      return result.rows as Array<{
+        id: string;
+        short_id: string;
+        title: string;
+        summary: string | null;
+        practice_area: string | null;
+        priority: string | null;
+        closed_at: string | null;
+        counterparty_id: string | null;
+      }>;
+    }),
+
+  similarMatters: staffProcedure
+    .input(z.object({ matterId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const matter = (await ctx.db.query.matters.findFirst({
+        where: eq(matters.id, input.matterId),
+      })) as Matter | undefined;
+      if (!matter?.embedding) return [];
+
+      const embeddingStr = `[${(matter.embedding as number[]).join(',')}]`;
+      const results = await ctx.db.execute(sql`
+        SELECT id, short_id, title, summary, practice_area, priority, closed_at,
+               round((1 - (embedding <=> ${embeddingStr}::vector))::numeric, 3) as similarity
+        FROM matters
+        WHERE id != ${input.matterId}
+          AND status = 'closed'
+          AND embedding IS NOT NULL
+        ORDER BY embedding <=> ${embeddingStr}::vector
+        LIMIT 5
+      `);
+      return results.rows as Array<{
+        id: string;
+        short_id: string;
+        title: string;
+        summary: string | null;
+        practice_area: string | null;
+        priority: string | null;
+        closed_at: string | null;
+        similarity: number;
+      }>;
     }),
 
   myQueue: protectedProcedure.query(async ({ ctx }) => {

@@ -5,8 +5,11 @@ import { env } from './env.js';
 import { handleTriageJob } from './handlers/triage.js';
 import { handleSlackNotifyJob } from './handlers/slack-notify.js';
 import { handleContextFetchJob } from './handlers/context-fetch.js';
+import { handleGenerateEmbeddingJob } from './handlers/generate-embedding.js';
+import { handleEnrichCounterpartyMemoryJob } from './handlers/enrich-counterparty-memory.js';
 import { runSlaCheck } from './handlers/sla-check.js';
 import { runDailyDigest } from './handlers/daily-digest.js';
+import { runPortfolioAnalysis } from './handlers/analyze-portfolio.js';
 
 const db = getDb();
 const MAX_ATTEMPTS = 5;
@@ -37,6 +40,15 @@ async function dispatch(job: Job) {
       break;
     case 'context_fetch':
       await handleContextFetchJob(db, job);
+      break;
+    case 'generate_embedding':
+      await handleGenerateEmbeddingJob(db, job);
+      break;
+    case 'enrich_counterparty_memory':
+      await handleEnrichCounterpartyMemoryJob(db, job);
+      break;
+    case 'analyze_portfolio':
+      await runPortfolioAnalysis(db);
       break;
     default:
       throw new Error(`unknown job kind: ${job.kind}`);
@@ -102,6 +114,19 @@ cron.schedule(
       console.log(`daily digest: ${sent} DMs sent`);
     } catch (err) {
       console.error('daily digest failed:', err);
+    }
+  },
+  { timezone: env.DIGEST_TIMEZONE },
+);
+
+cron.schedule(
+  '0 7 * * 1',
+  async () => {
+    try {
+      const generated = await runPortfolioAnalysis(db);
+      console.log(`portfolio analysis: ${generated} new insights generated`);
+    } catch (err) {
+      console.error('portfolio analysis failed:', err);
     }
   },
   { timezone: env.DIGEST_TIMEZONE },

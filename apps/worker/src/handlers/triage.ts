@@ -7,6 +7,8 @@ import {
   auditLog,
   jobs,
   users,
+  playbooks,
+  knowledgeArticles,
   type Job,
 } from '@legal/db';
 import type { Db } from '@legal/db';
@@ -42,6 +44,71 @@ export async function handleTriageJob(db: Db, job: Job) {
     return;
   }
 
+  const activePlaybooks = await db
+    .select({
+      practice_area: playbooks.practiceArea,
+      title: playbooks.title,
+      body: playbooks.body,
+    })
+    .from(playbooks)
+    .where(eq(playbooks.isActive, true));
+
+  const activeArticles = await db
+    .select({
+      practice_area: knowledgeArticles.practiceArea,
+      title: knowledgeArticles.title,
+      body: knowledgeArticles.body,
+      tags: knowledgeArticles.tags,
+    })
+    .from(knowledgeArticles)
+    .where(eq(knowledgeArticles.isActive, true));
+
+  const searchText = matter.requestText.slice(0, 500);
+  const priorMattersResult = await db.execute(sql`
+    SELECT title, summary, practice_area, priority
+    FROM matters
+    WHERE status = 'closed'
+      AND to_tsvector('english', coalesce(title, '') || ' ' || coalesce(request_text, ''))
+          @@ plainto_tsquery('english', ${searchText})
+    ORDER BY ts_rank(
+      to_tsvector('english', coalesce(title, '') || ' ' || coalesce(request_text, '')),
+      plainto_tsquery('english', ${searchText})
+    ) DESC
+    LIMIT 3
+  `);
+  const priorMatters = priorMattersResult.rows as Array<{
+    title: string;
+    summary: string | null;
+    practice_area: string;
+    priority: string | null;
+  }>;
+
+  let counterpartyMemory: {
+    name: string;
+    summary: string | null;
+    total_matters: number;
+    common_redlines: string[];
+    escalation_triggers: string[];
+    typical_positions: string[];
+  } | null = null;
+
+  if (matter.counterpartyId) {
+    const cp = await db.query.counterparties.findFirst({
+      where: eq(counterparties.id, matter.counterpartyId),
+    });
+    if (cp?.behavioralProfile && Object.keys(cp.behavioralProfile).length > 0) {
+      const profile = cp.behavioralProfile as Record<string, unknown>;
+      counterpartyMemory = {
+        name: cp.name,
+        summary: (profile.summary as string) ?? null,
+        total_matters: (profile.totalMatters as number) ?? 0,
+        common_redlines: (profile.commonRedlines as string[]) ?? [],
+        escalation_triggers: (profile.escalationTriggers as string[]) ?? [],
+        typical_positions: (profile.typicalPositions as string[]) ?? [],
+      };
+    }
+  }
+
   const res = await fetch(`${env.AI_SERVICE_URL}/triage`, {
     method: 'POST',
     headers: {
@@ -52,6 +119,15 @@ export async function handleTriageJob(db: Db, job: Job) {
       matter_id: matter.id,
       request_text: matter.requestText,
       channel: 'slack',
+      playbooks: activePlaybooks,
+      knowledge_articles: activeArticles,
+      counterparty_memory: counterpartyMemory,
+      prior_matters: priorMatters.map((pm) => ({
+        title: pm.title,
+        summary: pm.summary,
+        practice_area: pm.practice_area,
+        priority: pm.priority,
+      })),
     }),
   });
 
@@ -139,6 +215,12 @@ export async function handleTriageJob(db: Db, job: Job) {
       matter_id: matter.id,
       text: lines.join('\n'),
     },
+  });
+
+  await db.insert(jobs).values({
+    kind: 'generate_embedding',
+    matterId: matter.id,
+    payload: { matter_id: matter.id },
   });
 
   const requester = matter.requesterId

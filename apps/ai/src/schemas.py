@@ -17,12 +17,45 @@ PracticeArea = Literal[
 Priority = Literal["high", "medium", "low"]
 
 
+class PlaybookContext(BaseModel):
+    practice_area: str
+    title: str
+    body: str
+
+
+class PriorMatter(BaseModel):
+    title: str
+    summary: str | None = None
+    practice_area: str
+    priority: str | None = None
+
+
+class KnowledgeArticleContext(BaseModel):
+    practice_area: str
+    title: str
+    body: str
+    tags: list[str] = []
+
+
+class CounterpartyMemory(BaseModel):
+    name: str
+    summary: str | None = None
+    total_matters: int = 0
+    common_redlines: list[str] = []
+    escalation_triggers: list[str] = []
+    typical_positions: list[str] = []
+
+
 class TriageRequest(BaseModel):
     matter_id: str
     request_text: str
     requester_email: str | None = None
     requester_name: str | None = None
     channel: Literal["slack", "web"]
+    playbooks: list[PlaybookContext] = []
+    prior_matters: list[PriorMatter] = []
+    knowledge_articles: list[KnowledgeArticleContext] = []
+    counterparty_memory: CounterpartyMemory | None = None
 
 
 class TriageResult(BaseModel):
