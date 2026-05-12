@@ -10,12 +10,24 @@ const KIND_LABEL: Record<string, string> = {
   'sla.breached': 'SLA breached',
 };
 
+const SEVERITY_STYLE: Record<string, string> = {
+  high: 'border-red-200 bg-red-50',
+  medium: 'border-amber-200 bg-amber-50',
+  low: 'border-blue-200 bg-blue-50',
+};
+
 export default function DashboardPage() {
   const { data: summary } = trpc.dashboard.summary.useQuery();
   const { data: cycle } = trpc.dashboard.cycleTime.useQuery();
   const { data: trend } = trpc.dashboard.breachTrend.useQuery();
   const { data: attorneys } = trpc.dashboard.byAttorney.useQuery();
   const { data: activity } = trpc.dashboard.recentActivity.useQuery();
+  const { data: insights = [], refetch: refetchInsights } = trpc.admin.listInsights.useQuery({
+    status: 'active',
+  });
+  const dismissInsight = trpc.admin.dismissInsight.useMutation({
+    onSuccess: () => refetchInsights(),
+  });
 
   const openCount =
     summary?.byStatus
@@ -52,6 +64,51 @@ export default function DashboardPage() {
         />
         <StatCard label="Closed (all time)" value={closedCount} />
       </div>
+
+      {insights.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+            <span>AI-Suggested Actions</span>
+            <span className="text-xs text-gray-400">({insights.length})</span>
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            {insights.map((ins) => (
+              <div
+                key={ins.id}
+                className={`rounded-lg border p-3 ${
+                  SEVERITY_STYLE[ins.severity] ?? 'bg-white border-gray-200'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="text-sm font-medium">{ins.title}</div>
+                  <span className="text-xs text-gray-400 uppercase shrink-0">
+                    {ins.kind.replace(/_/g, ' ')}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-700 mt-1">{ins.body}</p>
+                <div className="flex justify-end gap-3 mt-2">
+                  <button
+                    onClick={() =>
+                      dismissInsight.mutate({ id: ins.id, decision: 'actioned' })
+                    }
+                    className="text-xs text-brand-600 hover:underline"
+                  >
+                    Mark actioned
+                  </button>
+                  <button
+                    onClick={() =>
+                      dismissInsight.mutate({ id: ins.id, decision: 'dismissed' })
+                    }
+                    className="text-xs text-gray-500 hover:underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-6">
         <section className="col-span-2 space-y-6">

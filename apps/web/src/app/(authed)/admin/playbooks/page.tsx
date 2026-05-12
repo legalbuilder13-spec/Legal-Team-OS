@@ -27,6 +27,11 @@ export default function PlaybooksAdminPage() {
   const remove = trpc.admin.deletePlaybook.useMutation({ onSuccess: () => refetch() });
 
   const [editing, setEditing] = useState<PlaybookForm | null>(null);
+  const [historyFor, setHistoryFor] = useState<string | null>(null);
+  const { data: versions = [] } = trpc.admin.listPlaybookVersions.useQuery(
+    { playbookId: historyFor ?? '' },
+    { enabled: !!historyFor },
+  );
 
   const byArea = PRACTICE_AREAS.map((area) => ({
     area,
@@ -147,8 +152,8 @@ export default function PlaybooksAdminPage() {
                 </h2>
                 <div className="space-y-3">
                   {items.map((pb) => (
+                    <div key={pb.id}>
                     <div
-                      key={pb.id}
                       className="bg-white border rounded-lg p-4 flex items-start justify-between gap-4"
                     >
                       <div className="min-w-0">
@@ -163,6 +168,13 @@ export default function PlaybooksAdminPage() {
                         <p className="text-xs text-gray-500 line-clamp-2">{pb.body}</p>
                       </div>
                       <div className="flex gap-2 shrink-0">
+                        <span className="text-xs text-gray-400">v{pb.version}</span>
+                        <button
+                          onClick={() => setHistoryFor(historyFor === pb.id ? null : pb.id)}
+                          className="text-xs text-gray-600 hover:underline"
+                        >
+                          {historyFor === pb.id ? 'Hide history' : 'History'}
+                        </button>
                         <button
                           onClick={() =>
                             setEditing({
@@ -186,6 +198,43 @@ export default function PlaybooksAdminPage() {
                           Delete
                         </button>
                       </div>
+                    </div>
+                    {historyFor === pb.id && (
+                      <div className="bg-gray-50 border border-t-0 rounded-b-lg p-3 -mt-1">
+                        <div className="text-xs font-medium text-gray-500 mb-2">
+                          Version history ({versions.length} prior version{versions.length === 1 ? '' : 's'})
+                        </div>
+                        {versions.length === 0 ? (
+                          <div className="text-xs text-gray-500">
+                            This playbook has not been edited since creation.
+                          </div>
+                        ) : (
+                          <ul className="space-y-2">
+                            {versions.map((v) => (
+                              <li key={v.id} className="text-xs border-l-2 border-gray-300 pl-2">
+                                <div className="flex justify-between items-baseline">
+                                  <span className="font-medium">v{v.versionNumber} · {v.title}</span>
+                                  <span className="text-gray-400">
+                                    {new Date(v.createdAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+                                {v.changeSummary && (
+                                  <div className="text-gray-600 italic mt-0.5">{v.changeSummary}</div>
+                                )}
+                                <details className="mt-1">
+                                  <summary className="text-gray-500 cursor-pointer">
+                                    Show body
+                                  </summary>
+                                  <pre className="text-gray-700 whitespace-pre-wrap mt-1 font-mono text-[10px]">
+                                    {v.body}
+                                  </pre>
+                                </details>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
                     </div>
                   ))}
                 </div>

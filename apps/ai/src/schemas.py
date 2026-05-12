@@ -30,6 +30,22 @@ class PriorMatter(BaseModel):
     priority: str | None = None
 
 
+class KnowledgeArticleContext(BaseModel):
+    practice_area: str
+    title: str
+    body: str
+    tags: list[str] = []
+
+
+class CounterpartyMemory(BaseModel):
+    name: str
+    summary: str | None = None
+    total_matters: int = 0
+    common_redlines: list[str] = []
+    escalation_triggers: list[str] = []
+    typical_positions: list[str] = []
+
+
 class TriageRequest(BaseModel):
     matter_id: str
     request_text: str
@@ -38,6 +54,8 @@ class TriageRequest(BaseModel):
     channel: Literal["slack", "web"]
     playbooks: list[PlaybookContext] = []
     prior_matters: list[PriorMatter] = []
+    knowledge_articles: list[KnowledgeArticleContext] = []
+    counterparty_memory: CounterpartyMemory | None = None
 
 
 class TriageResult(BaseModel):

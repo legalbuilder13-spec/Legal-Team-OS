@@ -82,18 +82,47 @@ def build_user_prompt(request: TriageRequest) -> str:
     parts.append("Request:")
     parts.append(request.request_text)
 
+    if request.counterparty_memory:
+        cm = request.counterparty_memory
+        parts.append("")
+        parts.append(f"--- Counterparty memory: {cm.name} ---")
+        if cm.summary:
+            parts.append(cm.summary)
+        if cm.total_matters:
+            parts.append(f"Total prior matters with this counterparty: {cm.total_matters}")
+        if cm.common_redlines:
+            parts.append("Common redlines / negotiation patterns:")
+            for r in cm.common_redlines:
+                parts.append(f"  - {r}")
+        if cm.escalation_triggers:
+            parts.append("Past escalation triggers:")
+            for e in cm.escalation_triggers:
+                parts.append(f"  - {e}")
+        if cm.typical_positions:
+            parts.append("Typical positions they take:")
+            for p in cm.typical_positions:
+                parts.append(f"  - {p}")
+
     if request.prior_matters:
         parts.append("")
-        parts.append("--- Similar past matters (for context) ---")
+        parts.append("--- Similar past matters (cite by short reference if your reasoning relies on one) ---")
         for pm in request.prior_matters[:5]:
             area = pm.practice_area
             pri = pm.priority or "?"
             summary = pm.summary or ""
             parts.append(f"- [{area}/{pri}] {pm.title}: {summary}")
 
+    if request.knowledge_articles:
+        parts.append("")
+        parts.append("--- Knowledge base articles available (if the request matches one, the requester can self-serve) ---")
+        for ka in request.knowledge_articles[:5]:
+            tags = f" tags=[{', '.join(ka.tags)}]" if ka.tags else ""
+            parts.append(f"\n[{ka.practice_area}]{tags} {ka.title}:")
+            parts.append(ka.body[:600])
+
     if request.playbooks:
         parts.append("")
-        parts.append("--- Practice area guidance (apply the relevant playbook when classifying) ---")
+        parts.append("--- Practice area playbooks (apply the relevant one when classifying) ---")
         for pb in request.playbooks:
             parts.append(f"\n[{pb.practice_area}] {pb.title}:")
             parts.append(pb.body)

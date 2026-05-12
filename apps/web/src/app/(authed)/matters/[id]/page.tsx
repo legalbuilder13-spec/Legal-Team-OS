@@ -85,11 +85,26 @@ function SalesforceContextCard({ ctx }: { ctx: SalesforceContext }) {
   );
 }
 
+interface CounterpartyMemoryProfile {
+  summary?: string;
+  totalMatters?: number;
+  avgCycleTimeDays?: number;
+  lastContactAt?: string;
+  practiceAreas?: Array<{ area: string; count: number }>;
+  commonRedlines?: string[];
+  escalationTriggers?: string[];
+  typicalPositions?: string[];
+}
+
 export default function MatterDetailPage({ params }: { params: { id: string } }) {
   const { data: matter, isLoading, refetch } = trpc.matters.get.useQuery({ id: params.id });
   const { data: similarMatters = [] } = trpc.matters.similarMatters.useQuery(
     { matterId: params.id },
     { enabled: !!params.id },
+  );
+  const { data: counterparty } = trpc.counterparties.get.useQuery(
+    { id: matter?.counterpartyId ?? '' },
+    { enabled: !!matter?.counterpartyId },
   );
   const addNote = trpc.matters.addNote.useMutation({ onSuccess: () => refetch() });
   const setStatus = trpc.matters.setStatus.useMutation({ onSuccess: () => refetch() });
@@ -226,6 +241,66 @@ export default function MatterDetailPage({ params }: { params: { id: string } })
               | undefined;
             return sf ? <SalesforceContextCard ctx={sf} /> : null;
           })()}
+
+          {counterparty &&
+            (() => {
+              const profile = (counterparty.behavioralProfile ?? {}) as CounterpartyMemoryProfile;
+              if (!profile.summary && (!profile.totalMatters || profile.totalMatters < 2)) {
+                return null;
+              }
+              return (
+                <div className="bg-white border rounded-lg p-4 text-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <h2 className="font-medium">Counterparty Memory</h2>
+                    <span className="text-xs text-gray-400">{counterparty.name}</span>
+                  </div>
+                  {profile.summary && (
+                    <p className="text-gray-700 text-xs mb-3">{profile.summary}</p>
+                  )}
+                  {profile.commonRedlines && profile.commonRedlines.length > 0 && (
+                    <div className="mb-2">
+                      <div className="text-xs font-medium text-gray-500 mb-1">
+                        Negotiation patterns
+                      </div>
+                      <ul className="text-xs text-gray-700 space-y-0.5 list-disc list-inside">
+                        {profile.commonRedlines.map((r, i) => (
+                          <li key={i}>{r}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {profile.escalationTriggers && profile.escalationTriggers.length > 0 && (
+                    <div className="mb-2">
+                      <div className="text-xs font-medium text-red-600 mb-1">
+                        Escalation history
+                      </div>
+                      <ul className="text-xs text-gray-700 space-y-0.5 list-disc list-inside">
+                        {profile.escalationTriggers.map((e, i) => (
+                          <li key={i}>{e}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {profile.practiceAreas && profile.practiceAreas.length > 0 && (
+                    <div className="flex gap-1 flex-wrap mt-2 pt-2 border-t border-gray-100">
+                      {profile.practiceAreas.map((p) => (
+                        <span
+                          key={p.area}
+                          className="text-xs bg-gray-100 px-1.5 py-0.5 rounded capitalize"
+                        >
+                          {p.area} ({p.count})
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {profile.avgCycleTimeDays != null && (
+                    <div className="text-xs text-gray-500 mt-2">
+                      Avg resolution: {profile.avgCycleTimeDays.toFixed(1)} days
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
           {matter.attachments.length > 0 && (
             <div className="bg-white border rounded-lg p-4 text-sm">

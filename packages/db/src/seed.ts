@@ -7,6 +7,7 @@ import {
   counterparties,
   auditLog,
   playbooks,
+  knowledgeArticles,
 } from './schema.js';
 import { getDb } from './client.js';
 
@@ -288,6 +289,73 @@ async function main() {
     });
     if (!existing) {
       await db.insert(playbooks).values({ ...pb, createdById: admin.id });
+    }
+  }
+
+  console.log('seeding knowledge articles…');
+  const sampleArticles = [
+    {
+      practiceArea: 'commercial' as const,
+      title: 'When do I need a mutual NDA vs. a one-way NDA?',
+      body: `**Mutual NDA**: Use when both parties will share confidential information (most vendor evaluations, partnership discussions, joint development).
+
+**One-way NDA**: Use when only one party is disclosing (most candidate interviews, due diligence by a buyer, evaluating an unsolicited proposal).
+
+If you're unsure, default to mutual — the legal risk is the same and it's easier to negotiate. Send the standard template via /legal nda <counterparty name>.`,
+      tags: ['nda', 'template', 'self-service'],
+    },
+    {
+      practiceArea: 'employment' as const,
+      title: 'How do I terminate a contractor?',
+      body: `**Standard contractor offboarding (no cause)**:
+
+1. Give written notice per the contractor agreement (typically 14 or 30 days).
+2. Confirm the final invoice date — pay through the notice period.
+3. Recover any company property (laptop, badge, credentials).
+4. Send a termination letter (template in /admin/templates).
+5. Disable system access on the effective date.
+
+**For-cause termination** (breach, misconduct): contact Sofia Patel in employment legal first — do NOT terminate before legal review.`,
+      tags: ['contractor', 'termination', 'self-service'],
+    },
+    {
+      practiceArea: 'privacy' as const,
+      title: 'What do I do if someone reports a data breach?',
+      body: `**Immediate steps (within 1 hour of report)**:
+
+1. File a P0 incident in the security tracker.
+2. Do NOT delete logs or alter affected systems.
+3. Page the on-call privacy attorney (Daniel Park).
+4. Document who reported it, when, and what they observed.
+
+**Within 24 hours**:
+- Privacy legal will assess notification obligations (GDPR: 72h regulator notification, CCPA: depends on data type).
+- Engineering will scope the affected records.
+- Comms will prepare a holding statement if needed.
+
+Do not communicate externally about the incident without legal sign-off.`,
+      tags: ['breach', 'incident-response', 'urgent'],
+    },
+    {
+      practiceArea: 'commercial' as const,
+      title: "What is our standard liability cap?",
+      body: `**Default position**: 1x the fees paid in the 12 months preceding the claim.
+
+**Acceptable variations**:
+- Up to 2x annual fees for strategic customers (Tier 1 accounts in Salesforce)
+- Carve-outs from the cap are acceptable for: indemnification obligations, confidentiality breach, willful misconduct, IP infringement
+
+**Hard line**: Never agree to uncapped liability except for the carve-outs above. If a counterparty pushes for uncapped general liability, escalate to the GC.`,
+      tags: ['liability', 'contract-terms', 'negotiation'],
+    },
+  ];
+
+  for (const art of sampleArticles) {
+    const existing = await db.query.knowledgeArticles.findFirst({
+      where: eq(knowledgeArticles.title, art.title),
+    });
+    if (!existing) {
+      await db.insert(knowledgeArticles).values({ ...art, createdById: admin.id });
     }
   }
 

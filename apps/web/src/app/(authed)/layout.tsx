@@ -22,6 +22,9 @@ export default async function AuthedLayout({ children }: { children: React.React
           <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/queue">
             My Queue
           </Link>
+          <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/archive">
+            Archive
+          </Link>
           <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/dashboard">
             Dashboard
           </Link>
@@ -32,6 +35,9 @@ export default async function AuthedLayout({ children }: { children: React.React
               </div>
               <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/admin/playbooks">
                 Playbooks
+              </Link>
+              <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/admin/knowledge">
+                Knowledge Base
               </Link>
               <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/admin/routing">
                 Routing Rules
