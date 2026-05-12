@@ -81,6 +81,23 @@ def build_user_prompt(request: TriageRequest) -> str:
     parts.append("")
     parts.append("Request:")
     parts.append(request.request_text)
+
+    if request.prior_matters:
+        parts.append("")
+        parts.append("--- Similar past matters (for context) ---")
+        for pm in request.prior_matters[:5]:
+            area = pm.practice_area
+            pri = pm.priority or "?"
+            summary = pm.summary or ""
+            parts.append(f"- [{area}/{pri}] {pm.title}: {summary}")
+
+    if request.playbooks:
+        parts.append("")
+        parts.append("--- Practice area guidance (apply the relevant playbook when classifying) ---")
+        for pb in request.playbooks:
+            parts.append(f"\n[{pb.practice_area}] {pb.title}:")
+            parts.append(pb.body)
+
     return "\n".join(parts)
 
 

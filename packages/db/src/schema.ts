@@ -10,6 +10,7 @@ import {
   index,
   uniqueIndex,
   bigint,
+  boolean,
   customType,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
@@ -19,6 +20,24 @@ const bytea = customType<{ data: Buffer; default: false }>({
     return 'bytea';
   },
 });
+
+function vector(dimensions: number) {
+  return customType<{ data: number[]; default: false }>({
+    dataType() {
+      return `vector(${dimensions})`;
+    },
+    toDriver(value: number[]) {
+      return `[${value.join(',')}]`;
+    },
+    fromDriver(value: unknown) {
+      if (typeof value === 'string') {
+        const inner = value.slice(1, -1);
+        return inner ? inner.split(',').map(Number) : [];
+      }
+      return value as number[];
+    },
+  });
+}
 
 export const practiceArea = pgEnum('practice_area', [
   'commercial',
@@ -57,6 +76,7 @@ export const jobKind = pgEnum('job_kind', [
   'sla_check',
   'daily_digest',
   'slack_notify',
+  'generate_embedding',
 ]);
 
 export const userRole = pgEnum('user_role', ['attorney', 'legal_ops', 'admin', 'requester']);
@@ -116,6 +136,7 @@ export const matters = pgTable(
     slaDueAt: timestamp('sla_due_at', { withTimezone: true }),
     triageMetadata: jsonb('triage_metadata').$type<Record<string, unknown>>().default({}),
     context: jsonb('context').$type<Record<string, unknown>>().default({}),
+    embedding: vector(1536)('embedding'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
     closedAt: timestamp('closed_at', { withTimezone: true }),
@@ -236,6 +257,23 @@ export const routingRules = pgTable(
   }),
 );
 
+export const playbooks = pgTable(
+  'playbooks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    practiceArea: practiceArea('practice_area').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    createdById: uuid('created_by_id').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    practiceAreaIdx: index('playbooks_practice_area_idx').on(t.practiceArea),
+  }),
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   requestedMatters: many(matters, { relationName: 'requester' }),
   assignedMatters: many(matters, { relationName: 'assignee' }),
@@ -286,3 +324,5 @@ export type NewJob = typeof jobs.$inferInsert;
 export type Counterparty = typeof counterparties.$inferSelect;
 export type AuditLogEntry = typeof auditLog.$inferSelect;
 export type RoutingRule = typeof routingRules.$inferSelect;
+export type Playbook = typeof playbooks.$inferSelect;
+export type NewPlaybook = typeof playbooks.$inferInsert;

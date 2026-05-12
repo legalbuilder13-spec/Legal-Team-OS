@@ -87,6 +87,10 @@ function SalesforceContextCard({ ctx }: { ctx: SalesforceContext }) {
 
 export default function MatterDetailPage({ params }: { params: { id: string } }) {
   const { data: matter, isLoading, refetch } = trpc.matters.get.useQuery({ id: params.id });
+  const { data: similarMatters = [] } = trpc.matters.similarMatters.useQuery(
+    { matterId: params.id },
+    { enabled: !!params.id },
+  );
   const addNote = trpc.matters.addNote.useMutation({ onSuccess: () => refetch() });
   const setStatus = trpc.matters.setStatus.useMutation({ onSuccess: () => refetch() });
   const [note, setNote] = useState('');
@@ -138,6 +142,15 @@ export default function MatterDetailPage({ params }: { params: { id: string } })
             <div className="bg-white border rounded-lg p-4">
               <h2 className="font-medium mb-2">AI Summary</h2>
               <p className="text-sm text-gray-800">{matter.summary}</p>
+            </div>
+          )}
+
+          {(matter.triageMetadata as Record<string, unknown> | null)?.reasoning && (
+            <div className="bg-white border rounded-lg p-4">
+              <h2 className="font-medium mb-2">AI Reasoning</h2>
+              <p className="text-sm text-gray-600 italic">
+                {String((matter.triageMetadata as Record<string, unknown>).reasoning)}
+              </p>
             </div>
           )}
 
@@ -220,6 +233,42 @@ export default function MatterDetailPage({ params }: { params: { id: string } })
               <ul className="space-y-1">
                 {matter.attachments.map((a) => (
                   <li key={a.id}>{a.filename}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {similarMatters.length > 0 && (
+            <div className="bg-white border rounded-lg p-4 text-sm">
+              <h2 className="font-medium mb-3">Similar Past Matters</h2>
+              <ul className="space-y-3">
+                {similarMatters.map((sm) => (
+                  <li key={sm.id} className="border-t border-gray-100 pt-2 first:border-t-0 first:pt-0">
+                    <a
+                      href={`/matters/${sm.id}`}
+                      className="font-medium text-brand-600 hover:underline"
+                    >
+                      {sm.title}
+                    </a>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {sm.practice_area && (
+                        <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded capitalize">
+                          {sm.practice_area}
+                        </span>
+                      )}
+                      {sm.priority && (
+                        <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">
+                          {sm.priority}
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-400">
+                        {Math.round(Number(sm.similarity) * 100)}% match
+                      </span>
+                    </div>
+                    {sm.summary && (
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{sm.summary}</p>
+                    )}
+                  </li>
                 ))}
               </ul>
             </div>

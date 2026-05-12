@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { asc, eq } from 'drizzle-orm';
-import { users, routingRules, auditLog } from '@legal/db';
+import { users, routingRules, auditLog, playbooks } from '@legal/db';
 import { PracticeAreaSchema } from '@legal/types';
 import { adminProcedure, router } from '../trpc.js';
 
@@ -82,6 +82,57 @@ export const adminRouter = router({
       .leftJoin(users, eq(routingRules.defaultAssigneeId, users.id))
       .orderBy(asc(routingRules.practiceArea));
   }),
+
+  listPlaybooks: adminProcedure.query(async ({ ctx }) => {
+    return ctx.db
+      .select()
+      .from(playbooks)
+      .orderBy(asc(playbooks.practiceArea), asc(playbooks.createdAt));
+  }),
+
+  upsertPlaybook: adminProcedure
+    .input(
+      z.object({
+        id: z.string().uuid().optional(),
+        practiceArea: PracticeAreaSchema,
+        title: z.string().min(1),
+        body: z.string().min(1),
+        isActive: z.boolean().default(true),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.id) {
+        const [updated] = await ctx.db
+          .update(playbooks)
+          .set({
+            practiceArea: input.practiceArea,
+            title: input.title,
+            body: input.body,
+            isActive: input.isActive,
+            updatedAt: new Date(),
+          })
+          .where(eq(playbooks.id, input.id))
+          .returning();
+        return updated;
+      }
+      const [created] = await ctx.db
+        .insert(playbooks)
+        .values({
+          practiceArea: input.practiceArea,
+          title: input.title,
+          body: input.body,
+          isActive: input.isActive,
+          createdById: ctx.user.id,
+        })
+        .returning();
+      return created;
+    }),
+
+  deletePlaybook: adminProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db.delete(playbooks).where(eq(playbooks.id, input.id));
+    }),
 
   upsertRoutingRule: adminProcedure
     .input(

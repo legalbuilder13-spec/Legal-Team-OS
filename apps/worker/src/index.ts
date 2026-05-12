@@ -5,6 +5,7 @@ import { env } from './env.js';
 import { handleTriageJob } from './handlers/triage.js';
 import { handleSlackNotifyJob } from './handlers/slack-notify.js';
 import { handleContextFetchJob } from './handlers/context-fetch.js';
+import { handleGenerateEmbeddingJob } from './handlers/generate-embedding.js';
 import { runSlaCheck } from './handlers/sla-check.js';
 import { runDailyDigest } from './handlers/daily-digest.js';
 
@@ -37,6 +38,9 @@ async function dispatch(job: Job) {
       break;
     case 'context_fetch':
       await handleContextFetchJob(db, job);
+      break;
+    case 'generate_embedding':
+      await handleGenerateEmbeddingJob(db, job);
       break;
     default:
       throw new Error(`unknown job kind: ${job.kind}`);

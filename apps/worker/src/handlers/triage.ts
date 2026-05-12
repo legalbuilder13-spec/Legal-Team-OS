@@ -7,6 +7,7 @@ import {
   auditLog,
   jobs,
   users,
+  playbooks,
   type Job,
 } from '@legal/db';
 import type { Db } from '@legal/db';
@@ -42,6 +43,35 @@ export async function handleTriageJob(db: Db, job: Job) {
     return;
   }
 
+  const activePlaybooks = await db
+    .select({
+      practice_area: playbooks.practiceArea,
+      title: playbooks.title,
+      body: playbooks.body,
+    })
+    .from(playbooks)
+    .where(eq(playbooks.isActive, true));
+
+  const searchText = matter.requestText.slice(0, 500);
+  const priorMattersResult = await db.execute(sql`
+    SELECT title, summary, practice_area, priority
+    FROM matters
+    WHERE status = 'closed'
+      AND to_tsvector('english', coalesce(title, '') || ' ' || coalesce(request_text, ''))
+          @@ plainto_tsquery('english', ${searchText})
+    ORDER BY ts_rank(
+      to_tsvector('english', coalesce(title, '') || ' ' || coalesce(request_text, '')),
+      plainto_tsquery('english', ${searchText})
+    ) DESC
+    LIMIT 3
+  `);
+  const priorMatters = priorMattersResult.rows as Array<{
+    title: string;
+    summary: string | null;
+    practice_area: string;
+    priority: string | null;
+  }>;
+
   const res = await fetch(`${env.AI_SERVICE_URL}/triage`, {
     method: 'POST',
     headers: {
@@ -52,6 +82,13 @@ export async function handleTriageJob(db: Db, job: Job) {
       matter_id: matter.id,
       request_text: matter.requestText,
       channel: 'slack',
+      playbooks: activePlaybooks,
+      prior_matters: priorMatters.map((pm) => ({
+        title: pm.title,
+        summary: pm.summary,
+        practice_area: pm.practice_area,
+        priority: pm.priority,
+      })),
     }),
   });
 
@@ -139,6 +176,12 @@ export async function handleTriageJob(db: Db, job: Job) {
       matter_id: matter.id,
       text: lines.join('\n'),
     },
+  });
+
+  await db.insert(jobs).values({
+    kind: 'generate_embedding',
+    matterId: matter.id,
+    payload: { matter_id: matter.id },
   });
 
   const requester = matter.requesterId

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { matters, matterNotes, matterEvents, users, auditLog, jobs } from '@legal/db';
+import { matters, matterNotes, matterEvents, users, auditLog, jobs, type Matter } from '@legal/db';
 import { MatterStatusSchema, PracticeAreaSchema, PrioritySchema } from '@legal/types';
 import { protectedProcedure, staffProcedure, router } from '../trpc.js';
 import { TRPCError } from '@trpc/server';
@@ -154,6 +154,37 @@ export const mattersRouter = router({
         details: { assigneeId: input.assigneeId },
       });
       return updated;
+    }),
+
+  similarMatters: staffProcedure
+    .input(z.object({ matterId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const matter = (await ctx.db.query.matters.findFirst({
+        where: eq(matters.id, input.matterId),
+      })) as Matter | undefined;
+      if (!matter?.embedding) return [];
+
+      const embeddingStr = `[${(matter.embedding as number[]).join(',')}]`;
+      const results = await ctx.db.execute(sql`
+        SELECT id, short_id, title, summary, practice_area, priority, closed_at,
+               round((1 - (embedding <=> ${embeddingStr}::vector))::numeric, 3) as similarity
+        FROM matters
+        WHERE id != ${input.matterId}
+          AND status = 'closed'
+          AND embedding IS NOT NULL
+        ORDER BY embedding <=> ${embeddingStr}::vector
+        LIMIT 5
+      `);
+      return results.rows as Array<{
+        id: string;
+        short_id: string;
+        title: string;
+        summary: string | null;
+        practice_area: string | null;
+        priority: string | null;
+        closed_at: string | null;
+        similarity: number;
+      }>;
     }),
 
   myQueue: protectedProcedure.query(async ({ ctx }) => {

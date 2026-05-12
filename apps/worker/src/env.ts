@@ -9,6 +9,7 @@ const Env = z.object({
   POLL_INTERVAL_MS: z.coerce.number().default(2000),
   DIGEST_CRON: z.string().default('0 9 * * 1-5'),
   DIGEST_TIMEZONE: z.string().default('America/Los_Angeles'),
+  OPENAI_API_KEY: z.string().optional(),
 });
 
 export const env = Env.parse(process.env);

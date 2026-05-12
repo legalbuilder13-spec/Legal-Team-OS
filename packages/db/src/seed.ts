@@ -6,6 +6,7 @@ import {
   matterEvents,
   counterparties,
   auditLog,
+  playbooks,
 } from './schema.js';
 import { getDb } from './client.js';
 
@@ -232,6 +233,61 @@ async function main() {
         payload: { slaDueAt },
         createdAt: breachAt,
       });
+    }
+  }
+
+  console.log('seeding playbooks…');
+  const samplePlaybooks = [
+    {
+      practiceArea: 'commercial' as const,
+      title: 'NDA & MSA Review Checklist',
+      body: `For all NDAs and MSAs, verify the following before routing to the requester:
+
+1. **Mutual vs. one-way** — Confirm which party receives confidential information. Default to mutual for vendor relationships.
+2. **Definition of "Confidential Information"** — Must exclude publicly available info, info independently developed, and info received from third parties without restriction.
+3. **Term and survival** — NDA term should not exceed 3 years; confidentiality obligations should survive termination for at least 2 years.
+4. **Permitted disclosures** — Confirm carve-outs for legal/regulatory disclosures with notice obligations.
+5. **Liability cap** — Flag any uncapped liability provisions for escalation to the GC.
+6. **Governing law** — Default to our jurisdiction unless a strong business reason exists for another.
+7. **Counterparty risk** — Check the counterparty table for any prior disputes or flagged history before signing off.`,
+      isActive: true,
+    },
+    {
+      practiceArea: 'employment' as const,
+      title: 'Contractor Classification Checklist',
+      body: `Before advising on any contractor or new hire arrangement, check the following:
+
+1. **State of engagement** — California, New York, and Massachusetts have stricter classification tests (ABC test in CA). Flag immediately if the worker is CA-based.
+2. **Control test** — Does the company control how the work is done, not just the result? If yes, lean employee.
+3. **Integration test** — Is this work integral to the company's core business? If yes, lean employee.
+4. **Duration** — Engagements over 12 months with the same contractor warrant reclassification review.
+5. **Exclusivity** — Exclusive arrangements signal employment. Flag any exclusivity clause for review.
+6. **Equity / benefits** — Contractors must not receive equity, benefits, or expense reimbursements without explicit legal sign-off.
+7. **IP assignment** — All contractor agreements must include a work-for-hire clause and IP assignment. Verify before countersigning.`,
+      isActive: true,
+    },
+    {
+      practiceArea: 'privacy' as const,
+      title: 'Data Subject Request (DSR) Response Protocol',
+      body: `For all incoming DSRs (GDPR Article 15-22, CCPA, etc.):
+
+1. **Identify the request type** — Access, deletion, portability, correction, or opt-out of sale. Each has a different response workflow.
+2. **Verify jurisdiction** — GDPR applies to EU/EEA residents (30-day SLA). CCPA applies to CA residents (45-day SLA). Log the jurisdiction in the matter.
+3. **Verify requester identity** — Do not respond to a DSR without identity verification. Use email confirmation or account login for internal systems.
+4. **Search scope** — Confirm with engineering which systems hold the requester's data: production DB, analytics, marketing tools, backups, third-party processors.
+5. **Processor notification** — If any sub-processors hold the data, they must be notified within 5 business days of our own response deadline.
+6. **Response template** — Use the approved response template in the Legal shared drive. Do not draft freehand.
+7. **Log the response** — Record the request date, response date, and outcome in the matter notes for audit purposes.`,
+      isActive: true,
+    },
+  ];
+
+  for (const pb of samplePlaybooks) {
+    const existing = await db.query.playbooks.findFirst({
+      where: eq(playbooks.title, pb.title),
+    });
+    if (!existing) {
+      await db.insert(playbooks).values({ ...pb, createdById: admin.id });
     }
   }
 

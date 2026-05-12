@@ -30,6 +30,9 @@ export default async function AuthedLayout({ children }: { children: React.React
               <div className="px-2 pt-3 pb-1 text-xs uppercase tracking-wide text-gray-400">
                 Admin
               </div>
+              <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/admin/playbooks">
+                Playbooks
+              </Link>
               <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/admin/routing">
                 Routing Rules
               </Link>
