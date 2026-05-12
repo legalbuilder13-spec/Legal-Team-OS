@@ -1,0 +1,39 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "NODE_ENV",
+    "DATABASE_URL",
+    "REDIS_URL",
+    "ANTHROPIC_API_KEY",
+    "SLACK_BOT_TOKEN",
+    "SLACK_SIGNING_SECRET",
+    "SLACK_APP_TOKEN",
+    "CLERK_SECRET_KEY",
+    "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+    "WEB_APP_URL",
+    "AI_SERVICE_URL",
+    "SALESFORCE_CLIENT_ID",
+    "SALESFORCE_CLIENT_SECRET",
+    "SALESFORCE_INSTANCE_URL"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    }
+  }
+}
