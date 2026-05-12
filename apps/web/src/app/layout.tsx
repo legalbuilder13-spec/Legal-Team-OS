@@ -5,7 +5,7 @@ import '@/styles/globals.css';
 
 export const metadata: Metadata = {
   title: 'Legal Team OS',
-  description: "Clipboard Health's legal workflow platform",
+  description: "Legal Builder's legal workflow platform",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

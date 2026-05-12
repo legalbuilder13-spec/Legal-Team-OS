@@ -1,6 +1,6 @@
 # Legal Team OS
 
-Clipboard Health's in-house Legal Workflow Orchestration Platform.
+Legal Builder's in-house Legal Workflow Orchestration Platform.
 
 V1 scope: Intake (Slack) → AI Triage → Context (Salesforce) → Matter Management (web app) → Notifications (Slack) → Insights. **No contract review in v1.**
 
@@ -30,7 +30,7 @@ packages/
 
 The bot is defined by `apps/bot/slack-app-manifest.yaml`. To install:
 
-1. Go to https://api.slack.com/apps → **Create New App** → **From manifest**, pick the Clipboard Health workspace.
+1. Go to https://api.slack.com/apps → **Create New App** → **From manifest**, pick the Legal Builder workspace.
 2. Paste the contents of `apps/bot/slack-app-manifest.yaml`.
 3. After creation, in **Basic Information** generate an **App-Level Token** with scope `connections:write` → that becomes `SLACK_APP_TOKEN`.
 4. **Install to workspace**. The Bot Token (`xoxb-…`) becomes `SLACK_BOT_TOKEN`, the Signing Secret becomes `SLACK_SIGNING_SECRET`.

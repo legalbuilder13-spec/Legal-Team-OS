@@ -7,7 +7,7 @@ describe('extractDomain', () => {
   });
 
   it('skips internal domains in the requester email', () => {
-    expect(extractDomain('jane@clipboardhealth.com', '')).toBeNull();
+    expect(extractDomain('jane@legalbuilder.com', '')).toBeNull();
   });
 
   it('falls back to scanning the request text for a domain', () => {
@@ -22,7 +22,7 @@ describe('extractDomain', () => {
 
   it('returns null when only internal domains appear', () => {
     expect(
-      extractDomain('jane@clipboardhealth.com', 'See clipboardhealth.com/docs'),
+      extractDomain('jane@legalbuilder.com', 'See legalbuilder.com/docs'),
     ).toBeNull();
   });
 
@@ -31,7 +31,7 @@ describe('extractDomain', () => {
   });
 
   it('exposes INTERNAL_DOMAINS as the configured allowlist', () => {
-    expect(INTERNAL_DOMAINS.has('clipboardhealth.com')).toBe(true);
+    expect(INTERNAL_DOMAINS.has('legalbuilder.com')).toBe(true);
     expect(INTERNAL_DOMAINS.has('acme.com')).toBe(false);
   });
 });

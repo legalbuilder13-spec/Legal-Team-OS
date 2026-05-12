@@ -1,5 +1,5 @@
 export const INTERNAL_DOMAINS = new Set([
-  'clipboardhealth.com',
+  'legalbuilder.com',
   'slack.local',
   'clerk.local',
 ]);
