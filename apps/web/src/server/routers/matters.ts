@@ -238,17 +238,51 @@ export const mattersRouter = router({
       const matter = (await ctx.db.query.matters.findFirst({
         where: eq(matters.id, input.matterId),
       })) as Matter | undefined;
-      if (!matter?.embedding) return [];
+      if (!matter) return [];
 
-      const embeddingStr = `[${(matter.embedding as number[]).join(',')}]`;
+      // Prefer pgvector cosine similarity when both source and candidates
+      // have embeddings. Fall back to tsvector when the source embedding is
+      // missing (e.g. just-created matter, embedding job pending, or
+      // OPENAI_API_KEY not set on the worker).
+      if (matter.embedding) {
+        const embeddingStr = `[${(matter.embedding as number[]).join(',')}]`;
+        const results = await ctx.db.execute(sql`
+          SELECT id, short_id, title, summary, practice_area, priority, closed_at,
+                 round((1 - (embedding <=> ${embeddingStr}::vector))::numeric, 3) as similarity
+          FROM matters
+          WHERE id != ${input.matterId}
+            AND embedding IS NOT NULL
+          ORDER BY embedding <=> ${embeddingStr}::vector
+          LIMIT 5
+        `);
+        const rows = results as unknown as Array<{
+          id: string;
+          short_id: string;
+          title: string;
+          summary: string | null;
+          practice_area: string | null;
+          priority: string | null;
+          closed_at: string | null;
+          similarity: number;
+        }>;
+        if (rows.length > 0) return rows;
+      }
+
+      // tsvector fallback — same shape as the pgvector path but populates
+      // `similarity` from ts_rank (different absolute range, but ordering
+      // is preserved). UI treats both as opaque relevance scores.
+      const searchText = matter.requestText.slice(0, 500);
       const results = await ctx.db.execute(sql`
         SELECT id, short_id, title, summary, practice_area, priority, closed_at,
-               round((1 - (embedding <=> ${embeddingStr}::vector))::numeric, 3) as similarity
+               round(ts_rank(
+                 to_tsvector('english', coalesce(title, '') || ' ' || coalesce(request_text, '')),
+                 plainto_tsquery('english', ${searchText})
+               )::numeric, 3) as similarity
         FROM matters
         WHERE id != ${input.matterId}
-          AND status = 'closed'
-          AND embedding IS NOT NULL
-        ORDER BY embedding <=> ${embeddingStr}::vector
+          AND to_tsvector('english', coalesce(title, '') || ' ' || coalesce(request_text, ''))
+              @@ plainto_tsquery('english', ${searchText})
+        ORDER BY similarity DESC
         LIMIT 5
       `);
       return results as unknown as Array<{
