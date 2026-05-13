@@ -39,6 +39,7 @@ export const MatterStatusSchema = z.enum([
 export type MatterStatus = z.infer<typeof MatterStatusSchema>;
 
 export * from './insight-card.js';
+export * from './rule-dsl.js';
 
 export const IntakePayloadSchema = z.object({
   source: z.literal('slack'),

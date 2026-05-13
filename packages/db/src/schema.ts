@@ -81,6 +81,7 @@ export const jobKind = pgEnum('job_kind', [
   'parse_document',
   'analyze_document_clauses',
   'analyze_clause',
+  'compile_rule',
   'sla_check',
   'daily_digest',
   'slack_notify',
@@ -136,6 +137,20 @@ export const clauseTag = pgEnum('clause_tag', [
   'STANDARD',
   'MODIFIED',
   'FLAGGED',
+]);
+
+export const ruleKind = pgEnum('rule_kind', [
+  'sla',
+  'routing',
+  'triage',
+  'playbook_trigger',
+]);
+
+export const ruleStatus = pgEnum('rule_status', [
+  'draft',
+  'shadow',
+  'active',
+  'archived',
 ]);
 
 export const executionPatternInputType = pgEnum('execution_pattern_input_type', [
@@ -565,6 +580,33 @@ export const matterDraftVersions = pgTable(
   },
   (t) => ({
     draftIdx: index('matter_draft_versions_draft_idx').on(t.draftId, t.versionNumber),
+  }),
+);
+
+export const rules = pgTable(
+  'rules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: ruleKind('kind').notNull(),
+    name: text('name').notNull(),
+    naturalText: text('natural_text').notNull(),
+    compiled: jsonb('compiled').$type<Record<string, unknown>>().notNull().default({}),
+    compileError: text('compile_error'),
+    scope: jsonb('scope').$type<Record<string, unknown>>().notNull().default({}),
+    priority: integer('priority').notNull().default(100),
+    status: ruleStatus('status').notNull().default('draft'),
+    supersedesId: uuid('supersedes_id'),
+    compilerVersion: text('compiler_version'),
+    compiledAt: timestamp('compiled_at', { withTimezone: true }),
+    activatedAt: timestamp('activated_at', { withTimezone: true }),
+    activatedById: uuid('activated_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    kindStatusIdx: index('rules_kind_status_idx').on(t.kind, t.status),
+    priorityIdx: index('rules_priority_idx').on(t.kind, t.priority),
   }),
 );
 

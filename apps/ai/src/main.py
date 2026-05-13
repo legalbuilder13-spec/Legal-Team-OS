@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, Header, HTTPException
 
 from .analyze_clause import AnalyzeClauseRequest, AnalyzeClauseResult, analyze_clause
+from .compile_rule import CompileRuleRequest, CompileRuleResult, compile_rule
 from .config import settings
 from .context.salesforce import lookup_counterparty
 from .enrich_counterparty import EnrichRequest, EnrichResult, enrich_counterparty
@@ -93,3 +94,18 @@ def post_analyze_clause(request: AnalyzeClauseRequest) -> AnalyzeClauseResult:
         len(request.positions),
     )
     return analyze_clause(request)
+
+
+@app.post(
+    "/compile-rule",
+    response_model=CompileRuleResult,
+    dependencies=[Depends(require_token)],
+)
+def post_compile_rule(request: CompileRuleRequest) -> CompileRuleResult:
+    logger.info(
+        "compile_rule rule_id=%s kind=%s text_len=%d",
+        request.rule_id,
+        request.kind,
+        len(request.natural_text),
+    )
+    return compile_rule(request)

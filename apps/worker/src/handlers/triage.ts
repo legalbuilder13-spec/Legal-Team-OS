@@ -10,6 +10,7 @@ import {
   playbooks,
   knowledgeArticles,
   escalations,
+  rules,
   type Job,
 } from '@legal/db';
 import type { Db } from '@legal/db';
@@ -17,6 +18,7 @@ import { DEFAULT_SLA_HOURS_BY_AREA, type PracticeArea, type Priority } from '@le
 import { env } from '../env.js';
 import { extractDomain } from '../utils.js';
 import { resolveCounterparty, recordAlias } from '../entity-resolution.js';
+import { findFirstMatch, type CompiledRule } from '../rule-evaluator.js';
 
 interface TriageResponse {
   matter_id: string;
@@ -225,11 +227,64 @@ export async function handleTriageJob(db: Db, job: Job) {
       `triage: no routing_rule for practice_area=${triage.practice_area} (matter=${matter.shortId}); using area-default SLA and leaving assignee unset`,
     );
   }
+
+  // PRD §12.1 NL-configured SLA rules. Active rules win over the structured
+  // routing_rules fallback below. Evaluation context exposes matter +
+  // counterparty fields by dotted path; see KIND_FIELD_HINTS in
+  // apps/ai/src/compile_rule.py for the full list.
+  const slaRules = await db
+    .select({ id: rules.id, compiled: rules.compiled, priority: rules.priority })
+    .from(rules)
+    .where(sql`${rules.kind} = 'sla' AND ${rules.status} = 'active'`)
+    .orderBy(rules.priority);
+  const cp = matter.counterpartyId
+    ? await db.query.counterparties.findFirst({
+        where: eq(counterparties.id, matter.counterpartyId),
+      })
+    : null;
+  const evalCtx = {
+    matter: {
+      practice_area: triage.practice_area,
+      priority: triage.priority,
+      counterparty_name: triage.counterparty_name ?? null,
+      counterparty_domain: extractDomain(null, matter.requestText),
+    },
+    counterparty: cp
+      ? {
+          industry: ((cp.metadata as Record<string, unknown> | null)?.industry as string) ?? null,
+          annual_revenue:
+            ((cp.metadata as Record<string, unknown> | null)?.annualRevenue as number) ?? null,
+        }
+      : {},
+  };
+  const slaMatch = findFirstMatch(
+    slaRules.map((r) => ({
+      id: r.id,
+      compiled: r.compiled as unknown as CompiledRule,
+    })),
+    evalCtx,
+  );
+
+  const slaHoursFromRule =
+    slaMatch.action && typeof slaMatch.action['sla_hours'] === 'number'
+      ? (slaMatch.action['sla_hours'] as number)
+      : null;
+
   const slaHours =
+    slaHoursFromRule ??
     rule?.slaHours ??
     DEFAULT_SLA_HOURS_BY_AREA[triage.practice_area] ??
     SLA_HOURS_BY_PRIORITY[triage.priority] ??
     48;
+
+  if (slaMatch.matchedRuleId) {
+    await db.insert(auditLog).values({
+      actorKind: 'system',
+      matterId: matter.id,
+      action: 'matter.sla_rule_matched',
+      details: { ruleId: slaMatch.matchedRuleId, slaHours: slaHoursFromRule },
+    });
+  }
   const slaDueAt = new Date(Date.now() + slaHours * 3600 * 1000);
 
   await db
