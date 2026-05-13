@@ -1,5 +1,10 @@
 import { eq, sql } from 'drizzle-orm';
 import { matters, auditLog, type Db, type Job } from '@legal/db';
+import {
+  computeStaleAfter,
+  type InsightCard,
+  type InsightCardPrimaryField,
+} from '@legal/types';
 
 interface ContextFetchPayload {
   matter_id: string;
@@ -19,8 +24,8 @@ interface SimilarMatterRow {
 
 // Per-source sub-handler enqueued by the context_fetch coordinator. Searches
 // prior matters by request-text similarity (tsvector for now; will switch to
-// pgvector once A1 lands and embeddings are populated) and writes the top
-// matches into matters.context.similar_matters.
+// pgvector once A1 populates embeddings) and writes the top matches into
+// matters.context.similar_matters as an InsightCard.
 export async function handleContextFetchSimilarMattersJob(db: Db, job: Job) {
   const payload = job.payload as unknown as ContextFetchPayload;
   const matter = await db.query.matters.findFirst({
@@ -54,10 +59,30 @@ export async function handleContextFetchSimilarMattersJob(db: Db, job: Job) {
   `);
   const rows = result as unknown as SimilarMatterRow[];
 
-  const card = {
-    source: 'similar_matters' as const,
-    fetched_at: new Date().toISOString(),
-    data: {
+  const top = rows[0];
+  const primary: InsightCardPrimaryField[] = [];
+  let summary: string;
+
+  if (rows.length === 0) {
+    summary = 'No similar prior matters found.';
+  } else {
+    primary.push({ label: 'Matches', value: rows.length });
+    if (top?.practice_area) {
+      primary.push({ label: 'Top area', value: top.practice_area });
+    }
+    summary = top?.title
+      ? `${rows.length} similar matter${rows.length === 1 ? '' : 's'} — closest: ${top.title}.`
+      : `${rows.length} similar prior matter${rows.length === 1 ? '' : 's'}.`;
+  }
+
+  const card: InsightCard = {
+    source: 'similar_matters',
+    fetchedAt: new Date().toISOString(),
+    staleAfter: computeStaleAfter('similar_matters'),
+    primary,
+    summary,
+    drilldownUrl: top ? `/matters/${top.id}` : undefined,
+    raw: {
       matters: rows.map((r) => ({
         id: r.id,
         shortId: r.short_id,

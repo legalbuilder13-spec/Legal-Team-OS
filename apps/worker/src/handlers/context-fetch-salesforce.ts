@@ -1,5 +1,10 @@
 import { eq } from 'drizzle-orm';
 import { matters, counterparties, auditLog, type Db, type Job } from '@legal/db';
+import {
+  computeStaleAfter,
+  type InsightCard,
+  type InsightCardPrimaryField,
+} from '@legal/types';
 import { env } from '../env.js';
 import { hostnameFromWebsite } from '../utils.js';
 
@@ -9,7 +14,7 @@ interface ContextFetchPayload {
   counterparty_domain?: string | null;
 }
 
-interface ContextCardResponse {
+interface LegacyContextCardResponse {
   source: 'salesforce' | 'slack_history' | 'manual';
   fetched_at: string;
   data: Record<string, unknown>;
@@ -25,8 +30,8 @@ interface SalesforceAccountRecord {
 }
 
 // Per-source sub-handler enqueued by the context_fetch coordinator. Calls
-// the AI service /context endpoint (which currently only queries Salesforce)
-// and writes the result into matters.context.salesforce.
+// the AI service /context endpoint (which queries Salesforce) and writes
+// the result as an InsightCard into matters.context.salesforce.
 export async function handleContextFetchSalesforceJob(db: Db, job: Job) {
   const payload = job.payload as unknown as ContextFetchPayload;
   if (!payload.counterparty_name && !payload.counterparty_domain) {
@@ -51,8 +56,8 @@ export async function handleContextFetchSalesforceJob(db: Db, job: Job) {
     throw new Error(`context fetch (salesforce) failed: ${res.status} ${body}`);
   }
 
-  const card = (await res.json()) as ContextCardResponse | null;
-  if (!card) return;
+  const legacy = (await res.json()) as LegacyContextCardResponse | null;
+  if (!legacy) return;
 
   const matter = await db.query.matters.findFirst({
     where: eq(matters.id, payload.matter_id),
@@ -61,18 +66,45 @@ export async function handleContextFetchSalesforceJob(db: Db, job: Job) {
     throw new Error(`matter ${payload.matter_id} not found`);
   }
 
+  const records = (legacy.data?.records as SalesforceAccountRecord[] | undefined) ?? [];
+  const top = records[0];
+
+  const primary: InsightCardPrimaryField[] = [];
+  let summary: string;
+  if (records.length === 0) {
+    summary = `No Salesforce accounts matched ${payload.counterparty_name ?? payload.counterparty_domain}.`;
+  } else if (records.length === 1 && top) {
+    if (top.Industry) primary.push({ label: 'Industry', value: top.Industry });
+    if (top.AnnualRevenue != null) {
+      primary.push({ label: 'Revenue', value: `$${top.AnnualRevenue.toLocaleString()}` });
+    }
+    if (top.Owner?.Name) primary.push({ label: 'SF Owner', value: top.Owner.Name });
+    if (top.Website) primary.push({ label: 'Website', value: top.Website });
+    summary = `Salesforce account: ${top.Name}.`;
+  } else {
+    primary.push({ label: 'Matches', value: records.length });
+    summary = `${records.length} Salesforce accounts matched — likely needs manual disambiguation.`;
+  }
+
+  const card: InsightCard = {
+    source: 'salesforce',
+    fetchedAt: legacy.fetched_at,
+    staleAfter: computeStaleAfter('salesforce'),
+    primary,
+    summary,
+    raw: { records, configured: legacy.data?.configured ?? true },
+  };
+
   const existingContext = (matter.context ?? {}) as Record<string, unknown>;
   await db
     .update(matters)
     .set({
-      context: { ...existingContext, [card.source]: card },
+      context: { ...existingContext, salesforce: card },
       updatedAt: new Date(),
     })
     .where(eq(matters.id, matter.id));
 
-  const records = (card.data?.records as SalesforceAccountRecord[] | undefined) ?? [];
-  if (records.length === 1 && matter.counterpartyId) {
-    const top = records[0]!;
+  if (records.length === 1 && top && matter.counterpartyId) {
     await db
       .update(counterparties)
       .set({
@@ -92,6 +124,6 @@ export async function handleContextFetchSalesforceJob(db: Db, job: Job) {
     actorKind: 'system',
     matterId: matter.id,
     action: 'matter.context_fetched',
-    details: { source: card.source, recordCount: records.length },
+    details: { source: 'salesforce', recordCount: records.length },
   });
 }
