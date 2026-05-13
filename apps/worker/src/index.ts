@@ -25,9 +25,12 @@ async function claimNextJob(): Promise<Job | null> {
       FOR UPDATE SKIP LOCKED
       LIMIT 1
     )
-    RETURNING *
+    RETURNING id
   `);
-  return (result[0] as Job | undefined) ?? null;
+  const id = (result[0] as { id?: string } | undefined)?.id;
+  if (!id) return null;
+  const job = await db.query.jobs.findFirst({ where: eq(jobs.id, id) });
+  return job ?? null;
 }
 
 async function dispatch(job: Job) {
