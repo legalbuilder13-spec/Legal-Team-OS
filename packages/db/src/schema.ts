@@ -186,7 +186,7 @@ export const matters = pgTable(
     slaDueAt: timestamp('sla_due_at', { withTimezone: true }),
     triageMetadata: jsonb('triage_metadata').$type<Record<string, unknown>>().default({}),
     context: jsonb('context').$type<Record<string, unknown>>().default({}),
-    embedding: vector(1536)('embedding'),
+    embedding: vector(1024)('embedding'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
     closedAt: timestamp('closed_at', { withTimezone: true }),

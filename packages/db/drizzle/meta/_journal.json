@@ -43,6 +43,13 @@
       "when": 1747440000000,
       "tag": "0005_context_fanout",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1747526400000,
+      "tag": "0006_voyage_embeddings",
+      "breakpoints": true
     }
   ]
 }
