@@ -236,15 +236,16 @@ export async function handleTriageJob(db: Db, job: Job) {
     ? await db.query.users.findFirst({ where: eq(users.id, matter.requesterId) })
     : null;
   const domain = extractDomain(requester?.email ?? null, matter.requestText);
-  if (triage.counterparty_name || domain) {
-    await db.insert(jobs).values({
-      kind: 'context_fetch',
-      matterId: matter.id,
-      payload: {
-        matter_id: matter.id,
-        counterparty_name: triage.counterparty_name,
-        counterparty_domain: domain,
-      },
-    });
-  }
+  // The context_fetch coordinator decides which sub-jobs to enqueue based on
+  // payload. Similar-matters search runs regardless of counterparty, so we
+  // always enqueue the coordinator (it's cheap — just inserts sub-jobs).
+  await db.insert(jobs).values({
+    kind: 'context_fetch',
+    matterId: matter.id,
+    payload: {
+      matter_id: matter.id,
+      counterparty_name: triage.counterparty_name,
+      counterparty_domain: domain,
+    },
+  });
 }

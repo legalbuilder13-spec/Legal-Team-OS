@@ -5,6 +5,8 @@ import { env } from './env.js';
 import { handleTriageJob } from './handlers/triage.js';
 import { handleSlackNotifyJob } from './handlers/slack-notify.js';
 import { handleContextFetchJob } from './handlers/context-fetch.js';
+import { handleContextFetchSalesforceJob } from './handlers/context-fetch-salesforce.js';
+import { handleContextFetchSimilarMattersJob } from './handlers/context-fetch-similar-matters.js';
 import { handleGenerateEmbeddingJob } from './handlers/generate-embedding.js';
 import { handleEnrichCounterpartyMemoryJob } from './handlers/enrich-counterparty-memory.js';
 import { runSlaCheck } from './handlers/sla-check.js';
@@ -44,6 +46,12 @@ async function dispatch(job: Job) {
       break;
     case 'context_fetch':
       await handleContextFetchJob(db, job);
+      break;
+    case 'context_fetch_salesforce':
+      await handleContextFetchSalesforceJob(db, job);
+      break;
+    case 'context_fetch_similar_matters':
+      await handleContextFetchSimilarMattersJob(db, job);
       break;
     case 'generate_embedding':
       await handleGenerateEmbeddingJob(db, job);

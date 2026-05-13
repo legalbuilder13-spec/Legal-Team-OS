@@ -73,6 +73,8 @@ export const jobStatus = pgEnum('job_status', [
 export const jobKind = pgEnum('job_kind', [
   'triage',
   'context_fetch',
+  'context_fetch_salesforce',
+  'context_fetch_similar_matters',
   'sla_check',
   'daily_digest',
   'slack_notify',
