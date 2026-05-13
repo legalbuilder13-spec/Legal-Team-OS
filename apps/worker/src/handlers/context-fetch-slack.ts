@@ -15,13 +15,13 @@ interface ContextFetchPayload {
   counterparty_domain?: string | null;
 }
 
-// Per-source sub-handler enqueued by the context_fetch coordinator. Reuses
-// the existing SLACK_BOT_TOKEN (provisioned for the /legal intake bot) +
-// the search:read scope. The bot sees what it has access to: public
-// channels plus private channels where it's a member.
+// Per-source sub-handler enqueued by the context_fetch coordinator. Uses
+// SLACK_USER_TOKEN — search.messages is a user-token-only Slack API
+// (bot tokens cannot search). Search runs under the installer's identity
+// and returns only messages they have access to.
 export async function handleContextFetchSlackJob(db: Db, job: Job) {
-  if (!env.SLACK_BOT_TOKEN) {
-    console.log('context_fetch_slack: SLACK_BOT_TOKEN not set, skipping');
+  if (!env.SLACK_USER_TOKEN) {
+    console.log('context_fetch_slack: SLACK_USER_TOKEN not set, skipping');
     return;
   }
 
@@ -63,7 +63,7 @@ export async function handleContextFetchSlackJob(db: Db, job: Job) {
 
   let result;
   try {
-    result = await searchSlackMessages(env.SLACK_BOT_TOKEN, query, 10);
+    result = await searchSlackMessages(env.SLACK_USER_TOKEN, query, 10);
   } catch (err) {
     // Treat missing_scope as a configuration issue, not a job failure —
     // emit an explanatory card so the attorney sees Slack was checked
@@ -76,7 +76,7 @@ export async function handleContextFetchSlackJob(db: Db, job: Job) {
         staleAfter: computeStaleAfter('slack'),
         primary: [],
         summary:
-          'Slack search not enabled — add the search:read scope to the bot in the Slack app settings.',
+          'Slack search not enabled — add search:read to User Token Scopes in the Slack app and set SLACK_USER_TOKEN.',
       };
       const existingContext = (matter.context ?? {}) as Record<string, unknown>;
       await db
