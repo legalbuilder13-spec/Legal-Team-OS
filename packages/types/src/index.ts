@@ -38,6 +38,8 @@ export const MatterStatusSchema = z.enum([
 ]);
 export type MatterStatus = z.infer<typeof MatterStatusSchema>;
 
+export * from './insight-card.js';
+
 export const IntakePayloadSchema = z.object({
   source: z.literal('slack'),
   slackUserId: z.string().min(1),
