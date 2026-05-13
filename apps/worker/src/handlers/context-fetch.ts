@@ -1,7 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { matters, counterparties, auditLog, type Db, type Job } from '@legal/db';
-import { env } from '../env.js';
-import { hostnameFromWebsite } from '../utils.js';
+import { matters, jobs, auditLog, type Db, type Job } from '@legal/db';
 
 interface ContextFetchPayload {
   matter_id: string;
@@ -9,48 +7,13 @@ interface ContextFetchPayload {
   counterparty_domain?: string | null;
 }
 
-interface ContextCardResponse {
-  source: 'salesforce' | 'slack_history' | 'manual';
-  fetched_at: string;
-  data: Record<string, unknown>;
-}
-
-interface SalesforceAccountRecord {
-  Id: string;
-  Name: string;
-  Website?: string | null;
-  Industry?: string | null;
-  AnnualRevenue?: number | null;
-  Owner?: { Name?: string } | null;
-}
-
+// The original monolithic context_fetch handler is now a fan-out coordinator:
+// it enqueues per-source sub-jobs and returns immediately. Each sub-job writes
+// its own card into matters.context keyed by source. Slow sources can no
+// longer block fast ones, and new sources (notion, slack, drive) plug in by
+// adding a new sub-job kind here.
 export async function handleContextFetchJob(db: Db, job: Job) {
   const payload = job.payload as unknown as ContextFetchPayload;
-  if (!payload.counterparty_name && !payload.counterparty_domain) {
-    return;
-  }
-
-  const res = await fetch(`${env.AI_SERVICE_URL}/context`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(env.AI_SERVICE_TOKEN ? { authorization: `Bearer ${env.AI_SERVICE_TOKEN}` } : {}),
-    },
-    body: JSON.stringify({
-      matter_id: payload.matter_id,
-      counterparty_name: payload.counterparty_name ?? null,
-      counterparty_domain: payload.counterparty_domain ?? null,
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`context fetch failed: ${res.status} ${body}`);
-  }
-
-  const card = (await res.json()) as ContextCardResponse | null;
-  if (!card) return;
-
   const matter = await db.query.matters.findFirst({
     where: eq(matters.id, payload.matter_id),
   });
@@ -58,37 +21,36 @@ export async function handleContextFetchJob(db: Db, job: Job) {
     throw new Error(`matter ${payload.matter_id} not found`);
   }
 
-  const existingContext = (matter.context ?? {}) as Record<string, unknown>;
-  await db
-    .update(matters)
-    .set({
-      context: { ...existingContext, [card.source]: card },
-      updatedAt: new Date(),
-    })
-    .where(eq(matters.id, matter.id));
+  const subJobs: Array<{ kind: 'context_fetch_salesforce' | 'context_fetch_similar_matters'; reason: string }> = [];
 
-  const records = (card.data?.records as SalesforceAccountRecord[] | undefined) ?? [];
-  if (records.length === 1 && matter.counterpartyId) {
-    const top = records[0]!;
-    await db
-      .update(counterparties)
-      .set({
-        salesforceAccountId: top.Id,
-        domain: hostnameFromWebsite(top.Website),
-        metadata: {
-          industry: top.Industry ?? null,
-          annualRevenue: top.AnnualRevenue ?? null,
-          ownerName: top.Owner?.Name ?? null,
-        },
-        updatedAt: new Date(),
-      })
-      .where(eq(counterparties.id, matter.counterpartyId));
+  if (payload.counterparty_name || payload.counterparty_domain) {
+    subJobs.push({ kind: 'context_fetch_salesforce', reason: 'counterparty present' });
+  }
+
+  // Similar-matters context is useful regardless of counterparty — searches
+  // by request text against prior closed matters.
+  subJobs.push({ kind: 'context_fetch_similar_matters', reason: 'always' });
+
+  for (const sub of subJobs) {
+    await db.insert(jobs).values({
+      kind: sub.kind,
+      matterId: matter.id,
+      payload: {
+        matter_id: matter.id,
+        counterparty_name: payload.counterparty_name ?? null,
+        counterparty_domain: payload.counterparty_domain ?? null,
+      },
+    });
   }
 
   await db.insert(auditLog).values({
     actorKind: 'system',
     matterId: matter.id,
-    action: 'matter.context_fetched',
-    details: { source: card.source, recordCount: records.length },
+    action: 'matter.context_fanout',
+    details: {
+      enqueued: subJobs.map((s) => s.kind),
+      counterpartyName: payload.counterparty_name ?? null,
+      counterpartyDomain: payload.counterparty_domain ?? null,
+    },
   });
 }
