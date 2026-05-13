@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { matters, users, type Db, type Job } from '@legal/db';
-import { env } from '../env';
+import { env } from '../env.js';
 
 interface SlackNotifyPayload {
   channel?: string;

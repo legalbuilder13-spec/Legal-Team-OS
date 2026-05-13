@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { matters, users, type Db, type User } from '@legal/db';
-import { env } from '../env';
-import { bucketBySla, type AttorneyMatter } from '../utils';
+import { env } from '../env.js';
+import { bucketBySla, type AttorneyMatter } from '../utils.js';
 
 function renderDigest(attorney: User, items: AttorneyMatter[]): string {
   const { overdue, dueToday, dueThisWeek, noSla } = bucketBySla(items);

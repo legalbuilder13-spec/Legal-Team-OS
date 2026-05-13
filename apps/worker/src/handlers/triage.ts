@@ -13,8 +13,8 @@ import {
 } from '@legal/db';
 import type { Db } from '@legal/db';
 import type { PracticeArea, Priority } from '@legal/types';
-import { env } from '../env';
-import { extractDomain } from '../utils';
+import { env } from '../env.js';
+import { extractDomain } from '../utils.js';
 
 interface TriageResponse {
   matter_id: string;

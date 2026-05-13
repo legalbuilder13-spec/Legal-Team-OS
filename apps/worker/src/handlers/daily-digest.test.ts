@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bucketBySla, type AttorneyMatter } from '../utils';
+import { bucketBySla, type AttorneyMatter } from '../utils.js';
 
 function matter(slaOffsetHours: number | null, id = 'm1'): AttorneyMatter {
   return {

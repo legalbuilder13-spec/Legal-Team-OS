@@ -1,5 +1,5 @@
 import type { IntakePayload } from '@legal/types';
-import { env } from './env';
+import { env } from './env.js';
 
 export interface IntakeResponse {
   matterId: string;

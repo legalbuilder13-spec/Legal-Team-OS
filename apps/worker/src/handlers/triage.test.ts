@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractDomain, INTERNAL_DOMAINS } from '../utils';
+import { extractDomain, INTERNAL_DOMAINS } from '../utils.js';
 
 describe('extractDomain', () => {
   it('returns the requester email domain when external', () => {
