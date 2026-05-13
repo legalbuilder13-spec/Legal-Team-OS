@@ -10,6 +10,7 @@ import { handleEnrichCounterpartyMemoryJob } from './handlers/enrich-counterpart
 import { runSlaCheck } from './handlers/sla-check.js';
 import { runDailyDigest } from './handlers/daily-digest.js';
 import { runPortfolioAnalysis } from './handlers/analyze-portfolio.js';
+import { isPermanentJobError } from './utils.js';
 
 const db = getDb();
 const MAX_ATTEMPTS = 5;
@@ -70,8 +71,12 @@ async function pollOnce() {
       .where(eq(jobs.id, job.id));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`job ${job.id} (${job.kind}) failed (attempt ${job.attempts}/${MAX_ATTEMPTS}):`, message);
-    const failed = job.attempts >= MAX_ATTEMPTS;
+    const permanent = isPermanentJobError(err);
+    console.error(
+      `job ${job.id} (${job.kind}) failed${permanent ? ' [permanent]' : ''} (attempt ${job.attempts}/${MAX_ATTEMPTS}):`,
+      message,
+    );
+    const failed = permanent || job.attempts >= MAX_ATTEMPTS;
     await db
       .update(jobs)
       .set({

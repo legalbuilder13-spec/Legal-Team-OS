@@ -4,6 +4,18 @@ export const INTERNAL_DOMAINS = new Set([
   'clerk.local',
 ]);
 
+export class PermanentJobError extends Error {
+  readonly permanent = true as const;
+  constructor(message: string) {
+    super(message);
+    this.name = 'PermanentJobError';
+  }
+}
+
+export function isPermanentJobError(err: unknown): boolean {
+  return err instanceof Error && (err as { permanent?: boolean }).permanent === true;
+}
+
 export function extractDomain(
   requesterEmail: string | null,
   requestText: string,

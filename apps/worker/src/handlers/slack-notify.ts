@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { matters, users, type Db, type Job } from '@legal/db';
 import { env } from '../env.js';
+import { PermanentJobError } from '../utils.js';
 
 interface SlackNotifyPayload {
   channel?: string;
@@ -8,6 +9,20 @@ interface SlackNotifyPayload {
   matter_id?: string;
   text: string;
 }
+
+const PERMANENT_SLACK_ERRORS = new Set([
+  'channel_not_found',
+  'user_not_found',
+  'not_in_channel',
+  'is_archived',
+  'invalid_auth',
+  'account_inactive',
+  'token_revoked',
+  'no_permission',
+  'channel_is_archived',
+  'msg_too_long',
+  'invalid_arg_name',
+]);
 
 async function postSlackMessage(channel: string, text: string, thread_ts?: string | null) {
   if (!env.SLACK_BOT_TOKEN) {
@@ -23,7 +38,13 @@ async function postSlackMessage(channel: string, text: string, thread_ts?: strin
     body: JSON.stringify({ channel, text, thread_ts: thread_ts ?? undefined }),
   });
   const body = (await res.json()) as { ok: boolean; error?: string };
-  if (!body.ok) throw new Error(`slack chat.postMessage failed: ${body.error}`);
+  if (!body.ok) {
+    const err = body.error ?? 'unknown';
+    if (PERMANENT_SLACK_ERRORS.has(err)) {
+      throw new PermanentJobError(`slack chat.postMessage failed (permanent): ${err}`);
+    }
+    throw new Error(`slack chat.postMessage failed: ${err}`);
+  }
 }
 
 async function resolveFromMatter(db: Db, matterId: string) {
