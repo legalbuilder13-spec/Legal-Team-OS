@@ -184,7 +184,7 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
             </div>
           )}
 
-          {(matter.triageMetadata as Record<string, unknown> | null)?.reasoning && (
+          {Boolean((matter.triageMetadata as Record<string, unknown> | null)?.reasoning) && (
             <div className="bg-white border rounded-lg p-4">
               <h2 className="font-medium mb-2">AI Reasoning</h2>
               <p className="text-sm text-gray-600 italic">

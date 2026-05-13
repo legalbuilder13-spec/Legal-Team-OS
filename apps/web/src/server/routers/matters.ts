@@ -251,7 +251,7 @@ export const mattersRouter = router({
         ORDER BY embedding <=> ${embeddingStr}::vector
         LIMIT 5
       `);
-      return results.rows as Array<{
+      return results as unknown as Array<{
         id: string;
         short_id: string;
         title: string;
