@@ -158,6 +158,17 @@ export const counterparties = pgTable(
         commonRedlines?: string[];
         escalationTriggers?: string[];
         typicalPositions?: string[];
+        // D2 LLM-extracted fields
+        negotiationPositions?: Array<{
+          topic: string;
+          theirPosition: string | null;
+          ourPosition: string | null;
+          lastOutcome: string | null;
+        }>;
+        responseLatencyDays?: number | null;
+        escalationFrequency?: number;
+        executiveInvolvement?: 'high' | 'medium' | 'low' | 'unknown';
+        lastEnrichedAt?: string;
       }>()
       .default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

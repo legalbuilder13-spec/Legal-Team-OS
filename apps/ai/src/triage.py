@@ -131,6 +131,23 @@ def build_user_prompt(request: TriageRequest) -> str:
             parts.append("Typical positions they take:")
             for p in cm.typical_positions:
                 parts.append(f"  - {p}")
+        if cm.negotiation_positions:
+            parts.append("Negotiation positions (from LLM-extracted history):")
+            for np in cm.negotiation_positions:
+                line = f"  - {np.topic}"
+                if np.their_position:
+                    line += f" (theirs: {np.their_position})"
+                if np.our_position:
+                    line += f" (ours: {np.our_position})"
+                if np.last_outcome:
+                    line += f" → last outcome: {np.last_outcome}"
+                parts.append(line)
+        if cm.response_latency_days is not None:
+            parts.append(f"Typical response latency: {cm.response_latency_days:.1f} days")
+        if cm.escalation_frequency is not None:
+            parts.append(f"Escalation frequency: {cm.escalation_frequency * 100:.0f}% of past matters")
+        if cm.executive_involvement and cm.executive_involvement != "unknown":
+            parts.append(f"Executive involvement: {cm.executive_involvement}")
 
     if request.prior_matters:
         parts.append("")
