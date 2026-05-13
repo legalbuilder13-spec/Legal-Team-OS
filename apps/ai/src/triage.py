@@ -22,6 +22,15 @@ Classification rules:
   - ip: trademarks, copyrights, patents, IP licensing
   - real_estate: leases, property matters
   - other: anything that doesn't cleanly fit above
+
+  Posture override: if the request involves an active dispute, demand letter, \
+subpoena, threatened lawsuit, threatened agency filing (PAGA, EEOC, NLRB, state \
+AG, etc.), regulatory investigation, or a "respond by X or we will file" \
+posture, classify as `litigation` even if the underlying subject would otherwise \
+fit elsewhere (employment, IP, privacy, etc.). The litigation team owns \
+adversarial postures across all subject areas; subject-matter attorneys consult \
+as needed. Classify under the underlying subject only when the request is \
+purely advisory and not adversarial.
 - priority:
   - high: time-sensitive, executive-flagged, ongoing dispute, hard deadline within 3 business days, \
 or revenue-blocking

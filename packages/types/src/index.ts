@@ -16,6 +16,18 @@ export type PracticeArea = z.infer<typeof PracticeAreaSchema>;
 export const PrioritySchema = z.enum(['high', 'medium', 'low']);
 export type Priority = z.infer<typeof PrioritySchema>;
 
+export const DEFAULT_SLA_HOURS_BY_AREA: Record<PracticeArea, number> = {
+  commercial: 48,
+  employment: 24,
+  privacy: 24,
+  litigation: 8,
+  corporate: 72,
+  regulatory: 48,
+  ip: 72,
+  real_estate: 72,
+  other: 48,
+};
+
 export const MatterStatusSchema = z.enum([
   'open',
   'in_review',

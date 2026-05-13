@@ -2,21 +2,13 @@
 
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
-import { PracticeAreaSchema, type PracticeArea } from '@legal/types';
+import {
+  DEFAULT_SLA_HOURS_BY_AREA as DEFAULT_SLA,
+  PracticeAreaSchema,
+  type PracticeArea,
+} from '@legal/types';
 
 const PRACTICE_AREAS = PracticeAreaSchema.options;
-
-const DEFAULT_SLA: Record<PracticeArea, number> = {
-  commercial: 48,
-  employment: 24,
-  privacy: 24,
-  litigation: 8,
-  corporate: 72,
-  regulatory: 48,
-  ip: 72,
-  real_estate: 72,
-  other: 48,
-};
 
 export default function AdminRoutingPage() {
   const { data: rules, refetch } = trpc.admin.listRoutingRules.useQuery();

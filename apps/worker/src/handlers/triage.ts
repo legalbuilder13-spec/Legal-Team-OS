@@ -12,7 +12,7 @@ import {
   type Job,
 } from '@legal/db';
 import type { Db } from '@legal/db';
-import type { PracticeArea, Priority } from '@legal/types';
+import { DEFAULT_SLA_HOURS_BY_AREA, type PracticeArea, type Priority } from '@legal/types';
 import { env } from '../env.js';
 import { extractDomain } from '../utils.js';
 
@@ -157,7 +157,16 @@ export async function handleTriageJob(db: Db, job: Job) {
   const rule = await db.query.routingRules.findFirst({
     where: eq(routingRules.practiceArea, triage.practice_area),
   });
-  const slaHours = rule?.slaHours ?? SLA_HOURS_BY_PRIORITY[triage.priority] ?? 48;
+  if (!rule) {
+    console.warn(
+      `triage: no routing_rule for practice_area=${triage.practice_area} (matter=${matter.shortId}); using area-default SLA and leaving assignee unset`,
+    );
+  }
+  const slaHours =
+    rule?.slaHours ??
+    DEFAULT_SLA_HOURS_BY_AREA[triage.practice_area] ??
+    SLA_HOURS_BY_PRIORITY[triage.priority] ??
+    48;
   const slaDueAt = new Date(Date.now() + slaHours * 3600 * 1000);
 
   await db
