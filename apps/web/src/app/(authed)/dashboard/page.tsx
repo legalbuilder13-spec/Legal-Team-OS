@@ -1,13 +1,29 @@
 'use client';
 
 import Link from 'next/link';
+import { useUser } from '@clerk/nextjs';
 import { trpc } from '@/lib/trpc';
 
 const KIND_LABEL: Record<string, string> = {
-  triaged: 'triaged',
+  triaged: 'AI triaged',
   'status.changed': 'status changed',
   assigned: 'assigned',
   'sla.breached': 'SLA breached',
+  'note.added': 'note added',
+  'draft.created': 'draft started',
+  'draft.updated': 'draft updated',
+  'escalation.created': 'escalated',
+  'escalation.acknowledged': 'escalation ack',
+  'escalation.resolved': 'escalation resolved',
+  'notion.saved': 'saved to Notion',
+  'drive.saved': 'saved to Drive',
+};
+
+const PRIORITY_COLOR: Record<string, string> = {
+  urgent: 'bg-red-100 text-red-800',
+  high: 'bg-orange-100 text-orange-800',
+  medium: 'bg-amber-100 text-amber-800',
+  low: 'bg-gray-100 text-gray-700',
 };
 
 const SEVERITY_STYLE: Record<string, string> = {
@@ -17,11 +33,15 @@ const SEVERITY_STYLE: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-  const { data: summary } = trpc.dashboard.summary.useQuery();
-  const { data: cycle } = trpc.dashboard.cycleTime.useQuery();
-  const { data: trend } = trpc.dashboard.breachTrend.useQuery();
-  const { data: attorneys } = trpc.dashboard.byAttorney.useQuery();
-  const { data: activity } = trpc.dashboard.recentActivity.useQuery();
+  const { user } = useUser();
+  const { data: mine, isLoading } = trpc.dashboard.mine.useQuery();
+  const { data: escalations = [], refetch: refetchEsc } = trpc.escalations.list.useQuery({
+    status: 'open',
+    mineOnly: true,
+    limit: 5,
+  });
+  const ackEsc = trpc.escalations.acknowledge.useMutation({ onSuccess: () => refetchEsc() });
+
   const { data: insights = [], refetch: refetchInsights } = trpc.admin.listInsights.useQuery({
     status: 'active',
   });
@@ -29,190 +49,266 @@ export default function DashboardPage() {
     onSuccess: () => refetchInsights(),
   });
 
-  const openCount =
-    summary?.byStatus
-      .filter((s) => s.status !== 'closed' && s.status !== 'cancelled')
-      .reduce((acc, s) => acc + s.count, 0) ?? 0;
-  const closedCount = summary?.byStatus.find((s) => s.status === 'closed')?.count ?? 0;
-
-  const trendDelta = (trend?.current ?? 0) - (trend?.prior ?? 0);
+  const firstName = user?.firstName ?? null;
+  const stats = mine?.stats;
 
   return (
-    <div className="max-w-6xl">
-      <h1 className="text-2xl font-semibold mb-6">Dashboard</h1>
+    <div className="max-w-7xl">
+      <header className="mb-6">
+        <h1 className="text-2xl font-semibold">
+          {firstName ? `Welcome back, ${firstName}` : 'Dashboard'}
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Your queue, drafts, and escalations at a glance.
+        </p>
+      </header>
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-4 gap-3 mb-6">
         <StatCard
-          label="SLA breaches"
-          value={summary?.slaBreaches ?? 0}
-          tone={summary?.slaBreaches ? 'danger' : 'neutral'}
-          sublabel={
-            trend
-              ? `${trend.current} new in last 7d (${trendDelta >= 0 ? '+' : ''}${trendDelta} vs prior)`
-              : undefined
-          }
+          label="Open matters"
+          value={stats?.open ?? 0}
+          loading={isLoading}
+          href="/queue"
         />
-        <StatCard label="Open matters" value={openCount} />
+        <StatCard
+          label="SLA breached"
+          value={stats?.breached ?? 0}
+          tone={stats?.breached ? 'danger' : 'neutral'}
+          loading={isLoading}
+          href="/queue"
+        />
+        <StatCard
+          label="Due in 48h"
+          value={stats?.dueSoon ?? 0}
+          tone={stats?.dueSoon ? 'warning' : 'neutral'}
+          loading={isLoading}
+          href="/queue"
+        />
         <StatCard
           label="Closed (30d)"
-          value={cycle?.overall.count ?? 0}
-          sublabel={
-            cycle && cycle.overall.count > 0
-              ? `mean cycle: ${formatHours(cycle.overall.avgHours)}`
-              : undefined
-          }
+          value={stats?.closed30d ?? 0}
+          loading={isLoading}
         />
-        <StatCard label="Closed (all time)" value={closedCount} />
       </div>
-
-      {insights.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-            <span>AI-Suggested Actions</span>
-            <span className="text-xs text-gray-400">({insights.length})</span>
-          </h2>
-          <div className="grid grid-cols-2 gap-3">
-            {insights.map((ins) => (
-              <div
-                key={ins.id}
-                className={`rounded-lg border p-3 ${
-                  SEVERITY_STYLE[ins.severity] ?? 'bg-white border-gray-200'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="text-sm font-medium">{ins.title}</div>
-                  <span className="text-xs text-gray-400 uppercase shrink-0">
-                    {ins.kind.replace(/_/g, ' ')}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-700 mt-1">{ins.body}</p>
-                <div className="flex justify-end gap-3 mt-2">
-                  <button
-                    onClick={() =>
-                      dismissInsight.mutate({ id: ins.id, decision: 'actioned' })
-                    }
-                    className="text-xs text-brand-600 hover:underline"
-                  >
-                    Mark actioned
-                  </button>
-                  <button
-                    onClick={() =>
-                      dismissInsight.mutate({ id: ins.id, decision: 'dismissed' })
-                    }
-                    className="text-xs text-gray-500 hover:underline"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-3 gap-6">
         <section className="col-span-2 space-y-6">
-          <div className="bg-white border rounded-lg p-4">
-            <h2 className="font-medium mb-3">Attorney load</h2>
-            {!attorneys || attorneys.length === 0 ? (
-              <div className="text-sm text-gray-500">No attorneys yet.</div>
+          <Card title="My queue" actions={<Link href="/queue" className="text-xs text-brand-600 hover:underline">View all →</Link>}>
+            {isLoading ? (
+              <Skeleton rows={4} />
+            ) : !mine || mine.queue.length === 0 ? (
+              <Empty>Nothing on your plate.</Empty>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="text-left text-gray-500">
-                  <tr>
-                    <th className="font-normal pb-1">Attorney</th>
-                    <th className="font-normal pb-1 text-right">Open</th>
-                    <th className="font-normal pb-1 text-right">Overdue</th>
-                    <th className="font-normal pb-1 text-right">Closed (30d)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {attorneys.map((a) => (
-                    <tr key={a.id} className="border-t border-gray-100">
-                      <td className="py-1.5">{a.name}</td>
-                      <td className="py-1.5 text-right">{a.open_count}</td>
-                      <td
-                        className={`py-1.5 text-right ${a.overdue_count > 0 ? 'text-red-600 font-medium' : ''}`}
-                      >
-                        {a.overdue_count}
-                      </td>
-                      <td className="py-1.5 text-right text-gray-500">{a.closed_30d}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <ul className="divide-y">
+                {mine.queue.map((m) => {
+                  const sla = m.slaDueAt ? new Date(m.slaDueAt) : null;
+                  const overdue = sla && sla.getTime() < Date.now();
+                  const dueSoon =
+                    sla && !overdue && sla.getTime() < Date.now() + 48 * 36e5;
+                  return (
+                    <li key={m.id} className="py-2.5 first:pt-0 last:pb-0">
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <Link
+                            href={`/matters/${m.id}`}
+                            className="text-sm font-medium text-brand-700 hover:underline"
+                          >
+                            {m.shortId} — {m.title}
+                          </Link>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <span className="text-xs text-gray-500">{m.status}</span>
+                            {m.priority && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase ${PRIORITY_COLOR[m.priority] ?? ''}`}>
+                                {m.priority}
+                              </span>
+                            )}
+                            {m.practiceArea && (
+                              <span className="text-xs text-gray-400">{m.practiceArea}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div
+                          className={`text-xs whitespace-nowrap ${
+                            overdue
+                              ? 'text-red-600 font-medium'
+                              : dueSoon
+                                ? 'text-amber-600'
+                                : 'text-gray-500'
+                          }`}
+                        >
+                          {sla ? formatRelativeSLA(sla) : 'no SLA'}
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
-          </div>
+          </Card>
 
-          <div className="bg-white border rounded-lg p-4">
-            <h2 className="font-medium mb-3">Cycle time by practice area (last 30d)</h2>
-            {!cycle || cycle.byPracticeArea.length === 0 ? (
-              <div className="text-sm text-gray-500">No matters closed in the last 30 days.</div>
+          <Card title="Active drafts">
+            {isLoading ? (
+              <Skeleton rows={2} />
+            ) : !mine || mine.drafts.length === 0 ? (
+              <Empty>No drafts touched in the last 2 weeks.</Empty>
             ) : (
-              <ul className="space-y-1 text-sm">
-                {cycle.byPracticeArea.map((row) => (
-                  <li
-                    key={row.practiceArea ?? 'none'}
-                    className="flex justify-between border-b last:border-b-0 border-gray-100 py-1"
-                  >
-                    <span className="capitalize">
-                      {row.practiceArea ?? 'Unclassified'}{' '}
-                      <span className="text-gray-400">({row.count})</span>
-                    </span>
-                    <span className="text-gray-600">{formatHours(row.avgHours)}</span>
+              <ul className="space-y-2">
+                {mine.drafts.map((d) => (
+                  <li key={d.id} className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <Link
+                        href={`/matters/${d.matterId}/draft`}
+                        className="text-sm text-brand-700 hover:underline"
+                      >
+                        {d.title || 'Draft'}
+                      </Link>
+                      <div className="text-xs text-gray-500">
+                        {d.matterShortId} · v{d.version} · edited {formatAgo(new Date(d.updatedAt))}
+                      </div>
+                    </div>
+                    <Link
+                      href={`/matters/${d.matterId}/draft`}
+                      className="text-xs border rounded px-2 py-1 hover:bg-gray-50 shrink-0"
+                    >
+                      Open
+                    </Link>
                   </li>
                 ))}
               </ul>
             )}
-          </div>
+          </Card>
 
-          <div className="bg-white border rounded-lg p-4">
-            <h2 className="font-medium mb-3">Open by practice area</h2>
-            <ul className="space-y-1 text-sm">
-              {summary?.byPracticeArea.map((row) => (
-                <li key={row.practiceArea ?? 'none'} className="flex justify-between">
-                  <span className="capitalize">{row.practiceArea ?? 'Unclassified'}</span>
-                  <span>{row.count}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {insights.length > 0 && (
+            <Card title={`AI-suggested actions (${insights.length})`}>
+              <div className="space-y-2">
+                {insights.slice(0, 4).map((ins) => (
+                  <div
+                    key={ins.id}
+                    className={`rounded-md border p-3 ${
+                      SEVERITY_STYLE[ins.severity] ?? 'bg-white border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="text-sm font-medium">{ins.title}</div>
+                      <span className="text-[10px] text-gray-400 uppercase shrink-0">
+                        {ins.kind.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-700 mt-1">{ins.body}</p>
+                    <div className="flex justify-end gap-3 mt-2">
+                      <button
+                        onClick={() => dismissInsight.mutate({ id: ins.id, decision: 'actioned' })}
+                        className="text-xs text-brand-600 hover:underline"
+                      >
+                        Mark actioned
+                      </button>
+                      <button
+                        onClick={() => dismissInsight.mutate({ id: ins.id, decision: 'dismissed' })}
+                        className="text-xs text-gray-500 hover:underline"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
         </section>
 
-        <aside className="space-y-4">
-          <div className="bg-white border rounded-lg p-4">
-            <h2 className="font-medium mb-3">Recent activity</h2>
-            {!activity || activity.length === 0 ? (
-              <div className="text-sm text-gray-500">Nothing yet.</div>
+        <aside className="space-y-6">
+          <Card
+            title="My escalations"
+            actions={
+              escalations.length > 0 && (
+                <Link href="/escalations" className="text-xs text-brand-600 hover:underline">
+                  All →
+                </Link>
+              )
+            }
+          >
+            {escalations.length === 0 ? (
+              <Empty>No open escalations.</Empty>
+            ) : (
+              <ul className="space-y-2.5">
+                {escalations.map((e) => (
+                  <li key={e.id} className="border-l-2 border-red-400 pl-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${PRIORITY_COLOR[e.severity] ?? ''}`}>
+                        {e.severity}
+                      </span>
+                      <Link
+                        href={`/matters/${e.matterId}`}
+                        className="text-xs text-gray-500 hover:underline"
+                      >
+                        {e.matterShortId}
+                      </Link>
+                    </div>
+                    <div className="text-xs font-medium mt-0.5">{e.title}</div>
+                    {e.status === 'open' && (
+                      <button
+                        onClick={() => ackEsc.mutate({ id: e.id })}
+                        className="text-[10px] text-gray-500 hover:underline mt-1"
+                      >
+                        Acknowledge
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <Card title="Recent activity">
+            {isLoading ? (
+              <Skeleton rows={3} />
+            ) : !mine || mine.activity.length === 0 ? (
+              <Empty>No recent activity on your matters.</Empty>
             ) : (
               <ul className="space-y-2 text-sm">
-                {activity.map((e) => (
+                {mine.activity.map((e) => (
                   <li key={e.id}>
                     <Link
                       href={`/matters/${e.matterId}`}
-                      className="text-brand-700 hover:underline"
+                      className="text-brand-700 hover:underline text-xs"
                     >
                       {e.matterShortId}
                     </Link>{' '}
-                    <span className="text-gray-600">{KIND_LABEL[e.kind] ?? e.kind}</span>
-                    <div className="text-xs text-gray-400">
-                      {new Date(e.createdAt).toLocaleString()}
+                    <span className="text-xs text-gray-600">
+                      {KIND_LABEL[e.kind] ?? e.kind}
+                    </span>
+                    <div className="text-[10px] text-gray-400">
+                      {formatAgo(new Date(e.createdAt))}
                     </div>
                   </li>
                 ))}
               </ul>
             )}
-          </div>
+          </Card>
         </aside>
       </div>
     </div>
   );
 }
 
-function formatHours(hours: number): string {
-  if (hours < 1) return `${Math.round(hours * 60)}m`;
-  if (hours < 48) return `${hours.toFixed(1)}h`;
-  return `${(hours / 24).toFixed(1)}d`;
+function Card({
+  title,
+  actions,
+  children,
+}: {
+  title: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white border rounded-lg p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-medium text-sm">{title}</h2>
+        {actions}
+      </div>
+      {children}
+    </div>
+  );
 }
 
 function StatCard({
@@ -220,21 +316,74 @@ function StatCard({
   value,
   sublabel,
   tone = 'neutral',
+  href,
+  loading,
 }: {
   label: string;
   value: number;
   sublabel?: string;
-  tone?: 'neutral' | 'danger';
+  tone?: 'neutral' | 'danger' | 'warning';
+  href?: string;
+  loading?: boolean;
 }) {
-  return (
-    <div
-      className={`rounded-lg border p-4 ${
-        tone === 'danger' ? 'border-red-200 bg-red-50' : 'bg-white'
-      }`}
-    >
-      <div className="text-sm text-gray-500">{label}</div>
-      <div className="text-2xl font-semibold mt-1">{value}</div>
+  const toneClass =
+    tone === 'danger'
+      ? 'border-red-200 bg-red-50'
+      : tone === 'warning'
+        ? 'border-amber-200 bg-amber-50'
+        : 'bg-white';
+  const valueClass =
+    tone === 'danger' ? 'text-red-700' : tone === 'warning' ? 'text-amber-700' : 'text-gray-900';
+
+  const inner = (
+    <div className={`rounded-lg border p-4 transition ${toneClass} ${href ? 'hover:shadow-sm cursor-pointer' : ''}`}>
+      <div className="text-xs text-gray-500 uppercase tracking-wide">{label}</div>
+      <div className={`text-3xl font-semibold mt-1 ${valueClass}`}>
+        {loading ? <span className="inline-block w-10 h-7 bg-gray-100 rounded animate-pulse" /> : value}
+      </div>
       {sublabel && <div className="text-xs text-gray-500 mt-1">{sublabel}</div>}
     </div>
   );
+  return href ? <Link href={href}>{inner}</Link> : inner;
+}
+
+function Empty({ children }: { children: React.ReactNode }) {
+  return <p className="text-xs text-gray-500">{children}</p>;
+}
+
+function Skeleton({ rows }: { rows: number }) {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="h-8 bg-gray-100 rounded animate-pulse" />
+      ))}
+    </div>
+  );
+}
+
+function formatRelativeSLA(d: Date): string {
+  const diffMs = d.getTime() - Date.now();
+  const sign = diffMs < 0 ? -1 : 1;
+  const abs = Math.abs(diffMs);
+  const hours = abs / 36e5;
+  if (sign < 0) {
+    if (hours < 1) return `overdue ${Math.round(abs / 60000)}m`;
+    if (hours < 48) return `overdue ${hours.toFixed(1)}h`;
+    return `overdue ${Math.round(hours / 24)}d`;
+  }
+  if (hours < 1) return `in ${Math.round(abs / 60000)}m`;
+  if (hours < 48) return `in ${hours.toFixed(1)}h`;
+  return `in ${Math.round(hours / 24)}d`;
+}
+
+function formatAgo(d: Date): string {
+  const diff = Date.now() - d.getTime();
+  const mins = Math.round(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return d.toLocaleDateString();
 }
