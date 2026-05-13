@@ -8,6 +8,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from .config import settings
 from .context.salesforce import lookup_counterparty
 from .enrich_counterparty import EnrichRequest, EnrichResult, enrich_counterparty
+from .parse_document import ParseRequest, ParseResult, parse_document
 from .schemas import ContextCard, ContextRequest, TriageRequest, TriageResult
 from .triage import triage
 
@@ -62,3 +63,18 @@ def post_enrich_counterparty(request: EnrichRequest) -> EnrichResult:
         len(request.matters),
     )
     return enrich_counterparty(request)
+
+
+@app.post(
+    "/parse-document",
+    response_model=ParseResult,
+    dependencies=[Depends(require_token)],
+)
+def post_parse_document(request: ParseRequest) -> ParseResult:
+    logger.info(
+        "parse request document_id=%s filename=%s mime=%s",
+        request.document_id,
+        request.filename,
+        request.mime_type,
+    )
+    return parse_document(request)
