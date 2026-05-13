@@ -237,6 +237,39 @@ export default function DocumentReviewPage({
                         </pre>
                       </div>
                     )}
+                    {selected.citations && selected.citations.length > 0 && (
+                      <div className="mt-3 border-t border-ink-100 dark:border-ink-800 pt-3">
+                        <div className="text-[11px] uppercase tracking-wider text-ink-500 dark:text-ink-400 mb-1.5">
+                          Citations
+                        </div>
+                        <ul className="space-y-1">
+                          {selected.citations.map((c, i) => (
+                            <li key={i} className="text-[11px] flex items-start gap-2">
+                              <span className="font-mono text-ink-500 dark:text-ink-400 shrink-0">
+                                [{i + 1}]
+                              </span>
+                              <div className="min-w-0">
+                                <span className="text-ink-700 dark:text-ink-300">
+                                  {c.source === 'playbook_position'
+                                    ? 'Playbook'
+                                    : c.source === 'prior_matter'
+                                      ? 'Prior matter'
+                                      : 'KB'}
+                                </span>
+                                <span className="ml-1.5 font-mono text-ink-500 dark:text-ink-400">
+                                  {c.identifier}
+                                </span>
+                                {c.excerpt && (
+                                  <span className="ml-1.5 italic text-ink-600 dark:text-ink-400">
+                                    — {c.excerpt}
+                                  </span>
+                                )}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
 
                   <div className="rounded border border-ink-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-4">

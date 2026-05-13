@@ -29,7 +29,17 @@ applies to this clause (it covers a topic the playbook doesn't address), tag STA
 reasoning explaining the clause is out-of-scope of the playbook.
 
 Be conservative: when in doubt between MODIFIED and FLAGGED, pick FLAGGED. The cost of an \
-unnecessary attorney glance is much lower than a missed material deviation."""
+unnecessary attorney glance is much lower than a missed material deviation.
+
+CITATIONS: when your reasoning relies on a specific source, cite it. Use citations for:
+- playbook_position: cite the position you tagged against (identifier = position id)
+- prior_matter: cite a similar past matter if its outcome informed your tag (identifier = \
+the matter short_id; include a 1-sentence excerpt of how it was resolved)
+- knowledge_article: cite an internal policy/guidance article if it bears on this clause \
+(identifier = the article id; include a 1-sentence excerpt)
+
+Cite only what materially informed the analysis. Better to have 1-2 strong citations than \
+5 weak ones. Do NOT cite sources you weren't actually given in the input."""
 
 ANALYZE_TOOL = {
     "name": "submit_analysis",
@@ -86,6 +96,21 @@ class PlaybookPositionInput(BaseModel):
     citation: str | None = None
 
 
+class PriorMatterInput(BaseModel):
+    id: str  # short_id for human-readable citation
+    title: str
+    summary: str | None = None
+    practice_area: str | None = None
+    outcome: str | None = None  # e.g. how the clause was resolved
+
+
+class KnowledgeArticleInput(BaseModel):
+    id: str  # slug or short id
+    title: str
+    body: str
+    tags: list[str] = []
+
+
 class AnalyzeClauseRequest(BaseModel):
     clause_id: str
     clause_text: str = Field(min_length=1)
@@ -93,6 +118,9 @@ class AnalyzeClauseRequest(BaseModel):
     matter_context: str | None = None
     practice_area: str | None = None
     positions: list[PlaybookPositionInput]
+    # F2 multi-source citation
+    prior_matters: list[PriorMatterInput] = []
+    knowledge_articles: list[KnowledgeArticleInput] = []
 
 
 class Citation(BaseModel):
@@ -138,6 +166,27 @@ def _build_user_prompt(request: AnalyzeClauseRequest) -> str:
     else:
         parts.append("--- No playbook positions available for this practice area ---")
         parts.append("Tag STANDARD and note in reasoning that the playbook does not cover this topic.")
+
+    if request.prior_matters:
+        parts.append("")
+        parts.append(f"--- Prior similar matters ({len(request.prior_matters)}) ---")
+        for pm in request.prior_matters:
+            line = f"\n[{pm.id}] {pm.title}"
+            if pm.practice_area:
+                line += f" ({pm.practice_area})"
+            parts.append(line)
+            if pm.summary:
+                parts.append(f"  summary: {pm.summary[:300]}")
+            if pm.outcome:
+                parts.append(f"  outcome: {pm.outcome[:300]}")
+
+    if request.knowledge_articles:
+        parts.append("")
+        parts.append(f"--- Knowledge base articles ({len(request.knowledge_articles)}) ---")
+        for ka in request.knowledge_articles:
+            tags = f" [{', '.join(ka.tags)}]" if ka.tags else ""
+            parts.append(f"\n[{ka.id}]{tags} {ka.title}")
+            parts.append(f"  {ka.body[:500]}")
 
     parts.append("")
     parts.append("--- Clause to analyze ---")
