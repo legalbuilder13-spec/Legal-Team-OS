@@ -16,6 +16,7 @@ import {
   ClipboardList,
   Activity,
   Files,
+  Workflow,
 } from 'lucide-react';
 import { getDb, users, escalations } from '@legal/db';
 import { ThemeToggle } from '@/components/theme';
@@ -74,6 +75,7 @@ export default async function AuthedLayout({ children }: { children: React.React
               <NavLink href="/admin/routing" label="Routing Rules" icon={Route} />
               <NavLink href="/admin/users" label="Users" icon={Users} />
               <NavLink href="/admin/templates" label="Templates" icon={Files} />
+              <NavLink href="/admin/patterns" label="Patterns" icon={Workflow} />
               <NavLink href="/admin/audit" label="Audit Log" icon={ClipboardList} />
               <NavLink href="/admin/system" label="System" icon={Activity} />
             </>
