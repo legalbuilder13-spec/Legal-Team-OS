@@ -49,6 +49,12 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
   const { id } = use(params);
   const { data: matter } = trpc.matters.get.useQuery({ id });
   const { data: existingDraft, refetch } = trpc.drafts.get.useQuery({ matterId: id });
+  const { data: templates = [] } = trpc.templates.listForPracticeArea.useQuery(
+    { practiceArea: matter?.practiceArea ?? 'other', activeOnly: true },
+    { enabled: !!matter?.practiceArea },
+  );
+  const recordTemplateUsage = trpc.templates.recordUsage.useMutation();
+  const utils = trpc.useUtils();
   const { data: versions = [], refetch: refetchVersions } = trpc.drafts.listVersions.useQuery({ matterId: id });
   const save = trpc.drafts.save.useMutation({
     onSuccess: () => {
@@ -144,6 +150,38 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
         >
           {generateInitial.isPending ? 'Generating…' : 'Generate from playbook'}
         </button>
+        {templates.length > 0 && (
+          <select
+            value=""
+            onChange={async (e) => {
+              const templateId = e.target.value;
+              if (!templateId) return;
+              if (body && !confirm('Replace current draft with this template?')) {
+                e.target.value = '';
+                return;
+              }
+              const full = await utils.client.templates.get.query({ id: templateId });
+              if (!full) return;
+              setBody(full.body);
+              setTitle(full.name);
+              setDirty(true);
+              setPendingBody(null);
+              recordTemplateUsage.mutate({ id: templateId });
+              e.target.value = '';
+            }}
+            className="text-sm border rounded px-2 py-1.5"
+            title="Start from a pre-authored template"
+          >
+            <option value="">Start from template…</option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+                {t.matterType ? ` · ${t.matterType}` : ''}
+                {t.useCount > 0 ? ` (${t.useCount})` : ''}
+              </option>
+            ))}
+          </select>
+        )}
         <button
           onClick={() => setShowDiff((s) => !s)}
           className="text-sm border rounded px-3 py-1.5 hover:bg-ink-50 dark:hover:bg-ink-800"

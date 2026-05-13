@@ -9,6 +9,7 @@ import { driveRouter } from './drive';
 import { escalationsRouter } from './escalations';
 import { draftsRouter } from './drafts';
 import { documentsRouter } from './documents';
+import { templatesRouter } from './templates';
 
 export const appRouter = router({
   matters: mattersRouter,
@@ -21,6 +22,7 @@ export const appRouter = router({
   escalations: escalationsRouter,
   drafts: draftsRouter,
   documents: documentsRouter,
+  templates: templatesRouter,
 });
 
 export type AppRouter = typeof appRouter;

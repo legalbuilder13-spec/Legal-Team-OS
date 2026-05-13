@@ -551,6 +551,31 @@ export const matterDraftVersions = pgTable(
   }),
 );
 
+export const templates = pgTable(
+  'templates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    practiceArea: practiceArea('practice_area').notNull(),
+    matterType: text('matter_type'),
+    name: text('name').notNull(),
+    body: text('body').notNull(),
+    variables: jsonb('variables')
+      .$type<Array<{ name: string; description?: string; defaultValue?: string }>>()
+      .notNull()
+      .default([]),
+    isActive: boolean('is_active').notNull().default(true),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    useCount: integer('use_count').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    practiceAreaIdx: index('templates_practice_area_idx').on(t.practiceArea),
+    activeIdx: index('templates_active_idx').on(t.isActive),
+  }),
+);
+
 export const matterDocuments = pgTable(
   'matter_documents',
   {
