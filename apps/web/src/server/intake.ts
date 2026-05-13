@@ -27,16 +27,31 @@ export async function ingestSlackIntake(payload: IntakePayload) {
     where: eq(users.slackUserId, payload.slackUserId),
   });
   if (!requester) {
-    const [created] = await db
-      .insert(users)
-      .values({
-        slackUserId: payload.slackUserId,
-        email: payload.slackUserEmail ?? `${payload.slackUserId}@slack.local`,
-        name: payload.slackUserName,
-        role: 'requester',
-      })
-      .returning();
-    requester = created;
+    const email = payload.slackUserEmail ?? `${payload.slackUserId}@slack.local`;
+    const byEmail = await db.query.users.findFirst({ where: eq(users.email, email) });
+    if (byEmail) {
+      const [updated] = await db
+        .update(users)
+        .set({
+          slackUserId: payload.slackUserId,
+          name: byEmail.name || payload.slackUserName,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, byEmail.id))
+        .returning();
+      requester = updated;
+    } else {
+      const [created] = await db
+        .insert(users)
+        .values({
+          slackUserId: payload.slackUserId,
+          email,
+          name: payload.slackUserName,
+          role: 'requester',
+        })
+        .returning();
+      requester = created;
+    }
   }
 
   const shortId = generateShortId();
