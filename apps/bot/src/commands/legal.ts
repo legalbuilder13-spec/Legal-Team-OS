@@ -1,5 +1,5 @@
 import type { App } from '@slack/bolt';
-import { postIntake } from '../intake-client.js';
+import { postIntake } from '../intake-client';
 
 export function registerLegalCommand(app: App) {
   app.command('/legal', async ({ command, ack, respond, client }) => {

@@ -8,8 +8,8 @@ import {
   auditLog,
   playbooks,
   knowledgeArticles,
-} from './schema.js';
-import { getDb } from './client.js';
+} from './schema';
+import { getDb } from './client';
 
 function shortId(prefix = 'M-'): string {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

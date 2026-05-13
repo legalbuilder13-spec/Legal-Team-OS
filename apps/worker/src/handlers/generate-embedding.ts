@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { matters, type Db, type Job } from '@legal/db';
-import { env } from '../env.js';
+import { env } from '../env';
 
 interface OpenAIEmbeddingResponse {
   data: Array<{ embedding: number[] }>;

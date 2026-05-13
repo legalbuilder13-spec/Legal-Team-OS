@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { matters, counterparties, auditLog, type Db, type Job } from '@legal/db';
-import { env } from '../env.js';
-import { hostnameFromWebsite } from '../utils.js';
+import { env } from '../env';
+import { hostnameFromWebsite } from '../utils';
 
 interface ContextFetchPayload {
   matter_id: string;

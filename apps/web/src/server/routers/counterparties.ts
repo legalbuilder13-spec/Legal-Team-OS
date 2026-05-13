@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { eq, desc } from 'drizzle-orm';
 import { counterparties, matters } from '@legal/db';
-import { protectedProcedure, router } from '../trpc.js';
+import { protectedProcedure, router } from '../trpc';
 
 export const counterpartiesRouter = router({
   get: protectedProcedure

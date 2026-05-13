@@ -11,7 +11,7 @@ import {
   systemInsights,
 } from '@legal/db';
 import { PracticeAreaSchema } from '@legal/types';
-import { adminProcedure, router } from '../trpc.js';
+import { adminProcedure, router } from '../trpc';
 
 const RoleSchema = z.enum(['attorney', 'legal_ops', 'admin', 'requester']);
 

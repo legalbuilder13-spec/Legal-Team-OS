@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hostnameFromWebsite } from '../utils.js';
+import { hostnameFromWebsite } from '../utils';
 
 describe('hostnameFromWebsite', () => {
   it('strips protocol and www prefix', () => {

@@ -1,5 +1,5 @@
 import type { App } from '@slack/bolt';
-import { env } from '../env.js';
+import { env } from '../env';
 
 interface ThreadMessageShape {
   type: 'message';

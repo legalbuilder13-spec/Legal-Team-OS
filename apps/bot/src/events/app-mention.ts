@@ -1,5 +1,5 @@
 import type { App } from '@slack/bolt';
-import { postIntake } from '../intake-client.js';
+import { postIntake } from '../intake-client';
 
 export function registerAppMention(app: App) {
   app.event('app_mention', async ({ event, client }) => {

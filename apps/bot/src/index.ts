@@ -1,8 +1,8 @@
 import bolt from '@slack/bolt';
-import { env } from './env.js';
-import { registerLegalCommand } from './commands/legal.js';
-import { registerAppMention } from './events/app-mention.js';
-import { registerMessageEvents } from './events/message.js';
+import { env } from './env';
+import { registerLegalCommand } from './commands/legal';
+import { registerAppMention } from './events/app-mention';
+import { registerMessageEvents } from './events/message';
 
 const { App, LogLevel } = bolt;
 

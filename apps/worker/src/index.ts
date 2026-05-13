@@ -1,15 +1,15 @@
 import { eq, sql } from 'drizzle-orm';
 import cron from 'node-cron';
 import { jobs, getDb, type Job } from '@legal/db';
-import { env } from './env.js';
-import { handleTriageJob } from './handlers/triage.js';
-import { handleSlackNotifyJob } from './handlers/slack-notify.js';
-import { handleContextFetchJob } from './handlers/context-fetch.js';
-import { handleGenerateEmbeddingJob } from './handlers/generate-embedding.js';
-import { handleEnrichCounterpartyMemoryJob } from './handlers/enrich-counterparty-memory.js';
-import { runSlaCheck } from './handlers/sla-check.js';
-import { runDailyDigest } from './handlers/daily-digest.js';
-import { runPortfolioAnalysis } from './handlers/analyze-portfolio.js';
+import { env } from './env';
+import { handleTriageJob } from './handlers/triage';
+import { handleSlackNotifyJob } from './handlers/slack-notify';
+import { handleContextFetchJob } from './handlers/context-fetch';
+import { handleGenerateEmbeddingJob } from './handlers/generate-embedding';
+import { handleEnrichCounterpartyMemoryJob } from './handlers/enrich-counterparty-memory';
+import { runSlaCheck } from './handlers/sla-check';
+import { runDailyDigest } from './handlers/daily-digest';
+import { runPortfolioAnalysis } from './handlers/analyze-portfolio';
 
 const db = getDb();
 const MAX_ATTEMPTS = 5;

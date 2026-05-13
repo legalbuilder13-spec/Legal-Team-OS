@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { matters, matterEvents, users } from '@legal/db';
-import { protectedProcedure, router } from '../trpc.js';
+import { protectedProcedure, router } from '../trpc';
 
 export const dashboardRouter = router({
   summary: protectedProcedure.query(async ({ ctx }) => {

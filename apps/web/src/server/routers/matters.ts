@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { matters, matterNotes, matterEvents, users, auditLog, jobs, type Matter } from '@legal/db';
 import { MatterStatusSchema, PracticeAreaSchema, PrioritySchema } from '@legal/types';
-import { protectedProcedure, staffProcedure, router } from '../trpc.js';
+import { protectedProcedure, staffProcedure, router } from '../trpc';
 import { TRPCError } from '@trpc/server';
 
 const ListInput = z
