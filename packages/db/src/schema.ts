@@ -496,6 +496,23 @@ export const matterDraftVersions = pgTable(
   }),
 );
 
+export const contextCache = pgTable(
+  'context_cache',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    source: text('source').notNull(),
+    entityKey: text('entity_key').notNull(),
+    queryHash: text('query_hash').notNull().default('v1'),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+    fetchedAt: timestamp('fetched_at', { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => ({
+    keyUq: uniqueIndex('context_cache_key_uq').on(t.source, t.entityKey, t.queryHash),
+    expiresIdx: index('context_cache_expires_idx').on(t.expiresAt),
+  }),
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   requestedMatters: many(matters, { relationName: 'requester' }),
   assignedMatters: many(matters, { relationName: 'assignee' }),
