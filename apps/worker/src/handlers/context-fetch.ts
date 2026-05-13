@@ -26,7 +26,8 @@ export async function handleContextFetchJob(db: Db, job: Job) {
       | 'context_fetch_salesforce'
       | 'context_fetch_similar_matters'
       | 'context_fetch_notion'
-      | 'context_fetch_slack';
+      | 'context_fetch_slack'
+      | 'context_fetch_drive';
     reason: string;
   }> = [];
 
@@ -34,6 +35,7 @@ export async function handleContextFetchJob(db: Db, job: Job) {
     subJobs.push({ kind: 'context_fetch_salesforce', reason: 'counterparty present' });
     subJobs.push({ kind: 'context_fetch_notion', reason: 'counterparty present' });
     subJobs.push({ kind: 'context_fetch_slack', reason: 'counterparty present' });
+    subJobs.push({ kind: 'context_fetch_drive', reason: 'counterparty present' });
   }
 
   // Similar-matters context is useful regardless of counterparty — searches
