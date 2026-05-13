@@ -30,6 +30,33 @@ interface SalesforceAccountRecord {
   Owner?: { Name?: string } | null;
 }
 
+interface SalesforceOpportunityRecord {
+  Id: string;
+  Name: string;
+  StageName?: string | null;
+  Amount?: number | null;
+  CloseDate?: string | null;
+  IsClosed?: boolean;
+  IsWon?: boolean;
+}
+
+interface SalesforceCaseRecord {
+  Id: string;
+  CaseNumber: string;
+  Subject?: string | null;
+  Status?: string | null;
+  Priority?: string | null;
+  CreatedDate?: string | null;
+}
+
+interface SalesforceContactRecord {
+  Id: string;
+  Name: string;
+  Title?: string | null;
+  Email?: string | null;
+  LastActivityDate?: string | null;
+}
+
 // Per-source sub-handler enqueued by the context_fetch coordinator. Calls
 // the AI service /context endpoint (which queries Salesforce) and writes
 // the result as an InsightCard into matters.context.salesforce.
@@ -101,7 +128,18 @@ export async function handleContextFetchSalesforceJob(db: Db, job: Job) {
   }
 
   const records = (legacy.data?.records as SalesforceAccountRecord[] | undefined) ?? [];
+  const opportunities =
+    (legacy.data?.opportunities as SalesforceOpportunityRecord[] | undefined) ?? [];
+  const openCases = (legacy.data?.open_cases as SalesforceCaseRecord[] | undefined) ?? [];
+  const contacts = (legacy.data?.contacts as SalesforceContactRecord[] | undefined) ?? [];
   const top = records[0];
+
+  const activeOpps = opportunities.filter((o) => o.IsClosed !== true);
+  const lastActivityDate = contacts
+    .map((c) => c.LastActivityDate)
+    .filter((d): d is string => Boolean(d))
+    .sort()
+    .reverse()[0];
 
   const primary: InsightCardPrimaryField[] = [];
   let summary: string;
@@ -112,9 +150,31 @@ export async function handleContextFetchSalesforceJob(db: Db, job: Job) {
     if (top.AnnualRevenue != null) {
       primary.push({ label: 'Revenue', value: `$${top.AnnualRevenue.toLocaleString()}` });
     }
+    if (activeOpps.length > 0) {
+      primary.push({ label: 'Active opps', value: activeOpps.length });
+    }
+    if (openCases.length > 0) {
+      primary.push({ label: 'Open cases', value: openCases.length });
+    }
     if (top.Owner?.Name) primary.push({ label: 'SF Owner', value: top.Owner.Name });
-    if (top.Website) primary.push({ label: 'Website', value: top.Website });
-    summary = `Salesforce account: ${top.Name}.`;
+    if (lastActivityDate) {
+      primary.push({
+        label: 'Last contact',
+        value: new Date(lastActivityDate).toLocaleDateString(),
+      });
+    }
+
+    const parts = [`Salesforce account: ${top.Name}.`];
+    if (activeOpps.length > 0) {
+      const topOpp = activeOpps[0]!;
+      parts.push(
+        `${activeOpps.length} active opportunit${activeOpps.length === 1 ? 'y' : 'ies'}${topOpp.StageName ? ` (top stage: ${topOpp.StageName})` : ''}.`,
+      );
+    }
+    if (openCases.length > 0) {
+      parts.push(`${openCases.length} open case${openCases.length === 1 ? '' : 's'}.`);
+    }
+    summary = parts.join(' ');
   } else {
     primary.push({ label: 'Matches', value: records.length });
     summary = `${records.length} Salesforce accounts matched — likely needs manual disambiguation.`;
@@ -126,7 +186,13 @@ export async function handleContextFetchSalesforceJob(db: Db, job: Job) {
     staleAfter: computeStaleAfter('salesforce'),
     primary,
     summary,
-    raw: { records, configured: legacy.data?.configured ?? true },
+    raw: {
+      records,
+      opportunities,
+      openCases,
+      contacts,
+      configured: legacy.data?.configured ?? true,
+    },
   };
 
   const existingContext = (matter.context ?? {}) as Record<string, unknown>;
