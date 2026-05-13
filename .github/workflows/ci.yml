@@ -20,6 +20,11 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+        env:
+          # Stubs so Next.js env validation (Zod parse at module load) passes
+          # during `next build`'s page-data collection step. The web app reads
+          # these from real Railway env vars at runtime.
+          DATABASE_URL: postgres://stub:stub@localhost:5432/stub
 
   py:
     name: Python AI service

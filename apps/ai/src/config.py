@@ -16,4 +16,4 @@ class Settings(BaseSettings):
     port: int = 8000
 
 
-settings = Settings()
+settings = Settings()  # type: ignore[call-arg]
