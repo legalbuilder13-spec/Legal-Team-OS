@@ -93,6 +93,10 @@ export async function handleContextFetchDriveJob(db: Db, job: Job) {
     primary,
     summary,
     drilldownUrl,
+    permissionsContext: {
+      scope: 'workspace:service-account',
+      acquiredAt: new Date().toISOString(),
+    },
     raw: {
       query,
       folderId: env.GOOGLE_DRIVE_DEFAULT_FOLDER_ID ?? null,

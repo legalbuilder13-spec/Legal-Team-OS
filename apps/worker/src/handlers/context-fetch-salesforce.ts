@@ -186,6 +186,10 @@ export async function handleContextFetchSalesforceJob(db: Db, job: Job) {
     staleAfter: computeStaleAfter('salesforce'),
     primary,
     summary,
+    permissionsContext: {
+      scope: 'workspace:service-account',
+      acquiredAt: new Date().toISOString(),
+    },
     raw: {
       records,
       opportunities,
