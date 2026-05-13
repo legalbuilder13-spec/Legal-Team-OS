@@ -66,6 +66,10 @@ class TriageResult(BaseModel):
     priority: Priority
     counterparty_name: str | None = None
     reasoning: str
+    practice_area_confidence: float = Field(ge=0.0, le=1.0)
+    priority_confidence: float = Field(ge=0.0, le=1.0)
+    requires_human_review: bool
+    review_reason: str | None = None
 
 
 class ContextRequest(BaseModel):

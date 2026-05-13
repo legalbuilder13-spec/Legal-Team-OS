@@ -28,6 +28,35 @@ interface SalesforceContext {
   };
 }
 
+function TriageConfidence({ metadata }: { metadata: Record<string, unknown> }) {
+  const practiceConf = metadata.practiceAreaConfidence;
+  const priorityConf = metadata.priorityConfidence;
+  const needsReview = metadata.requiresHumanReview === true;
+  if (typeof practiceConf !== 'number' && typeof priorityConf !== 'number') {
+    return null;
+  }
+  const pct = (n: unknown) => (typeof n === 'number' ? `${Math.round(n * 100)}%` : '—');
+  const lowest = Math.min(
+    typeof practiceConf === 'number' ? practiceConf : 1,
+    typeof priorityConf === 'number' ? priorityConf : 1,
+  );
+  const tone = needsReview
+    ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border-red-200 dark:border-red-900'
+    : lowest >= 0.85
+      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900'
+      : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-900';
+  return (
+    <div
+      className={`text-[11px] px-2 py-1 rounded border font-mono ${tone}`}
+      title={typeof metadata.reviewReason === 'string' ? metadata.reviewReason : undefined}
+    >
+      <span className="opacity-70">area</span> {pct(practiceConf)} ·{' '}
+      <span className="opacity-70">priority</span> {pct(priorityConf)}
+      {needsReview && <span className="ml-2 font-semibold">· review</span>}
+    </div>
+  );
+}
+
 function SalesforceContextCard({ ctx }: { ctx: SalesforceContext }) {
   const records = ctx.data.records ?? [];
   if (ctx.data.configured === false) {
@@ -186,7 +215,10 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
 
           {Boolean((matter.triageMetadata as Record<string, unknown> | null)?.reasoning) && (
             <div className="bg-white dark:bg-ink-900 border rounded-lg p-4">
-              <h2 className="font-medium mb-2">AI Reasoning</h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="font-medium">AI Reasoning</h2>
+                <TriageConfidence metadata={matter.triageMetadata as Record<string, unknown>} />
+              </div>
               <p className="text-sm text-ink-600 dark:text-ink-400 italic">
                 {String((matter.triageMetadata as Record<string, unknown>).reasoning)}
               </p>

@@ -41,8 +41,20 @@ or revenue-blocking
 - counterparty_name: if a specific external company/person is named, extract their name. \
 Otherwise null. Do not guess.
 - reasoning: 1-2 sentences explaining the classification decisions
+- practice_area_confidence: a float in [0.0, 1.0] reflecting how confident you are in the \
+practice_area choice. Use 0.9+ only when the request is unambiguous and the classification \
+is obvious. Use 0.5-0.7 when the request could plausibly fit multiple areas. Use below 0.5 \
+when you are genuinely guessing.
+- priority_confidence: a float in [0.0, 1.0] for the priority choice, calibrated the same way.
+- requires_human_review: set to true if EITHER confidence is below 0.7, OR the request is \
+ambiguous, OR the request involves an unusual posture you have not seen before, OR you had \
+to guess between two plausible practice areas. Set to false only when you are confident the \
+classification is correct without human verification.
+- review_reason: if requires_human_review is true, give a 1-sentence explanation of the \
+uncertainty. If false, set to null.
 
-Always return all fields. If genuinely uncertain about practice_area, choose 'other'."""
+Always return all fields. If genuinely uncertain about practice_area, choose 'other' AND \
+set requires_human_review to true."""
 
 TRIAGE_TOOL = {
     "name": "submit_triage",
@@ -69,6 +81,10 @@ TRIAGE_TOOL = {
             "priority": {"type": "string", "enum": ["high", "medium", "low"]},
             "counterparty_name": {"type": ["string", "null"]},
             "reasoning": {"type": "string"},
+            "practice_area_confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+            "priority_confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+            "requires_human_review": {"type": "boolean"},
+            "review_reason": {"type": ["string", "null"]},
         },
         "required": [
             "title",
@@ -77,6 +93,10 @@ TRIAGE_TOOL = {
             "priority",
             "counterparty_name",
             "reasoning",
+            "practice_area_confidence",
+            "priority_confidence",
+            "requires_human_review",
+            "review_reason",
         ],
     },
 }
@@ -183,4 +203,8 @@ def triage(request: TriageRequest) -> TriageResult:
         priority=payload["priority"],
         counterparty_name=payload.get("counterparty_name"),
         reasoning=payload["reasoning"],
+        practice_area_confidence=payload["practice_area_confidence"],
+        priority_confidence=payload["priority_confidence"],
+        requires_human_review=payload["requires_human_review"],
+        review_reason=payload.get("review_reason"),
     )
