@@ -498,6 +498,27 @@ export const matterDraftVersions = pgTable(
   }),
 );
 
+export const entityAliases = pgTable(
+  'entity_aliases',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    counterpartyId: uuid('counterparty_id')
+      .notNull()
+      .references(() => counterparties.id, { onDelete: 'cascade' }),
+    aliasText: text('alias_text').notNull(),
+    aliasSource: text('alias_source').notNull(),
+    confidence: text('confidence'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    counterpartyTextUq: uniqueIndex('entity_aliases_counterparty_text_uq').on(
+      t.counterpartyId,
+      t.aliasText,
+    ),
+    counterpartyIdx: index('entity_aliases_counterparty_idx').on(t.counterpartyId),
+  }),
+);
+
 export const userIntegrations = pgTable(
   'user_integrations',
   {

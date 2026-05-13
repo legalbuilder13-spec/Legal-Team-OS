@@ -16,6 +16,7 @@ import type { Db } from '@legal/db';
 import { DEFAULT_SLA_HOURS_BY_AREA, type PracticeArea, type Priority } from '@legal/types';
 import { env } from '../env.js';
 import { extractDomain } from '../utils.js';
+import { resolveCounterparty, recordAlias } from '../entity-resolution.js';
 
 interface TriageResponse {
   matter_id: string;
@@ -145,11 +146,41 @@ export async function handleTriageJob(db: Db, job: Job) {
 
   let counterpartyId: string | undefined;
   if (triage.counterparty_name) {
-    const existing = await db.query.counterparties.findFirst({
-      where: sql`lower(${counterparties.name}) = lower(${triage.counterparty_name})`,
-    });
-    if (existing) {
-      counterpartyId = existing.id;
+    // Resolution strategy (see entity-resolution.ts): exact name → exact
+    // domain → exact alias → trigram name → trigram alias. Falls through
+    // to creating a new counterparty only if nothing matches.
+    const earlyDomain = extractDomain(null, matter.requestText);
+    const resolved = await resolveCounterparty(
+      db,
+      triage.counterparty_name,
+      earlyDomain,
+    );
+
+    if (resolved) {
+      counterpartyId = resolved.counterpartyId;
+      // Record the variant we saw if it's not already the canonical name —
+      // builds up the alias graph over time so future fuzzy matches get
+      // sharper.
+      if (resolved.matchedBy !== 'exact_name') {
+        await recordAlias(
+          db,
+          resolved.counterpartyId,
+          triage.counterparty_name,
+          'triage_extraction',
+          resolved.similarity,
+        );
+      }
+      await db.insert(auditLog).values({
+        actorKind: 'system',
+        matterId: matter.id,
+        action: 'matter.counterparty_resolved',
+        details: {
+          name: triage.counterparty_name,
+          matchedBy: resolved.matchedBy,
+          similarity: resolved.similarity,
+          counterpartyId: resolved.counterpartyId,
+        },
+      });
     } else {
       const [created] = await db
         .insert(counterparties)
