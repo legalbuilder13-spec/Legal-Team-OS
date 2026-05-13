@@ -12,6 +12,12 @@ import {
 } from '@legal/db';
 import { MatterStatusSchema } from '@legal/types';
 import { searchNotion, fetchNotionPage, createNotionPage, appendToNotionPage } from '../integrations/notion';
+import {
+  searchDrive,
+  fetchDriveDocument,
+  createDriveDocument,
+  appendToDriveDocument,
+} from '../integrations/google-drive';
 
 export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   {
@@ -93,6 +99,43 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
         title: { type: 'string', description: 'Title for a new page. Ignored if page_id is given.' },
         body: { type: 'string', description: 'Markdown-ish text. Paragraphs split on blank lines.' },
         page_id: { type: 'string', description: 'If set, appends to this page instead of creating a new one.' },
+      },
+      required: ['body'],
+    },
+  },
+  {
+    name: 'search_drive',
+    description:
+      'Search the connected Google Drive for files. Returns id, name, mimeType, webViewLink. Use fetch_drive_doc to read the body.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string' },
+        limit: { type: 'number' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'fetch_drive_doc',
+    description:
+      'Fetch the body of a Drive file by id. Supports Google Docs (returns plain text), text files, and JSON. Other binary types return a stub.',
+    input_schema: {
+      type: 'object',
+      properties: { file_id: { type: 'string' } },
+      required: ['file_id'],
+    },
+  },
+  {
+    name: 'save_to_drive',
+    description:
+      'Create a new Google Doc under the configured default folder, or append to an existing doc if file_id is provided.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        body: { type: 'string' },
+        file_id: { type: 'string', description: 'If set, appends to this existing Doc.' },
       },
       required: ['body'],
     },
@@ -265,6 +308,45 @@ export async function executeTool(
         try {
           const created = await createNotionPage({ title, body });
           if (!created) return JSON.stringify({ error: 'Notion not configured' });
+          return JSON.stringify({ created: true, ...created });
+        } catch (e) {
+          return JSON.stringify({ error: (e as Error).message });
+        }
+      }
+
+      case 'search_drive': {
+        const q = String(input.query ?? '').slice(0, 200);
+        const limit = Math.min(Math.max(Number(input.limit) || 10, 1), 50);
+        const hits = await searchDrive(q, limit);
+        if (hits.length === 0) {
+          return JSON.stringify({
+            results: [],
+            note: 'No results, or Google Drive not configured (GOOGLE_SERVICE_ACCOUNT_JSON unset).',
+          });
+        }
+        return JSON.stringify({ results: hits });
+      }
+
+      case 'fetch_drive_doc': {
+        const fileId = String(input.file_id ?? '');
+        if (!fileId) return JSON.stringify({ error: 'file_id required' });
+        const doc = await fetchDriveDocument(fileId);
+        if (!doc) return JSON.stringify({ error: 'Drive not configured or file not found' });
+        return JSON.stringify(doc);
+      }
+
+      case 'save_to_drive': {
+        const body = String(input.body ?? '').slice(0, 100_000);
+        const fileId = typeof input.file_id === 'string' ? input.file_id : null;
+        if (!body) return JSON.stringify({ error: 'body required' });
+        if (fileId) {
+          const ok = await appendToDriveDocument(fileId, body);
+          return JSON.stringify({ appended: ok, file_id: fileId });
+        }
+        const title = String(input.title ?? 'Untitled note from Legal Team OS').slice(0, 200);
+        try {
+          const created = await createDriveDocument({ title, body });
+          if (!created) return JSON.stringify({ error: 'Drive not configured' });
           return JSON.stringify({ created: true, ...created });
         } catch (e) {
           return JSON.stringify({ error: (e as Error).message });

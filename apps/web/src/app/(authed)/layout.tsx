@@ -1,18 +1,28 @@
 import Link from 'next/link';
 import { UserButton } from '@clerk/nextjs';
 import { auth } from '@clerk/nextjs/server';
-import { eq } from 'drizzle-orm';
-import { getDb, users } from '@legal/db';
+import { eq, sql } from 'drizzle-orm';
+import { getDb, users, escalations } from '@legal/db';
 
 export default async function AuthedLayout({ children }: { children: React.ReactNode }) {
   const { userId } = await auth();
+  const db = getDb();
   const dbUser = userId
-    ? await getDb().query.users.findFirst({ where: eq(users.clerkId, userId) })
+    ? await db.query.users.findFirst({ where: eq(users.clerkId, userId) })
     : null;
   const isAdmin =
     dbUser?.role === 'admin' ||
     dbUser?.role === 'legal_ops' ||
     dbUser?.role === 'attorney';
+
+  let openEscalations = 0;
+  if (dbUser) {
+    const rows = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(escalations)
+      .where(eq(escalations.status, 'open'));
+    openEscalations = rows[0]?.count ?? 0;
+  }
 
   return (
     <div className="min-h-screen flex">
@@ -24,6 +34,17 @@ export default async function AuthedLayout({ children }: { children: React.React
           </Link>
           <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/queue">
             My Queue
+          </Link>
+          <Link
+            className="px-2 py-1.5 rounded hover:bg-gray-100 flex items-center justify-between"
+            href="/escalations"
+          >
+            <span>Escalations</span>
+            {openEscalations > 0 && (
+              <span className="text-[10px] bg-red-500 text-white rounded-full px-1.5 py-0.5 leading-none">
+                {openEscalations}
+              </span>
+            )}
           </Link>
           <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/archive">
             Archive
@@ -47,6 +68,9 @@ export default async function AuthedLayout({ children }: { children: React.React
               </Link>
               <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/admin/users">
                 Users
+              </Link>
+              <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/admin/audit">
+                Audit Log
               </Link>
             </>
           )}

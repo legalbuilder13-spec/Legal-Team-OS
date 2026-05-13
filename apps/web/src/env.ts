@@ -12,6 +12,8 @@ const Env = z.object({
   ANTHROPIC_MODEL: z.string().default('claude-opus-4-7'),
   NOTION_API_KEY: z.string().optional(),
   NOTION_DEFAULT_PARENT_PAGE_ID: z.string().optional(),
+  GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  GOOGLE_DRIVE_DEFAULT_FOLDER_ID: z.string().optional(),
 });
 
 export const env = Env.parse({
@@ -26,4 +28,6 @@ export const env = Env.parse({
   ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL,
   NOTION_API_KEY: process.env.NOTION_API_KEY,
   NOTION_DEFAULT_PARENT_PAGE_ID: process.env.NOTION_DEFAULT_PARENT_PAGE_ID,
+  GOOGLE_SERVICE_ACCOUNT_JSON: process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
+  GOOGLE_DRIVE_DEFAULT_FOLDER_ID: process.env.GOOGLE_DRIVE_DEFAULT_FOLDER_ID,
 });

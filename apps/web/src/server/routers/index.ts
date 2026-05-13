@@ -5,6 +5,9 @@ import { adminRouter } from './admin';
 import { counterpartiesRouter } from './counterparties';
 import { chatRouter } from './chat';
 import { notionRouter } from './notion';
+import { driveRouter } from './drive';
+import { escalationsRouter } from './escalations';
+import { draftsRouter } from './drafts';
 
 export const appRouter = router({
   matters: mattersRouter,
@@ -13,6 +16,9 @@ export const appRouter = router({
   counterparties: counterpartiesRouter,
   chat: chatRouter,
   notion: notionRouter,
+  drive: driveRouter,
+  escalations: escalationsRouter,
+  drafts: draftsRouter,
 });
 
 export type AppRouter = typeof appRouter;

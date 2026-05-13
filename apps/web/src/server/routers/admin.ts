@@ -1,9 +1,10 @@
 import { z } from 'zod';
-import { asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, gte, lte, sql } from 'drizzle-orm';
 import {
   users,
   routingRules,
   auditLog,
+  matters,
   playbooks,
   playbookVersions,
   playbookSuggestions,
@@ -16,6 +17,55 @@ import { adminProcedure, router } from '../trpc.js';
 const RoleSchema = z.enum(['attorney', 'legal_ops', 'admin', 'requester']);
 
 export const adminRouter = router({
+  listAuditLog: adminProcedure
+    .input(
+      z
+        .object({
+          actor: z.enum(['all', 'user', 'system', 'copilot']).default('all'),
+          actionContains: z.string().max(100).optional(),
+          matterId: z.string().uuid().optional(),
+          actorId: z.string().uuid().optional(),
+          since: z.string().datetime().optional(),
+          until: z.string().datetime().optional(),
+          limit: z.number().int().min(1).max(500).default(100),
+        })
+        .default({}),
+    )
+    .query(async ({ ctx, input }) => {
+      const conditions = [];
+      if (input.actor === 'user') conditions.push(eq(auditLog.actorKind, 'user'));
+      if (input.actor === 'system') conditions.push(eq(auditLog.actorKind, 'system'));
+      if (input.actor === 'copilot') {
+        conditions.push(sql`(${auditLog.details} ->> 'source') = 'copilot'`);
+      }
+      if (input.actionContains)
+        conditions.push(ilike(auditLog.action, `%${input.actionContains}%`));
+      if (input.matterId) conditions.push(eq(auditLog.matterId, input.matterId));
+      if (input.actorId) conditions.push(eq(auditLog.actorId, input.actorId));
+      if (input.since) conditions.push(gte(auditLog.createdAt, new Date(input.since)));
+      if (input.until) conditions.push(lte(auditLog.createdAt, new Date(input.until)));
+
+      return ctx.db
+        .select({
+          id: auditLog.id,
+          actorId: auditLog.actorId,
+          actorKind: auditLog.actorKind,
+          actorName: users.name,
+          matterId: auditLog.matterId,
+          matterShortId: matters.shortId,
+          matterTitle: matters.title,
+          action: auditLog.action,
+          details: auditLog.details,
+          createdAt: auditLog.createdAt,
+        })
+        .from(auditLog)
+        .leftJoin(users, eq(auditLog.actorId, users.id))
+        .leftJoin(matters, eq(auditLog.matterId, matters.id))
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(desc(auditLog.createdAt))
+        .limit(input.limit);
+    }),
+
   listUsers: adminProcedure.query(async ({ ctx }) => {
     return ctx.db.select().from(users).orderBy(asc(users.name));
   }),

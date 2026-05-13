@@ -1,11 +1,14 @@
 'use client';
 
+import Link from 'next/link';
 import { use, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { MatterStatusSchema } from '@legal/types';
 import { ChatPanel } from './ChatPanel';
 import { PlaybooksCard } from './PlaybooksCard';
 import { SaveToNotionButton } from './SaveToNotionButton';
+import { SaveToDriveButton } from './SaveToDriveButton';
+import { EscalationsCard } from './EscalationsCard';
 
 interface SalesforceContext {
   source: 'salesforce';
@@ -150,6 +153,13 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
               </span>
             )}
             <SaveToNotionButton matterId={matter.id} />
+            <SaveToDriveButton matterId={matter.id} />
+            <Link
+              href={`/matters/${matter.id}/draft`}
+              className="text-xs border rounded px-2 py-1 hover:bg-gray-50"
+            >
+              Open draft →
+            </Link>
           </div>
         </div>
         <button
@@ -227,6 +237,8 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
         </section>
 
         <aside className={chatOpen ? 'col-span-3 space-y-4' : 'space-y-4'}>
+          <EscalationsCard matterId={matter.id} />
+
           <PlaybooksCard matterId={matter.id} />
 
           <div className="bg-white border rounded-lg p-4 text-sm">
