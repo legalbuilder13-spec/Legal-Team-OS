@@ -123,7 +123,10 @@ def build_user_prompt(request: TriageRequest) -> str:
 
     if request.knowledge_articles:
         parts.append("")
-        parts.append("--- Knowledge base articles available (if the request matches one, the requester can self-serve) ---")
+        parts.append(
+            "--- Knowledge base articles available "
+            "(if the request matches one, the requester can self-serve) ---"
+        )
         for ka in request.knowledge_articles[:5]:
             tags = f" tags=[{', '.join(ka.tags)}]" if ka.tags else ""
             parts.append(f"\n[{ka.practice_area}]{tags} {ka.title}:")
@@ -143,7 +146,7 @@ def triage(request: TriageRequest) -> TriageResult:
     client = get_client()
     user_prompt = build_user_prompt(request)
 
-    response = client.messages.create(
+    response = client.messages.create(  # type: ignore[call-overload]
         model=settings.anthropic_model,
         max_tokens=1024,
         system=[

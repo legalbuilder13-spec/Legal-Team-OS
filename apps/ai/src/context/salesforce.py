@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -53,7 +53,7 @@ async def lookup_counterparty(name: str | None, domain: str | None) -> ContextCa
         logger.info("Salesforce not configured, returning empty context")
         return ContextCard(
             source="salesforce",
-            fetched_at=datetime.now(timezone.utc).isoformat(),
+            fetched_at=datetime.now(UTC).isoformat(),
             data={"configured": False, "name": name, "domain": domain},
         )
 
@@ -83,6 +83,6 @@ async def lookup_counterparty(name: str | None, domain: str | None) -> ContextCa
     body = resp.json()
     return ContextCard(
         source="salesforce",
-        fetched_at=datetime.now(timezone.utc).isoformat(),
+        fetched_at=datetime.now(UTC).isoformat(),
         data={"records": body.get("records", []), "name": name, "domain": domain},
     )

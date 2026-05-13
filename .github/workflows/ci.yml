@@ -12,8 +12,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -22,6 +20,14 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+        env:
+          # Stubs so Next.js env validation (Zod parse at module load) and
+          # Clerk SDK initialization (during static prerender of admin pages)
+          # succeed during build. The web app reads real values from Railway
+          # env vars at runtime.
+          DATABASE_URL: postgres://stub:stub@localhost:5432/stub
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmstY2ktc3R1Yi5jbGVyay5kZXYk
+          CLERK_SECRET_KEY: sk_test_ci-stub
 
   py:
     name: Python AI service
