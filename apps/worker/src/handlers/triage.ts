@@ -9,6 +9,7 @@ import {
   users,
   playbooks,
   knowledgeArticles,
+  escalations,
   type Job,
 } from '@legal/db';
 import type { Db } from '@legal/db';
@@ -24,6 +25,10 @@ interface TriageResponse {
   priority: Priority;
   counterparty_name: string | null;
   reasoning: string;
+  practice_area_confidence: number;
+  priority_confidence: number;
+  requires_human_review: boolean;
+  review_reason: string | null;
 }
 
 const SLA_HOURS_BY_PRIORITY: Record<string, number> = {
@@ -179,7 +184,13 @@ export async function handleTriageJob(db: Db, job: Job) {
       counterpartyId,
       assigneeId: rule?.defaultAssigneeId ?? null,
       slaDueAt,
-      triageMetadata: { reasoning: triage.reasoning },
+      triageMetadata: {
+        reasoning: triage.reasoning,
+        practiceAreaConfidence: triage.practice_area_confidence,
+        priorityConfidence: triage.priority_confidence,
+        requiresHumanReview: triage.requires_human_review,
+        reviewReason: triage.review_reason,
+      },
       updatedAt: new Date(),
     })
     .where(eq(matters.id, matter.id));
@@ -202,8 +213,40 @@ export async function handleTriageJob(db: Db, job: Job) {
       practiceArea: triage.practice_area,
       priority: triage.priority,
       slaHours,
+      practiceAreaConfidence: triage.practice_area_confidence,
+      priorityConfidence: triage.priority_confidence,
+      requiresHumanReview: triage.requires_human_review,
     },
   });
+
+  if (triage.requires_human_review) {
+    const lowConf = Math.min(
+      triage.practice_area_confidence,
+      triage.priority_confidence,
+    );
+    const severity: 'high' | 'medium' = lowConf < 0.5 ? 'high' : 'medium';
+    await db.insert(escalations).values({
+      matterId: matter.id,
+      kind: 'low_confidence_triage',
+      severity,
+      title: `Low-confidence triage for ${matter.shortId}`,
+      body: [
+        triage.review_reason ?? 'The triage model self-flagged this matter for human review.',
+        '',
+        `Practice area: ${triage.practice_area} (confidence ${(triage.practice_area_confidence * 100).toFixed(0)}%)`,
+        `Priority: ${triage.priority} (confidence ${(triage.priority_confidence * 100).toFixed(0)}%)`,
+        '',
+        `Reasoning: ${triage.reasoning}`,
+      ].join('\n'),
+      createdByKind: 'system',
+      triggerRule: 'triage_low_confidence',
+      evidence: {
+        practiceAreaConfidence: triage.practice_area_confidence,
+        priorityConfidence: triage.priority_confidence,
+        reviewReason: triage.review_reason,
+      },
+    });
+  }
 
   const assignee = rule?.defaultAssigneeId
     ? await db.query.users.findFirst({ where: eq(users.id, rule.defaultAssigneeId) })
