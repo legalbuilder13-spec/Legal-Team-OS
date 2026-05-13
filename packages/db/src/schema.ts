@@ -370,6 +370,28 @@ export const knowledgeArticles = pgTable(
   }),
 );
 
+export const chatRole = pgEnum('chat_role', ['user', 'assistant', 'tool']);
+
+export const chatMessages = pgTable(
+  'chat_messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    matterId: uuid('matter_id')
+      .notNull()
+      .references(() => matters.id, { onDelete: 'cascade' }),
+    authorId: uuid('author_id').references(() => users.id),
+    role: chatRole('role').notNull(),
+    content: text('content').notNull(),
+    toolCalls: jsonb('tool_calls').$type<unknown[]>().default([]),
+    toolName: text('tool_name'),
+    toolUseId: text('tool_use_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    matterIdx: index('chat_messages_matter_idx').on(t.matterId, t.createdAt),
+  }),
+);
+
 export const systemInsights = pgTable(
   'system_insights',
   {
@@ -446,3 +468,5 @@ export type PlaybookSuggestion = typeof playbookSuggestions.$inferSelect;
 export type KnowledgeArticle = typeof knowledgeArticles.$inferSelect;
 export type NewKnowledgeArticle = typeof knowledgeArticles.$inferInsert;
 export type SystemInsight = typeof systemInsights.$inferSelect;
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type NewChatMessage = typeof chatMessages.$inferInsert;

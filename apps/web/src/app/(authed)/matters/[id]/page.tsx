@@ -3,6 +3,9 @@
 import { use, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { MatterStatusSchema } from '@legal/types';
+import { ChatPanel } from './ChatPanel';
+import { PlaybooksCard } from './PlaybooksCard';
+import { SaveToNotionButton } from './SaveToNotionButton';
 
 interface SalesforceContext {
   source: 'salesforce';
@@ -110,45 +113,55 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
   const addNote = trpc.matters.addNote.useMutation({ onSuccess: () => refetch() });
   const setStatus = trpc.matters.setStatus.useMutation({ onSuccess: () => refetch() });
   const [note, setNote] = useState('');
+  const [chatOpen, setChatOpen] = useState(true);
 
   if (isLoading || !matter) return <div className="text-gray-500">Loading…</div>;
 
   return (
-    <div className="max-w-5xl">
-      <header className="mb-6">
-        <div className="text-xs font-mono text-gray-500">{matter.shortId}</div>
-        <h1 className="text-2xl font-semibold">{matter.title}</h1>
-        <div className="mt-2 flex items-center gap-3 text-sm text-gray-600">
-          <span>Status:</span>
-          <select
-            value={matter.status}
-            onChange={(e) =>
-              setStatus.mutate({
-                matterId: matter.id,
-                status: MatterStatusSchema.parse(e.target.value),
-              })
-            }
-            className="border rounded px-2 py-1"
-          >
-            {MatterStatusSchema.options.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-          {matter.priority && (
-            <span className="px-2 py-0.5 rounded bg-gray-100 text-xs">{matter.priority}</span>
-          )}
-          {matter.practiceArea && (
-            <span className="px-2 py-0.5 rounded bg-gray-100 text-xs capitalize">
-              {matter.practiceArea}
-            </span>
-          )}
+    <div className={chatOpen ? 'max-w-[110rem]' : 'max-w-5xl'}>
+      <header className="mb-6 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-xs font-mono text-gray-500">{matter.shortId}</div>
+          <h1 className="text-2xl font-semibold">{matter.title}</h1>
+          <div className="mt-2 flex items-center gap-3 text-sm text-gray-600 flex-wrap">
+            <span>Status:</span>
+            <select
+              value={matter.status}
+              onChange={(e) =>
+                setStatus.mutate({
+                  matterId: matter.id,
+                  status: MatterStatusSchema.parse(e.target.value),
+                })
+              }
+              className="border rounded px-2 py-1"
+            >
+              {MatterStatusSchema.options.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            {matter.priority && (
+              <span className="px-2 py-0.5 rounded bg-gray-100 text-xs">{matter.priority}</span>
+            )}
+            {matter.practiceArea && (
+              <span className="px-2 py-0.5 rounded bg-gray-100 text-xs capitalize">
+                {matter.practiceArea}
+              </span>
+            )}
+            <SaveToNotionButton matterId={matter.id} />
+          </div>
         </div>
+        <button
+          onClick={() => setChatOpen((o) => !o)}
+          className="text-sm border rounded px-3 py-1.5 hover:bg-gray-50 shrink-0"
+        >
+          {chatOpen ? 'Hide copilot' : 'Open copilot'}
+        </button>
       </header>
 
-      <div className="grid grid-cols-3 gap-6">
-        <section className="col-span-2 space-y-6">
+      <div className={chatOpen ? 'grid grid-cols-12 gap-6' : 'grid grid-cols-3 gap-6'}>
+        <section className={chatOpen ? 'col-span-6 space-y-6' : 'col-span-2 space-y-6'}>
           <div className="bg-white border rounded-lg p-4">
             <h2 className="font-medium mb-2">Original Request</h2>
             <p className="text-sm whitespace-pre-wrap text-gray-800">{matter.requestText}</p>
@@ -213,7 +226,9 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </section>
 
-        <aside className="space-y-4">
+        <aside className={chatOpen ? 'col-span-3 space-y-4' : 'space-y-4'}>
+          <PlaybooksCard matterId={matter.id} />
+
           <div className="bg-white border rounded-lg p-4 text-sm">
             <h2 className="font-medium mb-2">Metadata</h2>
             <dl className="space-y-1">
@@ -350,6 +365,12 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
             </div>
           )}
         </aside>
+
+        {chatOpen && (
+          <aside className="col-span-3">
+            <ChatPanel matterId={matter.id} />
+          </aside>
+        )}
       </div>
     </div>
   );
