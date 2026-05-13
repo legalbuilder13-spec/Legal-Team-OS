@@ -529,6 +529,10 @@ export const matterNotesRelations = relations(matterNotes, ({ one }) => ({
   author: one(users, { fields: [matterNotes.authorId], references: [users.id] }),
 }));
 
+export const attachmentsRelations = relations(attachments, ({ one }) => ({
+  matter: one(matters, { fields: [attachments.matterId], references: [matters.id] }),
+}));
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Matter = typeof matters.$inferSelect;
