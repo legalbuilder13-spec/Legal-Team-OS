@@ -211,6 +211,49 @@ export const dashboardRouter = router({
     };
   }),
 
+  myActivityChart: protectedProcedure.query(async ({ ctx }) => {
+    // Last 14 days bucketed by day: SLA breaches and matters closed on
+    // matters assigned to the current user.
+    const userId = ctx.user.id;
+    const rows = await ctx.db.execute(sql`
+      WITH days AS (
+        SELECT generate_series(
+          date_trunc('day', now()) - interval '13 days',
+          date_trunc('day', now()),
+          interval '1 day'
+        )::date AS day
+      )
+      SELECT
+        days.day::text AS day,
+        COALESCE((
+          SELECT COUNT(*)::int FROM matter_events e
+          JOIN matters m ON m.id = e.matter_id
+          WHERE m.assignee_id = ${userId}
+            AND e.kind = 'sla.breached'
+            AND date_trunc('day', e.created_at) = days.day
+        ), 0) AS breached,
+        COALESCE((
+          SELECT COUNT(*)::int FROM matters m
+          WHERE m.assignee_id = ${userId}
+            AND m.status = 'closed'
+            AND date_trunc('day', m.closed_at) = days.day
+        ), 0) AS closed,
+        COALESCE((
+          SELECT COUNT(*)::int FROM matters m
+          WHERE m.assignee_id = ${userId}
+            AND date_trunc('day', m.created_at) = days.day
+        ), 0) AS opened
+      FROM days
+      ORDER BY days.day ASC
+    `);
+    return rows as unknown as Array<{
+      day: string;
+      breached: number;
+      closed: number;
+      opened: number;
+    }>;
+  }),
+
   recentActivity: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db
       .select({

@@ -44,14 +44,14 @@ export default function AdminRoutingPage() {
   return (
     <div className="max-w-4xl">
       <h1 className="text-2xl font-semibold mb-2">Routing Rules</h1>
-      <p className="text-sm text-ink-600 mb-6">
+      <p className="text-sm text-ink-600 dark:text-ink-400 mb-6">
         Map each practice area to a default attorney and SLA in hours. New matters classified into
         an area get auto-assigned to the listed attorney and inherit the SLA.
       </p>
 
-      <div className="bg-white border rounded-lg overflow-hidden">
+      <div className="bg-white dark:bg-ink-900 border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-ink-50 text-left">
+          <thead className="bg-ink-50 dark:bg-ink-900 text-left">
             <tr>
               <th className="px-4 py-2 font-medium">Practice Area</th>
               <th className="px-4 py-2 font-medium">Default Assignee</th>
@@ -67,7 +67,7 @@ export default function AdminRoutingPage() {
                 draft.defaultAssigneeId !== (existing?.defaultAssigneeId ?? null) ||
                 draft.slaHours !== (existing?.slaHours ?? DEFAULT_SLA[area]);
               return (
-                <tr key={area} className="border-t border-ink-100">
+                <tr key={area} className="border-t border-ink-100 dark:border-ink-800">
                   <td className="px-4 py-2 capitalize">{area}</td>
                   <td className="px-4 py-2">
                     <select

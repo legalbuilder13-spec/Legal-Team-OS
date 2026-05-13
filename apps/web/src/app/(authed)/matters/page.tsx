@@ -15,7 +15,7 @@ const STATUS_LABELS: Record<string, string> = {
 const PRIORITY_COLOR: Record<string, string> = {
   high: 'bg-red-100 text-red-700',
   medium: 'bg-amber-100 text-amber-700',
-  low: 'bg-ink-100 text-ink-700',
+  low: 'bg-ink-100 dark:bg-ink-800 text-ink-700 dark:text-ink-300',
 };
 
 export default function MattersPage() {
@@ -26,9 +26,9 @@ export default function MattersPage() {
       <header className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Matters</h1>
       </header>
-      <div className="bg-white rounded-lg border border-ink-200 overflow-hidden">
+      <div className="bg-white dark:bg-ink-900 rounded-lg border border-ink-200 dark:border-ink-800 overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-ink-50 text-left">
+          <thead className="bg-ink-50 dark:bg-ink-900 text-left">
             <tr>
               <th className="px-4 py-2 font-medium">ID</th>
               <th className="px-4 py-2 font-medium">Title</th>
@@ -42,19 +42,19 @@ export default function MattersPage() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-ink-500">
+                <td colSpan={7} className="px-4 py-6 text-center text-ink-500 dark:text-ink-400">
                   Loading…
                 </td>
               </tr>
             ) : data?.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-ink-500">
+                <td colSpan={7} className="px-4 py-6 text-center text-ink-500 dark:text-ink-400">
                   No matters yet. Try <code>/legal</code> in Slack.
                 </td>
               </tr>
             ) : (
               data?.map((m) => (
-                <tr key={m.id} className="border-t border-ink-100 hover:bg-ink-50">
+                <tr key={m.id} className="border-t border-ink-100 dark:border-ink-800 hover:bg-ink-50 dark:hover:bg-ink-800">
                   <td className="px-4 py-2 font-mono text-xs">
                     <Link className="text-brand-600 hover:underline" href={`/matters/${m.id}`}>
                       {m.shortId}
@@ -75,7 +75,7 @@ export default function MattersPage() {
                     )}
                   </td>
                   <td className="px-4 py-2">{m.assigneeName ?? '—'}</td>
-                  <td className="px-4 py-2 text-xs text-ink-500">
+                  <td className="px-4 py-2 text-xs text-ink-500 dark:text-ink-400">
                     {new Date(m.createdAt).toLocaleString()}
                   </td>
                 </tr>

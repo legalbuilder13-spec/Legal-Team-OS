@@ -6,7 +6,7 @@ import { trpc } from '@/lib/trpc';
 const SEVERITY = ['low', 'medium', 'high', 'critical'] as const;
 
 const SEVERITY_COLOR: Record<string, string> = {
-  low: 'bg-ink-100 text-ink-700',
+  low: 'bg-ink-100 dark:bg-ink-800 text-ink-700 dark:text-ink-300',
   medium: 'bg-amber-100 text-amber-800',
   high: 'bg-orange-100 text-orange-800',
   critical: 'bg-red-100 text-red-800',
@@ -33,7 +33,7 @@ export function EscalationsCard({ matterId }: { matterId: string }) {
   const open = data.filter((e) => e.status !== 'resolved');
 
   return (
-    <div className="bg-white border rounded-lg p-4 text-sm">
+    <div className="bg-white dark:bg-ink-900 border rounded-lg p-4 text-sm">
       <div className="flex items-center justify-between mb-2">
         <h2 className="font-medium">Escalations</h2>
         {!composing && (
@@ -47,25 +47,25 @@ export function EscalationsCard({ matterId }: { matterId: string }) {
       </div>
 
       {composing && (
-        <div className="border rounded-md p-2 mb-2 bg-ink-50 space-y-1">
+        <div className="border rounded-md p-2 mb-2 bg-ink-50 dark:bg-ink-900 space-y-1">
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Title"
-            className="w-full border rounded px-2 py-1 text-sm bg-white"
+            className="w-full border rounded px-2 py-1 text-sm bg-white dark:bg-ink-900"
           />
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
             placeholder="What needs senior attention?"
             rows={3}
-            className="w-full border rounded px-2 py-1 text-sm bg-white"
+            className="w-full border rounded px-2 py-1 text-sm bg-white dark:bg-ink-900"
           />
           <div className="flex items-center gap-2">
             <select
               value={severity}
               onChange={(e) => setSeverity(e.target.value as typeof severity)}
-              className="border rounded px-2 py-1 text-xs bg-white"
+              className="border rounded px-2 py-1 text-xs bg-white dark:bg-ink-900"
             >
               {SEVERITY.map((s) => (
                 <option key={s} value={s}>{s}</option>
@@ -97,7 +97,7 @@ export function EscalationsCard({ matterId }: { matterId: string }) {
       )}
 
       {open.length === 0 && !composing && (
-        <p className="text-xs text-ink-500">No open escalations.</p>
+        <p className="text-xs text-ink-500 dark:text-ink-400">No open escalations.</p>
       )}
 
       <ul className="space-y-2">
@@ -107,16 +107,16 @@ export function EscalationsCard({ matterId }: { matterId: string }) {
               <span className={`text-xs px-1.5 py-0.5 rounded ${SEVERITY_COLOR[e.severity] ?? ''}`}>
                 {e.severity}
               </span>
-              <span className="text-xs text-ink-400">{e.kind}</span>
-              {e.createdByKind === 'system' && <span className="text-xs text-ink-400">· auto</span>}
+              <span className="text-xs text-ink-400 dark:text-ink-500">{e.kind}</span>
+              {e.createdByKind === 'system' && <span className="text-xs text-ink-400 dark:text-ink-500">· auto</span>}
             </div>
             <div className="font-medium text-xs mt-0.5">{e.title}</div>
-            <p className="text-xs text-ink-700 whitespace-pre-wrap mt-0.5">{e.body}</p>
+            <p className="text-xs text-ink-700 dark:text-ink-300 whitespace-pre-wrap mt-0.5">{e.body}</p>
             <div className="flex gap-2 mt-1">
               {e.status === 'open' && (
                 <button
                   onClick={() => ack.mutate({ id: e.id })}
-                  className="text-xs text-ink-600 hover:underline"
+                  className="text-xs text-ink-600 dark:text-ink-400 hover:underline"
                 >
                   Ack
                 </button>

@@ -10,7 +10,7 @@ export function SaveToNotionButton({ matterId }: { matterId: string }) {
 
   if (!status?.configured) {
     return (
-      <span className="text-xs text-ink-400" title="Set NOTION_API_KEY to enable">
+      <span className="text-xs text-ink-400 dark:text-ink-500" title="Set NOTION_API_KEY to enable">
         Notion not configured
       </span>
     );
@@ -29,7 +29,7 @@ export function SaveToNotionButton({ matterId }: { matterId: string }) {
           )
         }
         disabled={save.isPending}
-        className="text-xs border rounded px-2 py-1 hover:bg-ink-50 disabled:opacity-50"
+        className="text-xs border rounded px-2 py-1 hover:bg-ink-50 dark:hover:bg-ink-800 disabled:opacity-50"
       >
         {save.isPending ? 'Saving…' : 'Save to Notion'}
       </button>
