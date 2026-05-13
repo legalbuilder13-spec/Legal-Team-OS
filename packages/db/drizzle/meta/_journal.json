@@ -103,6 +103,13 @@
       "when": 1748217600000,
       "tag": "0014_playbook_positions",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1748304000000,
+      "tag": "0015_clause_analyses",
+      "breakpoints": true
     }
   ]
 }
