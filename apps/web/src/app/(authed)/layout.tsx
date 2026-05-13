@@ -9,7 +9,10 @@ export default async function AuthedLayout({ children }: { children: React.React
   const dbUser = userId
     ? await getDb().query.users.findFirst({ where: eq(users.clerkId, userId) })
     : null;
-  const isAdmin = dbUser?.role === 'admin' || dbUser?.role === 'legal_ops';
+  const isAdmin =
+    dbUser?.role === 'admin' ||
+    dbUser?.role === 'legal_ops' ||
+    dbUser?.role === 'attorney';
 
   return (
     <div className="min-h-screen flex">

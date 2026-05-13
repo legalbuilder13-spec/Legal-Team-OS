@@ -76,9 +76,11 @@ export const staffProcedure = protectedProcedure.use(({ ctx, next }) => {
   return next({ ctx });
 });
 
+const ADMIN_ROLES = new Set(['attorney', 'legal_ops', 'admin']);
+
 export const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role !== 'admin' && ctx.user.role !== 'legal_ops') {
-    throw new TRPCError({ code: 'FORBIDDEN', message: 'admin or legal_ops role required' });
+  if (!ADMIN_ROLES.has(ctx.user.role)) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'attorney, legal_ops, or admin role required' });
   }
   return next({ ctx });
 });
