@@ -131,6 +131,13 @@
       "when": 1748563200000,
       "tag": "0018_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1748649600000,
+      "tag": "0019_compile_playbook_triggers",
+      "breakpoints": true
     }
   ]
 }
