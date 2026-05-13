@@ -366,6 +366,32 @@ export const playbookVersions = pgTable(
   }),
 );
 
+export const playbookPositions = pgTable(
+  'playbook_positions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    playbookId: uuid('playbook_id')
+      .notNull()
+      .references(() => playbooks.id, { onDelete: 'cascade' }),
+    topic: text('topic').notNull(),
+    trigger: text('trigger').notNull(),
+    standardPosition: text('standard_position').notNull(),
+    acceptableRange: text('acceptable_range'),
+    flaggedConditions: text('flagged_conditions'),
+    suggestedRedline: text('suggested_redline'),
+    citation: text('citation'),
+    embedding: vector(1024)('embedding'),
+    isActive: boolean('is_active').notNull().default(true),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    playbookIdx: index('playbook_positions_playbook_idx').on(t.playbookId),
+    activeIdx: index('playbook_positions_active_idx').on(t.isActive),
+  }),
+);
+
 export const playbookSuggestions = pgTable(
   'playbook_suggestions',
   {

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { PracticeAreaSchema } from '@legal/types';
+import { PlaybookPositionsPanel } from './PlaybookPositionsPanel';
 
 const PRACTICE_AREAS = PracticeAreaSchema.options;
 
@@ -28,6 +29,7 @@ export default function PlaybooksAdminPage() {
 
   const [editing, setEditing] = useState<PlaybookForm | null>(null);
   const [historyFor, setHistoryFor] = useState<string | null>(null);
+  const [positionsFor, setPositionsFor] = useState<string | null>(null);
   const { data: versions = [] } = trpc.admin.listPlaybookVersions.useQuery(
     { playbookId: historyFor ?? '' },
     { enabled: !!historyFor },
@@ -170,6 +172,12 @@ export default function PlaybooksAdminPage() {
                       <div className="flex gap-2 shrink-0">
                         <span className="text-xs text-ink-400 dark:text-ink-500">v{pb.version}</span>
                         <button
+                          onClick={() => setPositionsFor(positionsFor === pb.id ? null : pb.id)}
+                          className="text-xs text-ink-600 dark:text-ink-400 hover:underline"
+                        >
+                          {positionsFor === pb.id ? 'Hide positions' : 'Positions'}
+                        </button>
+                        <button
                           onClick={() => setHistoryFor(historyFor === pb.id ? null : pb.id)}
                           className="text-xs text-ink-600 dark:text-ink-400 hover:underline"
                         >
@@ -199,6 +207,9 @@ export default function PlaybooksAdminPage() {
                         </button>
                       </div>
                     </div>
+                    {positionsFor === pb.id && (
+                      <PlaybookPositionsPanel playbookId={pb.id} />
+                    )}
                     {historyFor === pb.id && (
                       <div className="bg-ink-50 dark:bg-ink-900 border border-t-0 rounded-b-lg p-3 -mt-1">
                         <div className="text-xs font-medium text-ink-500 dark:text-ink-400 mb-2">

@@ -96,6 +96,13 @@
       "when": 1748131200000,
       "tag": "0013_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1748217600000,
+      "tag": "0014_playbook_positions",
+      "breakpoints": true
     }
   ]
 }
