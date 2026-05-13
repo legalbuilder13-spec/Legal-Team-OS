@@ -58,6 +58,13 @@ class CounterpartyMemory(BaseModel):
     executive_involvement: str | None = None
 
 
+class TriageRuleInput(BaseModel):
+    id: str
+    name: str
+    natural_text: str
+    priority: int = 100
+
+
 class TriageRequest(BaseModel):
     matter_id: str
     request_text: str
@@ -68,6 +75,7 @@ class TriageRequest(BaseModel):
     prior_matters: list[PriorMatter] = []
     knowledge_articles: list[KnowledgeArticleContext] = []
     counterparty_memory: CounterpartyMemory | None = None
+    triage_rules: list[TriageRuleInput] = []
 
 
 class TriageResult(BaseModel):
