@@ -33,7 +33,7 @@ export function PlaybooksCard({ matterId }: { matterId: string }) {
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Playbooks</h2>
         </div>
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-ink-500 mt-1">
           No active playbooks for this practice area.
         </p>
       </div>
@@ -44,12 +44,12 @@ export function PlaybooksCard({ matterId }: { matterId: string }) {
     <div className="bg-white border rounded-lg p-4 text-sm">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-medium">Playbooks</h2>
-        <span className="text-xs text-gray-400">{pbs.length} active</span>
+        <span className="text-xs text-ink-400">{pbs.length} active</span>
       </div>
 
       {editing && (
-        <div className="border rounded-md p-3 mb-3 bg-gray-50 space-y-2">
-          <div className="text-xs text-gray-500">
+        <div className="border rounded-md p-3 mb-3 bg-ink-50 space-y-2">
+          <div className="text-xs text-ink-500">
             {editing.id ? 'Editing playbook' : 'New playbook'}
           </div>
           <input
@@ -128,7 +128,7 @@ export function PlaybooksCard({ matterId }: { matterId: string }) {
                 className="text-left flex-1 hover:text-brand-700"
               >
                 <div className="font-medium">{pb.title}</div>
-                <div className="text-xs text-gray-500">v{pb.version}</div>
+                <div className="text-xs text-ink-500">v{pb.version}</div>
               </button>
               <button
                 onClick={() =>
@@ -147,7 +147,7 @@ export function PlaybooksCard({ matterId }: { matterId: string }) {
               </button>
             </div>
             {expanded === pb.id && (
-              <pre className="text-xs whitespace-pre-wrap font-mono px-3 pb-3 text-gray-700">
+              <pre className="text-xs whitespace-pre-wrap font-mono px-3 pb-3 text-ink-700">
                 {pb.body}
               </pre>
             )}

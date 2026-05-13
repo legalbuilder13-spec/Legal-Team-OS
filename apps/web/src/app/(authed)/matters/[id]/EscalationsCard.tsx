@@ -6,7 +6,7 @@ import { trpc } from '@/lib/trpc';
 const SEVERITY = ['low', 'medium', 'high', 'critical'] as const;
 
 const SEVERITY_COLOR: Record<string, string> = {
-  low: 'bg-gray-100 text-gray-700',
+  low: 'bg-ink-100 text-ink-700',
   medium: 'bg-amber-100 text-amber-800',
   high: 'bg-orange-100 text-orange-800',
   critical: 'bg-red-100 text-red-800',
@@ -47,7 +47,7 @@ export function EscalationsCard({ matterId }: { matterId: string }) {
       </div>
 
       {composing && (
-        <div className="border rounded-md p-2 mb-2 bg-gray-50 space-y-1">
+        <div className="border rounded-md p-2 mb-2 bg-ink-50 space-y-1">
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -97,7 +97,7 @@ export function EscalationsCard({ matterId }: { matterId: string }) {
       )}
 
       {open.length === 0 && !composing && (
-        <p className="text-xs text-gray-500">No open escalations.</p>
+        <p className="text-xs text-ink-500">No open escalations.</p>
       )}
 
       <ul className="space-y-2">
@@ -107,16 +107,16 @@ export function EscalationsCard({ matterId }: { matterId: string }) {
               <span className={`text-xs px-1.5 py-0.5 rounded ${SEVERITY_COLOR[e.severity] ?? ''}`}>
                 {e.severity}
               </span>
-              <span className="text-xs text-gray-400">{e.kind}</span>
-              {e.createdByKind === 'system' && <span className="text-xs text-gray-400">· auto</span>}
+              <span className="text-xs text-ink-400">{e.kind}</span>
+              {e.createdByKind === 'system' && <span className="text-xs text-ink-400">· auto</span>}
             </div>
             <div className="font-medium text-xs mt-0.5">{e.title}</div>
-            <p className="text-xs text-gray-700 whitespace-pre-wrap mt-0.5">{e.body}</p>
+            <p className="text-xs text-ink-700 whitespace-pre-wrap mt-0.5">{e.body}</p>
             <div className="flex gap-2 mt-1">
               {e.status === 'open' && (
                 <button
                   onClick={() => ack.mutate({ id: e.id })}
-                  className="text-xs text-gray-600 hover:underline"
+                  className="text-xs text-ink-600 hover:underline"
                 >
                   Ack
                 </button>

@@ -4,9 +4,32 @@
 
 :root {
   color-scheme: light;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+html {
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
 }
 
 body {
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-family: var(--font-sans);
+  background-color: #fafaf9;
+  color: #1c1917;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+*:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(139 92 246 / 0.25);
+  border-radius: 0.5rem;
+}
+
+h1, h2, h3 {
+  letter-spacing: -0.015em;
+}
+
+::selection {
+  background: rgb(139 92 246 / 0.2);
 }

@@ -25,61 +25,75 @@ export default async function AuthedLayout({ children }: { children: React.React
   }
 
   return (
-    <div className="min-h-screen flex">
-      <aside className="w-56 bg-white border-r border-gray-200 px-4 py-6 flex flex-col gap-4">
-        <div className="text-lg font-semibold text-brand-700">Legal Team OS</div>
-        <nav className="flex flex-col gap-1 text-sm">
-          <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/matters">
-            Matters
-          </Link>
-          <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/queue">
-            My Queue
-          </Link>
-          <Link
-            className="px-2 py-1.5 rounded hover:bg-gray-100 flex items-center justify-between"
+    <div className="min-h-screen flex bg-ink-50">
+      <aside className="w-60 bg-white border-r border-ink-200 px-4 py-6 flex flex-col gap-6 sticky top-0 h-screen">
+        <Link href="/dashboard" className="flex items-center gap-2 px-2">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-brand-600 text-white text-sm font-semibold shadow-soft">
+            L
+          </span>
+          <span className="text-[15px] font-semibold tracking-tightish text-ink-900">
+            Legal Team OS
+          </span>
+        </Link>
+
+        <nav className="flex flex-col gap-0.5 text-[13.5px] text-ink-700">
+          <NavLink href="/dashboard" label="Dashboard" />
+          <NavLink href="/matters" label="Matters" />
+          <NavLink href="/queue" label="My Queue" />
+          <NavLink
             href="/escalations"
-          >
-            <span>Escalations</span>
-            {openEscalations > 0 && (
-              <span className="text-[10px] bg-red-500 text-white rounded-full px-1.5 py-0.5 leading-none">
-                {openEscalations}
-              </span>
-            )}
-          </Link>
-          <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/archive">
-            Archive
-          </Link>
-          <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/dashboard">
-            Dashboard
-          </Link>
+            label="Escalations"
+            badge={openEscalations > 0 ? openEscalations : undefined}
+          />
+          <NavLink href="/archive" label="Archive" />
+
           {isAdmin && (
             <>
-              <div className="px-2 pt-3 pb-1 text-xs uppercase tracking-wide text-gray-400">
+              <div className="px-2 pt-5 pb-1.5 text-[10.5px] font-medium uppercase tracking-wider text-ink-400">
                 Admin
               </div>
-              <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/admin/playbooks">
-                Playbooks
-              </Link>
-              <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/admin/knowledge">
-                Knowledge Base
-              </Link>
-              <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/admin/routing">
-                Routing Rules
-              </Link>
-              <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/admin/users">
-                Users
-              </Link>
-              <Link className="px-2 py-1.5 rounded hover:bg-gray-100" href="/admin/audit">
-                Audit Log
-              </Link>
+              <NavLink href="/admin/playbooks" label="Playbooks" />
+              <NavLink href="/admin/knowledge" label="Knowledge Base" />
+              <NavLink href="/admin/routing" label="Routing Rules" />
+              <NavLink href="/admin/users" label="Users" />
+              <NavLink href="/admin/audit" label="Audit Log" />
             </>
           )}
         </nav>
-        <div className="mt-auto">
+
+        <div className="mt-auto flex items-center justify-between border-t border-ink-100 pt-4">
+          <div className="text-xs text-ink-500 truncate">
+            {dbUser?.name ?? 'Signed in'}
+          </div>
           <UserButton afterSignOutUrl="/sign-in" />
         </div>
       </aside>
-      <main className="flex-1 p-8">{children}</main>
+
+      <main className="flex-1 px-10 py-10">{children}</main>
     </div>
+  );
+}
+
+function NavLink({
+  href,
+  label,
+  badge,
+}: {
+  href: string;
+  label: string;
+  badge?: number;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex items-center justify-between px-2 py-1.5 rounded-lg text-ink-700 hover:bg-ink-100 hover:text-ink-900 transition-colors duration-150"
+    >
+      <span>{label}</span>
+      {badge !== undefined && (
+        <span className="text-[10px] font-medium bg-red-500 text-white rounded-full px-1.5 py-0.5 leading-none">
+          {badge}
+        </span>
+      )}
+    </Link>
   );
 }

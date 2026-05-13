@@ -22,7 +22,7 @@ export default function AuditLogPage() {
       <div className="flex items-center justify-between mb-4 gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Audit Log</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-500 mt-1">
             Every state-changing action by users, the AI copilot, and system jobs.
           </p>
         </div>
@@ -34,7 +34,7 @@ export default function AuditLogPage() {
             <button
               key={a}
               onClick={() => setActor(a)}
-              className={`px-3 py-1 ${actor === a ? 'bg-brand-600 text-white' : 'bg-white hover:bg-gray-50'}`}
+              className={`px-3 py-1 ${actor === a ? 'bg-brand-600 text-white' : 'bg-white hover:bg-ink-50'}`}
             >
               {a}
             </button>
@@ -49,16 +49,16 @@ export default function AuditLogPage() {
       </div>
 
       {isLoading ? (
-        <div className="text-gray-500">Loading…</div>
+        <div className="text-ink-500">Loading…</div>
       ) : data.length === 0 ? (
-        <div className="text-sm text-gray-500 bg-white border rounded-lg p-6 text-center">
+        <div className="text-sm text-ink-500 bg-white border rounded-lg p-6 text-center">
           No matching audit entries.
         </div>
       ) : (
         <div className="bg-white border rounded-lg overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b">
-              <tr className="text-left text-xs text-gray-500">
+            <thead className="bg-ink-50 border-b">
+              <tr className="text-left text-xs text-ink-500">
                 <th className="px-3 py-2">When</th>
                 <th className="px-3 py-2">Actor</th>
                 <th className="px-3 py-2">Action</th>
@@ -72,18 +72,18 @@ export default function AuditLogPage() {
                 const source = details?.source as string | undefined;
                 return (
                   <tr key={row.id} className="border-b last:border-0 align-top">
-                    <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                    <td className="px-3 py-2 text-xs text-ink-500 whitespace-nowrap">
                       {new Date(row.createdAt).toLocaleString()}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <div>{row.actorName ?? row.actorKind}</div>
-                      <div className="text-xs text-gray-400">
+                      <div className="text-xs text-ink-400">
                         {row.actorKind}
                         {source ? ` · ${source}` : ''}
                       </div>
                     </td>
                     <td className="px-3 py-2">
-                      <code className="text-xs bg-gray-50 border rounded px-1 py-0.5">
+                      <code className="text-xs bg-ink-50 border rounded px-1 py-0.5">
                         {row.action}
                       </code>
                     </td>
@@ -99,11 +99,11 @@ export default function AuditLogPage() {
                     </td>
                     <td className="px-3 py-2">
                       <details>
-                        <summary className="text-xs text-gray-500 cursor-pointer">
+                        <summary className="text-xs text-ink-500 cursor-pointer">
                           {Object.keys(details ?? {}).length} field
                           {Object.keys(details ?? {}).length === 1 ? '' : 's'}
                         </summary>
-                        <pre className="text-[10px] text-gray-700 whitespace-pre-wrap mt-1 max-w-md">
+                        <pre className="text-[10px] text-ink-700 whitespace-pre-wrap mt-1 max-w-md">
                           {JSON.stringify(details ?? {}, null, 2)}
                         </pre>
                       </details>

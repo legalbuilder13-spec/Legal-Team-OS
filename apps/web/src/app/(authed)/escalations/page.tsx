@@ -8,7 +8,7 @@ const STATUS_OPTIONS = ['open', 'acknowledged', 'resolved'] as const;
 type Status = (typeof STATUS_OPTIONS)[number];
 
 const SEVERITY_COLOR: Record<string, string> = {
-  low: 'bg-gray-100 text-gray-700',
+  low: 'bg-ink-100 text-ink-700',
   medium: 'bg-amber-100 text-amber-800',
   high: 'bg-orange-100 text-orange-800',
   critical: 'bg-red-100 text-red-800',
@@ -40,7 +40,7 @@ export default function EscalationsPage() {
               <button
                 key={s}
                 onClick={() => setStatus(s)}
-                className={`px-3 py-1 ${status === s ? 'bg-brand-600 text-white' : 'bg-white hover:bg-gray-50'}`}
+                className={`px-3 py-1 ${status === s ? 'bg-brand-600 text-white' : 'bg-white hover:bg-ink-50'}`}
               >
                 {s}
               </button>
@@ -50,9 +50,9 @@ export default function EscalationsPage() {
       </div>
 
       {isLoading ? (
-        <div className="text-gray-500">Loading…</div>
+        <div className="text-ink-500">Loading…</div>
       ) : data.length === 0 ? (
-        <div className="bg-white border rounded-lg p-6 text-center text-sm text-gray-500">
+        <div className="bg-white border rounded-lg p-6 text-center text-sm text-ink-500">
           No {status} escalations{mineOnly ? ' on your matters' : ''}.
         </div>
       ) : (
@@ -65,14 +65,14 @@ export default function EscalationsPage() {
                     <span className={`text-xs px-2 py-0.5 rounded ${SEVERITY_COLOR[e.severity] ?? ''}`}>
                       {e.severity}
                     </span>
-                    <span className="text-xs text-gray-500">{e.kind}</span>
+                    <span className="text-xs text-ink-500">{e.kind}</span>
                     {e.createdByKind === 'system' && (
-                      <span className="text-xs text-gray-400">· auto</span>
+                      <span className="text-xs text-ink-400">· auto</span>
                     )}
                   </div>
                   <div className="font-medium mt-1">{e.title}</div>
-                  <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{e.body}</p>
-                  <div className="text-xs text-gray-500 mt-2">
+                  <p className="text-sm text-ink-700 mt-1 whitespace-pre-wrap">{e.body}</p>
+                  <div className="text-xs text-ink-500 mt-2">
                     <Link href={`/matters/${e.matterId}`} className="text-brand-600 hover:underline">
                       {e.matterShortId} — {e.matterTitle}
                     </Link>
@@ -84,7 +84,7 @@ export default function EscalationsPage() {
                   {e.status === 'open' && (
                     <button
                       onClick={() => ack.mutate({ id: e.id })}
-                      className="text-xs border rounded px-2 py-1 hover:bg-gray-50"
+                      className="text-xs border rounded px-2 py-1 hover:bg-ink-50"
                     >
                       Acknowledge
                     </button>

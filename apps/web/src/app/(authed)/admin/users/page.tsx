@@ -83,7 +83,7 @@ export default function AdminUsersPage() {
 
       <section className="bg-white border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-left">
+          <thead className="bg-ink-50 text-left">
             <tr>
               <th className="px-4 py-2 font-medium">Name</th>
               <th className="px-4 py-2 font-medium">Email</th>
@@ -94,15 +94,15 @@ export default function AdminUsersPage() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
+                <td colSpan={4} className="px-4 py-6 text-center text-ink-500">
                   Loading…
                 </td>
               </tr>
             ) : (
               data?.map((u) => (
-                <tr key={u.id} className="border-t border-gray-100">
+                <tr key={u.id} className="border-t border-ink-100">
                   <td className="px-4 py-2">{u.name}</td>
-                  <td className="px-4 py-2 text-gray-600">{u.email}</td>
+                  <td className="px-4 py-2 text-ink-600">{u.email}</td>
                   <td className="px-4 py-2">
                     <select
                       defaultValue={u.role}
@@ -118,7 +118,7 @@ export default function AdminUsersPage() {
                       ))}
                     </select>
                   </td>
-                  <td className="px-4 py-2 font-mono text-xs text-gray-500">
+                  <td className="px-4 py-2 font-mono text-xs text-ink-500">
                     {u.slackUserId ?? '—'}
                   </td>
                 </tr>

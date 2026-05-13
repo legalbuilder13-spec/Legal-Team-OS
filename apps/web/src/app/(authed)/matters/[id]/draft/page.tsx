@@ -90,20 +90,20 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
     return diffWords(diffAgainst, body);
   }, [diffAgainst, body]);
 
-  if (!matter) return <div className="text-gray-500">Loading…</div>;
+  if (!matter) return <div className="text-ink-500">Loading…</div>;
 
   return (
     <div className="max-w-[110rem]">
       <header className="mb-4 flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <Link href={`/matters/${id}`} className="text-xs text-gray-500 hover:underline">
+          <Link href={`/matters/${id}`} className="text-xs text-ink-500 hover:underline">
             ← {matter.shortId} · {matter.title}
           </Link>
           <h1 className="text-2xl font-semibold">Draft</h1>
         </div>
         <div className="flex items-center gap-2">
           {existingDraft && (
-            <span className="text-xs text-gray-500">v{existingDraft.version}</span>
+            <span className="text-xs text-ink-500">v{existingDraft.version}</span>
           )}
           <button
             disabled={save.isPending || !dirty || !title.trim()}
@@ -140,13 +140,13 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
               },
             );
           }}
-          className="text-sm border rounded px-3 py-1.5 hover:bg-gray-50 disabled:opacity-50"
+          className="text-sm border rounded px-3 py-1.5 hover:bg-ink-50 disabled:opacity-50"
         >
           {generateInitial.isPending ? 'Generating…' : 'Generate from playbook'}
         </button>
         <button
           onClick={() => setShowDiff((s) => !s)}
-          className="text-sm border rounded px-3 py-1.5 hover:bg-gray-50"
+          className="text-sm border rounded px-3 py-1.5 hover:bg-ink-50"
         >
           {showDiff ? 'Hide diff' : 'Show diff'}
         </button>
@@ -179,7 +179,7 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
           />
 
           <div className="mt-3 bg-white border rounded-lg p-3">
-            <div className="text-xs font-medium text-gray-500 mb-2">Suggest edits</div>
+            <div className="text-xs font-medium text-ink-500 mb-2">Suggest edits</div>
             <textarea
               value={instruction}
               onChange={(e) => setInstruction(e.target.value)}
@@ -208,13 +208,13 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
                       setDirty(true);
                       setPendingBody(null);
                     }}
-                    className="text-sm border rounded px-3 py-1 hover:bg-gray-50"
+                    className="text-sm border rounded px-3 py-1 hover:bg-ink-50"
                   >
                     Accept
                   </button>
                   <button
                     onClick={() => setPendingBody(null)}
-                    className="text-sm text-gray-500 hover:underline"
+                    className="text-sm text-ink-500 hover:underline"
                   >
                     Discard suggestion
                   </button>
@@ -227,7 +227,7 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
         {showDiff && (
           <div className="col-span-6">
             <div className="bg-white border rounded-lg p-3 sticky top-4">
-              <div className="text-xs font-medium text-gray-500 mb-2">
+              <div className="text-xs font-medium text-ink-500 mb-2">
                 {pendingBody
                   ? 'Diff: pending suggestion → current'
                   : compareVersion
@@ -252,7 +252,7 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
                   ))}
                 </div>
               ) : (
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-ink-500">
                   Pick a version to compare, or generate a suggested edit.
                 </div>
               )}
@@ -264,7 +264,7 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
           <div className="bg-white border rounded-lg p-3 text-sm sticky top-4">
             <h2 className="font-medium mb-2">Version history</h2>
             {versions.length === 0 ? (
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-ink-500">
                 No history yet — versions are saved every time you save changes.
               </p>
             ) : (
@@ -278,7 +278,7 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
                       v{v.versionNumber} · {new Date(v.createdAt).toLocaleString()}
                     </button>
                     {v.changeSummary && (
-                      <div className="text-gray-500 italic">{v.changeSummary}</div>
+                      <div className="text-ink-500 italic">{v.changeSummary}</div>
                     )}
                   </li>
                 ))}

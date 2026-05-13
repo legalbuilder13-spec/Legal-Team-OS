@@ -120,13 +120,13 @@ export function ChatPanel({ matterId }: { matterId: string }) {
       <header className="flex items-center justify-between px-3 py-2 border-b">
         <div className="flex items-center gap-2">
           <span className="font-medium text-sm">Copilot</span>
-          <span className="text-xs text-gray-400">Claude · matter-scoped</span>
+          <span className="text-xs text-ink-400">Claude · matter-scoped</span>
         </div>
         <button
           onClick={() => {
             if (confirm('Clear chat history for this matter?')) clear.mutate({ matterId });
           }}
-          className="text-xs text-gray-500 hover:text-red-600"
+          className="text-xs text-ink-500 hover:text-red-600"
         >
           Clear
         </button>
@@ -134,7 +134,7 @@ export function ChatPanel({ matterId }: { matterId: string }) {
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3 text-sm">
         {visible.length === 0 && !streamingText && (
-          <div className="text-gray-500 text-xs">
+          <div className="text-ink-500 text-xs">
             Ask anything about this matter. The copilot can search playbooks, the knowledge base,
             similar past matters, Salesforce, and Notion — and can add notes or change status on your
             behalf.
@@ -148,12 +148,12 @@ export function ChatPanel({ matterId }: { matterId: string }) {
         {(streamingText || activeTools.length > 0) && (
           <div className="border-l-2 border-brand-500 pl-3">
             {activeTools.map((t) => (
-              <div key={t.id} className="text-xs text-gray-500 italic mb-1">
+              <div key={t.id} className="text-xs text-ink-500 italic mb-1">
                 {t.result ? `✓ ${t.name}` : `… running ${t.name}`}
               </div>
             ))}
             {streamingText && (
-              <div className="whitespace-pre-wrap text-gray-800">{streamingText}</div>
+              <div className="whitespace-pre-wrap text-ink-800">{streamingText}</div>
             )}
           </div>
         )}
@@ -180,7 +180,7 @@ export function ChatPanel({ matterId }: { matterId: string }) {
           placeholder="Ask the copilot…"
           rows={2}
           disabled={isStreaming}
-          className="flex-1 border rounded px-2 py-1.5 text-sm resize-none disabled:bg-gray-50"
+          className="flex-1 border rounded px-2 py-1.5 text-sm resize-none disabled:bg-ink-50"
         />
         <button
           type="submit"
@@ -205,14 +205,14 @@ function MessageBubble({ message }: { message: Message }) {
   return (
     <div className="border-l-2 border-brand-500 pl-3">
       {Array.isArray(message.toolCalls) && message.toolCalls.length > 0 && (
-        <div className="text-xs text-gray-500 italic mb-1">
+        <div className="text-xs text-ink-500 italic mb-1">
           {(message.toolCalls as Array<{ name?: string }>).map((tc, i) => (
             <span key={i}>✓ {tc.name ?? 'tool'}{i < message.toolCalls!.length - 1 ? ' · ' : ''}</span>
           ))}
         </div>
       )}
       {message.content && (
-        <div className="whitespace-pre-wrap text-gray-800">{message.content}</div>
+        <div className="whitespace-pre-wrap text-ink-800">{message.content}</div>
       )}
     </div>
   );

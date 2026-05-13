@@ -10,7 +10,7 @@ export function SaveToDriveButton({ matterId }: { matterId: string }) {
 
   if (!status?.configured) {
     return (
-      <span className="text-xs text-gray-400" title="Set GOOGLE_SERVICE_ACCOUNT_JSON to enable">
+      <span className="text-xs text-ink-400" title="Set GOOGLE_SERVICE_ACCOUNT_JSON to enable">
         Drive not configured
       </span>
     );
@@ -29,7 +29,7 @@ export function SaveToDriveButton({ matterId }: { matterId: string }) {
           )
         }
         disabled={save.isPending}
-        className="text-xs border rounded px-2 py-1 hover:bg-gray-50 disabled:opacity-50"
+        className="text-xs border rounded px-2 py-1 hover:bg-ink-50 disabled:opacity-50"
       >
         {save.isPending ? 'Saving…' : 'Save to Drive'}
       </button>
