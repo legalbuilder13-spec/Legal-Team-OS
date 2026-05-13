@@ -10,6 +10,7 @@ import {
   playbookSuggestions,
   knowledgeArticles,
   systemInsights,
+  jobs,
 } from '@legal/db';
 import { PracticeAreaSchema } from '@legal/types';
 import { adminProcedure, router } from '../trpc.js';
@@ -428,4 +429,61 @@ export const adminRouter = router({
       });
       return result;
     }),
+
+  // Enqueue generate_embedding jobs for every matter that doesn't yet have
+  // one. Used to backfill the corpus after first wiring up OPENAI_API_KEY,
+  // or to re-embed after model upgrades. Idempotent — re-running only
+  // touches matters whose embedding is still NULL.
+  backfillEmbeddings: adminProcedure
+    .input(
+      z
+        .object({ force: z.boolean().default(false) })
+        .default({}),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const candidates = await ctx.db.execute(sql`
+        SELECT id FROM matters
+        WHERE ${input.force ? sql`TRUE` : sql`embedding IS NULL`}
+        ORDER BY created_at DESC
+      `);
+      const ids = (candidates as unknown as Array<{ id: string }>).map((r) => r.id);
+
+      for (const id of ids) {
+        await ctx.db.insert(jobs).values({
+          kind: 'generate_embedding',
+          matterId: id,
+          payload: { matter_id: id },
+        });
+      }
+
+      await ctx.db.insert(auditLog).values({
+        actorId: ctx.user.id,
+        action: 'embeddings.backfill_enqueued',
+        details: { matterCount: ids.length, force: input.force },
+      });
+
+      return { enqueued: ids.length };
+    }),
+
+  // Embedding coverage stats — surfaces to the admin UI to show "how much
+  // of the corpus is searchable by semantic similarity right now."
+  embeddingsStatus: adminProcedure.query(async ({ ctx }) => {
+    const result = await ctx.db.execute(sql`
+      SELECT
+        COUNT(*) FILTER (WHERE embedding IS NOT NULL) AS with_embedding,
+        COUNT(*) FILTER (WHERE embedding IS NULL) AS without_embedding,
+        COUNT(*) AS total
+      FROM matters
+    `);
+    const row = (result as unknown as Array<{
+      with_embedding: number | string;
+      without_embedding: number | string;
+      total: number | string;
+    }>)[0];
+    return {
+      withEmbedding: Number(row?.with_embedding ?? 0),
+      withoutEmbedding: Number(row?.without_embedding ?? 0),
+      total: Number(row?.total ?? 0),
+    };
+  }),
 });
