@@ -76,7 +76,7 @@ export async function handleTriageJob(db: Db, job: Job) {
     ) DESC
     LIMIT 3
   `);
-  const priorMatters = priorMattersResult.rows as Array<{
+  const priorMatters = priorMattersResult as unknown as Array<{
     title: string;
     summary: string | null;
     practice_area: string;

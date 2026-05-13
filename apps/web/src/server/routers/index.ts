@@ -1,8 +1,8 @@
-import { router } from '../trpc.js';
-import { mattersRouter } from './matters.js';
-import { dashboardRouter } from './dashboard.js';
-import { adminRouter } from './admin.js';
-import { counterpartiesRouter } from './counterparties.js';
+import { router } from '../trpc';
+import { mattersRouter } from './matters';
+import { dashboardRouter } from './dashboard';
+import { adminRouter } from './admin';
+import { counterpartiesRouter } from './counterparties';
 
 export const appRouter = router({
   matters: mattersRouter,

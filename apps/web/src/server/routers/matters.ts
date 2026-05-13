@@ -211,7 +211,7 @@ export const mattersRouter = router({
         ORDER BY rank DESC, closed_at DESC NULLS LAST
         LIMIT ${input.limit}
       `);
-      return result.rows as Array<{
+      return result as unknown as Array<{
         id: string;
         short_id: string;
         title: string;

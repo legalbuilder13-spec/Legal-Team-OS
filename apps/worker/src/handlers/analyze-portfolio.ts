@@ -45,7 +45,7 @@ async function detectVolumeSpikes(db: Db) {
     WHERE recent_count >= 5
   `);
 
-  const rows = result.rows as unknown as VolumeRow[];
+  const rows = result as unknown as VolumeRow[];
   for (const row of rows) {
     if (row.prior_count > 0 && row.recent_count / row.prior_count >= VOLUME_SPIKE_THRESHOLD) {
       const pctIncrease = Math.round(((row.recent_count - row.prior_count) / row.prior_count) * 100);
@@ -75,7 +75,7 @@ async function detectWorkloadImbalance(db: Db) {
     HAVING COUNT(*) > 0
   `);
 
-  const rows = result.rows as unknown as WorkloadRow[];
+  const rows = result as unknown as WorkloadRow[];
   if (rows.length < 2) return;
 
   const avg = rows.reduce((s, r) => s + r.open_count, 0) / rows.length;
@@ -109,7 +109,7 @@ async function detectCounterpartyPatterns(db: Db) {
     LIMIT 5
   `);
 
-  const rows = result.rows as unknown as CounterpartyRow[];
+  const rows = result as unknown as CounterpartyRow[];
   for (const row of rows) {
     await db.insert(systemInsights).values({
       kind: 'counterparty_pattern',
@@ -137,7 +137,7 @@ async function detectSelfServiceOpportunities(db: Db) {
     HAVING COUNT(*) >= 5
   `);
 
-  const rows = result.rows as unknown as Array<{
+  const rows = result as unknown as Array<{
     practice_area: string;
     priority: string;
     count: number;
