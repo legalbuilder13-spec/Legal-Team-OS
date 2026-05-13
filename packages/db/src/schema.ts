@@ -104,6 +104,19 @@ export const playbookSuggestionStatus = pgEnum('playbook_suggestion_status', [
 
 export const userRole = pgEnum('user_role', ['attorney', 'legal_ops', 'admin', 'requester']);
 
+export const escalationStatus = pgEnum('escalation_status', [
+  'open',
+  'acknowledged',
+  'resolved',
+]);
+
+export const escalationSeverity = pgEnum('escalation_severity', [
+  'low',
+  'medium',
+  'high',
+  'critical',
+]);
+
 export const users = pgTable(
   'users',
   {
@@ -370,6 +383,28 @@ export const knowledgeArticles = pgTable(
   }),
 );
 
+export const chatRole = pgEnum('chat_role', ['user', 'assistant', 'tool']);
+
+export const chatMessages = pgTable(
+  'chat_messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    matterId: uuid('matter_id')
+      .notNull()
+      .references(() => matters.id, { onDelete: 'cascade' }),
+    authorId: uuid('author_id').references(() => users.id),
+    role: chatRole('role').notNull(),
+    content: text('content').notNull(),
+    toolCalls: jsonb('tool_calls').$type<unknown[]>().default([]),
+    toolName: text('tool_name'),
+    toolUseId: text('tool_use_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    matterIdx: index('chat_messages_matter_idx').on(t.matterId, t.createdAt),
+  }),
+);
+
 export const systemInsights = pgTable(
   'system_insights',
   {
@@ -386,6 +421,75 @@ export const systemInsights = pgTable(
   },
   (t) => ({
     statusIdx: index('system_insights_status_idx').on(t.status, t.createdAt),
+  }),
+);
+
+export const escalations = pgTable(
+  'escalations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    matterId: uuid('matter_id')
+      .notNull()
+      .references(() => matters.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    severity: escalationSeverity('severity').notNull().default('medium'),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    status: escalationStatus('status').notNull().default('open'),
+    createdByKind: text('created_by_kind').notNull().default('system'),
+    createdById: uuid('created_by_id').references(() => users.id),
+    acknowledgedById: uuid('acknowledged_by_id').references(() => users.id),
+    acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+    resolvedById: uuid('resolved_by_id').references(() => users.id),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolutionNote: text('resolution_note'),
+    triggerRule: text('trigger_rule'),
+    evidence: jsonb('evidence').$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    statusIdx: index('escalations_status_idx').on(t.status, t.createdAt),
+    matterIdx: index('escalations_matter_idx').on(t.matterId),
+  }),
+);
+
+export const matterDrafts = pgTable(
+  'matter_drafts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    matterId: uuid('matter_id')
+      .notNull()
+      .references(() => matters.id, { onDelete: 'cascade' }),
+    title: text('title').notNull().default('Draft'),
+    body: text('body').notNull().default(''),
+    sourceDocument: text('source_document'),
+    version: integer('version').notNull().default(1),
+    createdById: uuid('created_by_id').references(() => users.id),
+    updatedById: uuid('updated_by_id').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    matterIdx: uniqueIndex('matter_drafts_matter_idx').on(t.matterId),
+  }),
+);
+
+export const matterDraftVersions = pgTable(
+  'matter_draft_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    draftId: uuid('draft_id')
+      .notNull()
+      .references(() => matterDrafts.id, { onDelete: 'cascade' }),
+    versionNumber: integer('version_number').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    changeSummary: text('change_summary'),
+    createdById: uuid('created_by_id').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    draftIdx: index('matter_draft_versions_draft_idx').on(t.draftId, t.versionNumber),
   }),
 );
 
@@ -446,3 +550,10 @@ export type PlaybookSuggestion = typeof playbookSuggestions.$inferSelect;
 export type KnowledgeArticle = typeof knowledgeArticles.$inferSelect;
 export type NewKnowledgeArticle = typeof knowledgeArticles.$inferInsert;
 export type SystemInsight = typeof systemInsights.$inferSelect;
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type NewChatMessage = typeof chatMessages.$inferInsert;
+export type Escalation = typeof escalations.$inferSelect;
+export type NewEscalation = typeof escalations.$inferInsert;
+export type MatterDraft = typeof matterDrafts.$inferSelect;
+export type NewMatterDraft = typeof matterDrafts.$inferInsert;
+export type MatterDraftVersion = typeof matterDraftVersions.$inferSelect;

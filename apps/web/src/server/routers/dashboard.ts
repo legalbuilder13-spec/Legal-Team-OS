@@ -1,5 +1,10 @@
-import { sql } from 'drizzle-orm';
-import { matters, matterEvents, users } from '@legal/db';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import {
+  matters,
+  matterEvents,
+  matterDrafts,
+  users,
+} from '@legal/db';
 import { protectedProcedure, router } from '../trpc.js';
 
 export const dashboardRouter = router({
@@ -112,6 +117,140 @@ export const dashboardRouter = router({
       open_count: number;
       overdue_count: number;
       closed_30d: number;
+    }>;
+  }),
+
+  mine: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.user.id;
+
+    const [stats] = await ctx.db
+      .select({
+        open: sql<number>`count(*) filter (where status not in ('closed', 'cancelled'))::int`,
+        breached: sql<number>`count(*) filter (where status not in ('closed', 'cancelled') and sla_due_at < now())::int`,
+        dueSoon: sql<number>`count(*) filter (where status not in ('closed', 'cancelled') and sla_due_at >= now() and sla_due_at < now() + interval '48 hours')::int`,
+        closed30d: sql<number>`count(*) filter (where status = 'closed' and closed_at > now() - interval '30 days')::int`,
+        inDraft: sql<number>`count(*) filter (where status = 'drafting')::int`,
+      })
+      .from(matters)
+      .where(eq(matters.assigneeId, userId));
+
+    const queue = await ctx.db
+      .select({
+        id: matters.id,
+        shortId: matters.shortId,
+        title: matters.title,
+        status: matters.status,
+        priority: matters.priority,
+        practiceArea: matters.practiceArea,
+        slaDueAt: matters.slaDueAt,
+        createdAt: matters.createdAt,
+      })
+      .from(matters)
+      .where(
+        and(
+          eq(matters.assigneeId, userId),
+          sql`${matters.status} not in ('closed', 'cancelled')`,
+        ),
+      )
+      .orderBy(
+        sql`case when ${matters.slaDueAt} is null then 1 else 0 end`,
+        asc(matters.slaDueAt),
+        desc(matters.createdAt),
+      )
+      .limit(10);
+
+    const drafts = await ctx.db
+      .select({
+        id: matterDrafts.id,
+        matterId: matterDrafts.matterId,
+        title: matterDrafts.title,
+        version: matterDrafts.version,
+        updatedAt: matterDrafts.updatedAt,
+        matterShortId: matters.shortId,
+        matterTitle: matters.title,
+      })
+      .from(matterDrafts)
+      .innerJoin(matters, eq(matters.id, matterDrafts.matterId))
+      .where(
+        and(
+          eq(matters.assigneeId, userId),
+          sql`${matterDrafts.updatedAt} > now() - interval '14 days'`,
+        ),
+      )
+      .orderBy(desc(matterDrafts.updatedAt))
+      .limit(5);
+
+    const myMatterIdsRows = await ctx.db
+      .select({ id: matters.id })
+      .from(matters)
+      .where(eq(matters.assigneeId, userId));
+    const myMatterIds = myMatterIdsRows.map((r) => r.id);
+
+    const activity = myMatterIds.length
+      ? await ctx.db
+          .select({
+            id: matterEvents.id,
+            matterId: matterEvents.matterId,
+            kind: matterEvents.kind,
+            createdAt: matterEvents.createdAt,
+            matterShortId: matters.shortId,
+            matterTitle: matters.title,
+          })
+          .from(matterEvents)
+          .innerJoin(matters, eq(matters.id, matterEvents.matterId))
+          .where(inArray(matterEvents.matterId, myMatterIds))
+          .orderBy(desc(matterEvents.createdAt))
+          .limit(10)
+      : [];
+
+    return {
+      stats: stats ?? { open: 0, breached: 0, dueSoon: 0, closed30d: 0, inDraft: 0 },
+      queue,
+      drafts,
+      activity,
+    };
+  }),
+
+  myActivityChart: protectedProcedure.query(async ({ ctx }) => {
+    // Last 14 days bucketed by day: SLA breaches and matters closed on
+    // matters assigned to the current user.
+    const userId = ctx.user.id;
+    const rows = await ctx.db.execute(sql`
+      WITH days AS (
+        SELECT generate_series(
+          date_trunc('day', now()) - interval '13 days',
+          date_trunc('day', now()),
+          interval '1 day'
+        )::date AS day
+      )
+      SELECT
+        days.day::text AS day,
+        COALESCE((
+          SELECT COUNT(*)::int FROM matter_events e
+          JOIN matters m ON m.id = e.matter_id
+          WHERE m.assignee_id = ${userId}
+            AND e.kind = 'sla.breached'
+            AND date_trunc('day', e.created_at) = days.day
+        ), 0) AS breached,
+        COALESCE((
+          SELECT COUNT(*)::int FROM matters m
+          WHERE m.assignee_id = ${userId}
+            AND m.status = 'closed'
+            AND date_trunc('day', m.closed_at) = days.day
+        ), 0) AS closed,
+        COALESCE((
+          SELECT COUNT(*)::int FROM matters m
+          WHERE m.assignee_id = ${userId}
+            AND date_trunc('day', m.created_at) = days.day
+        ), 0) AS opened
+      FROM days
+      ORDER BY days.day ASC
+    `);
+    return rows as unknown as Array<{
+      day: string;
+      breached: number;
+      closed: number;
+      opened: number;
     }>;
   }),
 

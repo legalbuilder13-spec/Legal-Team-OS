@@ -40,7 +40,7 @@ export default function KnowledgeAdminPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold">Knowledge Base</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-500 dark:text-ink-400 mt-1">
             FAQ articles available for self-service responses and as triage context.
           </p>
         </div>
@@ -53,12 +53,12 @@ export default function KnowledgeAdminPage() {
       </div>
 
       {editing && (
-        <div className="bg-white border rounded-lg p-6 mb-6 space-y-4">
+        <div className="bg-white dark:bg-ink-900 border rounded-lg p-6 mb-6 space-y-4">
           <h2 className="font-medium">{editing.id ? 'Edit article' : 'New article'}</h2>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Practice area</label>
+              <label className="block text-xs font-medium text-ink-600 dark:text-ink-400 mb-1">Practice area</label>
               <select
                 value={editing.practiceArea}
                 onChange={(e) =>
@@ -90,7 +90,7 @@ export default function KnowledgeAdminPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
+            <label className="block text-xs font-medium text-ink-600 dark:text-ink-400 mb-1">Title</label>
             <input
               value={editing.title}
               onChange={(e) => setEditing({ ...editing, title: e.target.value })}
@@ -100,7 +100,7 @@ export default function KnowledgeAdminPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
+            <label className="block text-xs font-medium text-ink-600 dark:text-ink-400 mb-1">
               Tags (comma-separated)
             </label>
             <input
@@ -112,7 +112,7 @@ export default function KnowledgeAdminPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
+            <label className="block text-xs font-medium text-ink-600 dark:text-ink-400 mb-1">
               Article body (markdown supported)
             </label>
             <textarea
@@ -154,7 +154,7 @@ export default function KnowledgeAdminPage() {
       )}
 
       {articles.length === 0 && !editing ? (
-        <div className="text-sm text-gray-500 bg-white border rounded-lg p-6 text-center">
+        <div className="text-sm text-ink-500 dark:text-ink-400 bg-white dark:bg-ink-900 border rounded-lg p-6 text-center">
           No knowledge articles yet. Create one to enable self-service answers and richer triage
           context.
         </div>
@@ -163,16 +163,16 @@ export default function KnowledgeAdminPage() {
           {articles.map((art) => (
             <div
               key={art.id}
-              className="bg-white border rounded-lg p-4 flex items-start justify-between gap-4"
+              className="bg-white dark:bg-ink-900 border rounded-lg p-4 flex items-start justify-between gap-4"
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span className="font-medium text-sm">{art.title}</span>
-                  <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded capitalize">
+                  <span className="text-xs bg-ink-100 dark:bg-ink-800 px-1.5 py-0.5 rounded capitalize">
                     {art.practiceArea}
                   </span>
                   {!art.isActive && (
-                    <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+                    <span className="text-xs bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400 px-1.5 py-0.5 rounded">
                       inactive
                     </span>
                   )}
@@ -182,7 +182,7 @@ export default function KnowledgeAdminPage() {
                     </span>
                   ))}
                 </div>
-                <p className="text-xs text-gray-500 line-clamp-2">{art.body}</p>
+                <p className="text-xs text-ink-500 dark:text-ink-400 line-clamp-2">{art.body}</p>
               </div>
               <div className="flex gap-2 shrink-0">
                 <button

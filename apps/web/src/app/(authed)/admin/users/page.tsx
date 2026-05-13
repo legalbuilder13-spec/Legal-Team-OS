@@ -21,7 +21,7 @@ export default function AdminUsersPage() {
     <div className="max-w-5xl">
       <h1 className="text-2xl font-semibold mb-6">Users</h1>
 
-      <section className="bg-white border rounded-lg p-4 mb-6">
+      <section className="bg-white dark:bg-ink-900 border rounded-lg p-4 mb-6">
         <h2 className="font-medium mb-3">Add user</h2>
         <form
           onSubmit={(e) => {
@@ -81,9 +81,9 @@ export default function AdminUsersPage() {
         </form>
       </section>
 
-      <section className="bg-white border rounded-lg overflow-hidden">
+      <section className="bg-white dark:bg-ink-900 border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-left">
+          <thead className="bg-ink-50 dark:bg-ink-900 text-left">
             <tr>
               <th className="px-4 py-2 font-medium">Name</th>
               <th className="px-4 py-2 font-medium">Email</th>
@@ -94,15 +94,15 @@ export default function AdminUsersPage() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
+                <td colSpan={4} className="px-4 py-6 text-center text-ink-500 dark:text-ink-400">
                   Loading…
                 </td>
               </tr>
             ) : (
               data?.map((u) => (
-                <tr key={u.id} className="border-t border-gray-100">
+                <tr key={u.id} className="border-t border-ink-100 dark:border-ink-800">
                   <td className="px-4 py-2">{u.name}</td>
-                  <td className="px-4 py-2 text-gray-600">{u.email}</td>
+                  <td className="px-4 py-2 text-ink-600 dark:text-ink-400">{u.email}</td>
                   <td className="px-4 py-2">
                     <select
                       defaultValue={u.role}
@@ -118,7 +118,7 @@ export default function AdminUsersPage() {
                       ))}
                     </select>
                   </td>
-                  <td className="px-4 py-2 font-mono text-xs text-gray-500">
+                  <td className="px-4 py-2 font-mono text-xs text-ink-500 dark:text-ink-400">
                     {u.slackUserId ?? '—'}
                   </td>
                 </tr>

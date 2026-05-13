@@ -1,5 +1,5 @@
 import { and, lt, sql } from 'drizzle-orm';
-import { matters, matterEvents, auditLog, type Db } from '@legal/db';
+import { matters, matterEvents, auditLog, escalations, type Db } from '@legal/db';
 
 export async function runSlaCheck(db: Db) {
   const breached = await db
@@ -30,7 +30,23 @@ export async function runSlaCheck(db: Db) {
       action: 'matter.sla_breached',
       details: { slaDueAt: m.slaDueAt },
     });
-    console.log(`SLA breached for matter ${m.shortId}`);
+    const overdueHours = m.slaDueAt
+      ? Math.max(Math.round((Date.now() - new Date(m.slaDueAt).getTime()) / 36e5), 0)
+      : 0;
+    const severity = overdueHours >= 24 ? 'high' : overdueHours >= 4 ? 'medium' : 'low';
+    await db.insert(escalations).values({
+      matterId: m.id,
+      kind: 'sla_breach',
+      severity,
+      title: `SLA breached for ${m.shortId}`,
+      body: `Matter "${m.title}" was due ${m.slaDueAt ? new Date(m.slaDueAt).toISOString() : 'unknown'}${
+        overdueHours ? ` — ${overdueHours}h overdue` : ''
+      }.`,
+      createdByKind: 'system',
+      triggerRule: 'sla_check',
+      evidence: { slaDueAt: m.slaDueAt, overdueHours },
+    });
+    console.log(`SLA breached for matter ${m.shortId} (escalation created)`);
   }
   return breached.length;
 }

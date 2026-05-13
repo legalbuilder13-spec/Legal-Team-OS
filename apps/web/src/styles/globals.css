@@ -3,10 +3,56 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+html {
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
 }
 
 body {
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+*:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(139 92 246 / 0.35);
+  border-radius: 0.5rem;
+}
+
+h1, h2, h3 {
+  letter-spacing: -0.015em;
+}
+
+::selection {
+  background: rgb(139 92 246 / 0.25);
+}
+
+/* Brand violet text-gradient utility for hero accents. */
+.text-gradient-brand {
+  background-image: linear-gradient(120deg, #8b5cf6 0%, #6d28d9 60%, #4c1d95 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.dark .text-gradient-brand {
+  background-image: linear-gradient(120deg, #a78bfa 0%, #8b5cf6 60%, #7c3aed 100%);
+}
+
+/* Subtle radial mesh used behind hero. */
+.bg-hero-mesh {
+  background-image:
+    radial-gradient(60% 60% at 0% 0%, rgb(139 92 246 / 0.10) 0%, transparent 60%),
+    radial-gradient(50% 50% at 100% 0%, rgb(167 139 250 / 0.10) 0%, transparent 60%);
+}
+
+.dark .bg-hero-mesh {
+  background-image:
+    radial-gradient(60% 60% at 0% 0%, rgb(139 92 246 / 0.18) 0%, transparent 60%),
+    radial-gradient(50% 50% at 100% 0%, rgb(167 139 250 / 0.12) 0%, transparent 60%);
 }

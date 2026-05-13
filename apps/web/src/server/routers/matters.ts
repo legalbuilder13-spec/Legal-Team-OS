@@ -1,6 +1,15 @@
 import { z } from 'zod';
-import { and, desc, eq, sql } from 'drizzle-orm';
-import { matters, matterNotes, matterEvents, users, auditLog, jobs, type Matter } from '@legal/db';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import {
+  matters,
+  matterNotes,
+  matterEvents,
+  users,
+  auditLog,
+  jobs,
+  playbooks,
+  type Matter,
+} from '@legal/db';
 import { MatterStatusSchema, PracticeAreaSchema, PrioritySchema } from '@legal/types';
 import { protectedProcedure, staffProcedure, router } from '../trpc.js';
 import { TRPCError } from '@trpc/server';
@@ -242,7 +251,7 @@ export const mattersRouter = router({
         ORDER BY embedding <=> ${embeddingStr}::vector
         LIMIT 5
       `);
-      return results.rows as Array<{
+      return results as unknown as Array<{
         id: string;
         short_id: string;
         title: string;
@@ -252,6 +261,24 @@ export const mattersRouter = router({
         closed_at: string | null;
         similarity: number;
       }>;
+    }),
+
+  relevantPlaybooks: protectedProcedure
+    .input(z.object({ matterId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const matter = await ctx.db.query.matters.findFirst({
+        where: eq(matters.id, input.matterId),
+      });
+      if (!matter?.practiceArea) {
+        return [];
+      }
+      return ctx.db
+        .select()
+        .from(playbooks)
+        .where(
+          and(eq(playbooks.practiceArea, matter.practiceArea), eq(playbooks.isActive, true)),
+        )
+        .orderBy(asc(playbooks.title));
     }),
 
   myQueue: protectedProcedure.query(async ({ ctx }) => {

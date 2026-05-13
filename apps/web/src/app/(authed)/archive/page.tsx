@@ -24,7 +24,7 @@ export default function ArchivePage() {
     <div className="max-w-5xl">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold">Matter Archive</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm text-ink-500 dark:text-ink-400 mt-1">
           Search and reference closed matters as precedent for current work.
         </p>
       </header>
@@ -34,10 +34,10 @@ export default function ArchivePage() {
           e.preventDefault();
           setSubmittedQuery(query);
         }}
-        className="bg-white border rounded-lg p-4 mb-6 flex gap-3 items-end"
+        className="bg-white dark:bg-ink-900 border rounded-lg p-4 mb-6 flex gap-3 items-end"
       >
         <div className="flex-1">
-          <label className="block text-xs font-medium text-gray-600 mb-1">
+          <label className="block text-xs font-medium text-ink-600 dark:text-ink-400 mb-1">
             Search closed matters
           </label>
           <input
@@ -48,7 +48,7 @@ export default function ArchivePage() {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Practice area</label>
+          <label className="block text-xs font-medium text-ink-600 dark:text-ink-400 mb-1">Practice area</label>
           <select
             value={practiceArea}
             onChange={(e) => setPracticeArea(e.target.value)}
@@ -71,13 +71,13 @@ export default function ArchivePage() {
       </form>
 
       {isLoading ? (
-        <div className="text-sm text-gray-500">Searching…</div>
+        <div className="text-sm text-ink-500 dark:text-ink-400">Searching…</div>
       ) : results.length === 0 ? (
-        <div className="text-sm text-gray-500 bg-white border rounded-lg p-6 text-center">
+        <div className="text-sm text-ink-500 dark:text-ink-400 bg-white dark:bg-ink-900 border rounded-lg p-6 text-center">
           No closed matters match your search.
         </div>
       ) : (
-        <div className="bg-white border rounded-lg divide-y">
+        <div className="bg-white dark:bg-ink-900 border rounded-lg divide-y">
           {results.map((m) => {
             const id = 'id' in m ? m.id : '';
             const shortId = 'shortId' in m ? m.shortId : 'short_id' in m ? m.short_id : '';
@@ -87,28 +87,28 @@ export default function ArchivePage() {
             const pri = m.priority;
             const closedAt = 'closedAt' in m ? m.closedAt : 'closed_at' in m ? m.closed_at : null;
             return (
-              <Link key={id} href={`/matters/${id}`} className="block p-4 hover:bg-gray-50">
+              <Link key={id} href={`/matters/${id}`} className="block p-4 hover:bg-ink-50 dark:hover:bg-ink-800">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="text-xs font-mono text-gray-500 mb-1">{shortId}</div>
+                    <div className="text-xs font-mono text-ink-500 dark:text-ink-400 mb-1">{shortId}</div>
                     <div className="font-medium text-sm">{title}</div>
                     {summary && (
-                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{summary}</p>
+                      <p className="text-xs text-ink-500 dark:text-ink-400 mt-1 line-clamp-2">{summary}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {area && (
-                      <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded capitalize">
+                      <span className="text-xs bg-ink-100 dark:bg-ink-800 px-1.5 py-0.5 rounded capitalize">
                         {String(area)}
                       </span>
                     )}
                     {pri && (
-                      <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">
+                      <span className="text-xs bg-ink-100 dark:bg-ink-800 px-1.5 py-0.5 rounded">
                         {String(pri)}
                       </span>
                     )}
                     {closedAt && (
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-ink-400 dark:text-ink-500">
                         {new Date(closedAt as string | Date).toLocaleDateString()}
                       </span>
                     )}

@@ -1,8 +1,14 @@
 'use client';
 
+import Link from 'next/link';
 import { use, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { MatterStatusSchema } from '@legal/types';
+import { ChatPanel } from './ChatPanel';
+import { PlaybooksCard } from './PlaybooksCard';
+import { SaveToNotionButton } from './SaveToNotionButton';
+import { SaveToDriveButton } from './SaveToDriveButton';
+import { EscalationsCard } from './EscalationsCard';
 
 interface SalesforceContext {
   source: 'salesforce';
@@ -26,32 +32,32 @@ function SalesforceContextCard({ ctx }: { ctx: SalesforceContext }) {
   const records = ctx.data.records ?? [];
   if (ctx.data.configured === false) {
     return (
-      <div className="bg-white border rounded-lg p-4 text-sm">
+      <div className="bg-white dark:bg-ink-900 border rounded-lg p-4 text-sm">
         <h2 className="font-medium mb-1">Salesforce</h2>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-ink-500 dark:text-ink-400">
           Not configured. Add credentials to the AI service to enable counterparty lookups.
         </p>
       </div>
     );
   }
   return (
-    <div className="bg-white border rounded-lg p-4 text-sm">
+    <div className="bg-white dark:bg-ink-900 border rounded-lg p-4 text-sm">
       <div className="flex items-center justify-between mb-2">
         <h2 className="font-medium">Salesforce</h2>
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-ink-400 dark:text-ink-500">
           {new Date(ctx.fetched_at).toLocaleString()}
         </span>
       </div>
       {records.length === 0 ? (
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-ink-500 dark:text-ink-400">
           No accounts matched {ctx.data.name ?? ctx.data.domain ?? 'this counterparty'}.
         </p>
       ) : (
         <ul className="space-y-3">
           {records.map((r) => (
-            <li key={r.Id} className="border-t border-gray-100 pt-2 first:border-t-0 first:pt-0">
+            <li key={r.Id} className="border-t border-ink-100 dark:border-ink-800 pt-2 first:border-t-0 first:pt-0">
               <div className="font-medium">{r.Name}</div>
-              <dl className="text-xs text-gray-600 space-y-0.5 mt-1">
+              <dl className="text-xs text-ink-600 dark:text-ink-400 space-y-0.5 mt-1">
                 {r.Website && (
                   <div className="flex justify-between gap-3">
                     <dt>Website</dt>
@@ -110,75 +116,92 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
   const addNote = trpc.matters.addNote.useMutation({ onSuccess: () => refetch() });
   const setStatus = trpc.matters.setStatus.useMutation({ onSuccess: () => refetch() });
   const [note, setNote] = useState('');
+  const [chatOpen, setChatOpen] = useState(true);
 
-  if (isLoading || !matter) return <div className="text-gray-500">Loading…</div>;
+  if (isLoading || !matter) return <div className="text-ink-500 dark:text-ink-400">Loading…</div>;
 
   return (
-    <div className="max-w-5xl">
-      <header className="mb-6">
-        <div className="text-xs font-mono text-gray-500">{matter.shortId}</div>
-        <h1 className="text-2xl font-semibold">{matter.title}</h1>
-        <div className="mt-2 flex items-center gap-3 text-sm text-gray-600">
-          <span>Status:</span>
-          <select
-            value={matter.status}
-            onChange={(e) =>
-              setStatus.mutate({
-                matterId: matter.id,
-                status: MatterStatusSchema.parse(e.target.value),
-              })
-            }
-            className="border rounded px-2 py-1"
-          >
-            {MatterStatusSchema.options.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-          {matter.priority && (
-            <span className="px-2 py-0.5 rounded bg-gray-100 text-xs">{matter.priority}</span>
-          )}
-          {matter.practiceArea && (
-            <span className="px-2 py-0.5 rounded bg-gray-100 text-xs capitalize">
-              {matter.practiceArea}
-            </span>
-          )}
+    <div className={chatOpen ? 'max-w-[110rem]' : 'max-w-5xl'}>
+      <header className="mb-6 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-xs font-mono text-ink-500 dark:text-ink-400">{matter.shortId}</div>
+          <h1 className="text-2xl font-semibold">{matter.title}</h1>
+          <div className="mt-2 flex items-center gap-3 text-sm text-ink-600 dark:text-ink-400 flex-wrap">
+            <span>Status:</span>
+            <select
+              value={matter.status}
+              onChange={(e) =>
+                setStatus.mutate({
+                  matterId: matter.id,
+                  status: MatterStatusSchema.parse(e.target.value),
+                })
+              }
+              className="border rounded px-2 py-1"
+            >
+              {MatterStatusSchema.options.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            {matter.priority && (
+              <span className="px-2 py-0.5 rounded bg-ink-100 dark:bg-ink-800 text-xs">{matter.priority}</span>
+            )}
+            {matter.practiceArea && (
+              <span className="px-2 py-0.5 rounded bg-ink-100 dark:bg-ink-800 text-xs capitalize">
+                {matter.practiceArea}
+              </span>
+            )}
+            <SaveToNotionButton matterId={matter.id} />
+            <SaveToDriveButton matterId={matter.id} />
+            <Link
+              href={`/matters/${matter.id}/draft`}
+              className="text-xs border rounded px-2 py-1 hover:bg-ink-50 dark:hover:bg-ink-800"
+            >
+              Open draft →
+            </Link>
+          </div>
         </div>
+        <button
+          onClick={() => setChatOpen((o) => !o)}
+          className="text-sm border rounded px-3 py-1.5 hover:bg-ink-50 dark:hover:bg-ink-800 shrink-0"
+        >
+          {chatOpen ? 'Hide copilot' : 'Open copilot'}
+        </button>
       </header>
 
-      <div className="grid grid-cols-3 gap-6">
-        <section className="col-span-2 space-y-6">
-          <div className="bg-white border rounded-lg p-4">
+      <div className={chatOpen ? 'grid grid-cols-12 gap-6' : 'grid grid-cols-3 gap-6'}>
+        <section className={chatOpen ? 'col-span-6 space-y-6' : 'col-span-2 space-y-6'}>
+          <div className="bg-white dark:bg-ink-900 border rounded-lg p-4">
             <h2 className="font-medium mb-2">Original Request</h2>
-            <p className="text-sm whitespace-pre-wrap text-gray-800">{matter.requestText}</p>
+            <p className="text-sm whitespace-pre-wrap text-ink-800 dark:text-ink-200">{matter.requestText}</p>
           </div>
 
           {matter.summary && (
-            <div className="bg-white border rounded-lg p-4">
+            <div className="bg-white dark:bg-ink-900 border rounded-lg p-4">
               <h2 className="font-medium mb-2">AI Summary</h2>
-              <p className="text-sm text-gray-800">{matter.summary}</p>
+              <p className="text-sm text-ink-800 dark:text-ink-200">{matter.summary}</p>
             </div>
           )}
 
-          {(matter.triageMetadata as Record<string, unknown> | null)?.reasoning && (
-            <div className="bg-white border rounded-lg p-4">
+          {Boolean((matter.triageMetadata as Record<string, unknown> | null)?.reasoning) && (
+            <div className="bg-white dark:bg-ink-900 border rounded-lg p-4">
               <h2 className="font-medium mb-2">AI Reasoning</h2>
-              <p className="text-sm text-gray-600 italic">
+              <p className="text-sm text-ink-600 dark:text-ink-400 italic">
                 {String((matter.triageMetadata as Record<string, unknown>).reasoning)}
               </p>
             </div>
           )}
 
-          <div className="bg-white border rounded-lg p-4">
+          <div className="bg-white dark:bg-ink-900 border rounded-lg p-4">
             <h2 className="font-medium mb-2">Notes</h2>
             <div className="space-y-2 mb-3">
               {matter.notes.length === 0 && (
-                <div className="text-sm text-gray-500">No notes yet.</div>
+                <div className="text-sm text-ink-500 dark:text-ink-400">No notes yet.</div>
               )}
               {matter.notes.map((n) => (
                 <div key={n.id} className="border-l-2 border-brand-500 pl-3 py-1 text-sm">
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-ink-500 dark:text-ink-400">
                     {new Date(n.createdAt).toLocaleString()} · {n.source}
                   </div>
                   <div className="whitespace-pre-wrap">{n.body}</div>
@@ -213,24 +236,28 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </section>
 
-        <aside className="space-y-4">
-          <div className="bg-white border rounded-lg p-4 text-sm">
+        <aside className={chatOpen ? 'col-span-3 space-y-4' : 'space-y-4'}>
+          <EscalationsCard matterId={matter.id} />
+
+          <PlaybooksCard matterId={matter.id} />
+
+          <div className="bg-white dark:bg-ink-900 border rounded-lg p-4 text-sm">
             <h2 className="font-medium mb-2">Metadata</h2>
             <dl className="space-y-1">
               <div className="flex justify-between">
-                <dt className="text-gray-500">Requester</dt>
+                <dt className="text-ink-500 dark:text-ink-400">Requester</dt>
                 <dd>{matter.requester?.name ?? '—'}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-gray-500">Assignee</dt>
+                <dt className="text-ink-500 dark:text-ink-400">Assignee</dt>
                 <dd>{matter.assignee?.name ?? '—'}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-gray-500">Counterparty</dt>
+                <dt className="text-ink-500 dark:text-ink-400">Counterparty</dt>
                 <dd>{matter.counterparty?.name ?? '—'}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-gray-500">SLA Due</dt>
+                <dt className="text-ink-500 dark:text-ink-400">SLA Due</dt>
                 <dd>{matter.slaDueAt ? new Date(matter.slaDueAt).toLocaleString() : '—'}</dd>
               </div>
             </dl>
@@ -250,20 +277,20 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
                 return null;
               }
               return (
-                <div className="bg-white border rounded-lg p-4 text-sm">
+                <div className="bg-white dark:bg-ink-900 border rounded-lg p-4 text-sm">
                   <div className="flex items-center justify-between mb-2">
                     <h2 className="font-medium">Counterparty Memory</h2>
-                    <span className="text-xs text-gray-400">{counterparty.name}</span>
+                    <span className="text-xs text-ink-400 dark:text-ink-500">{counterparty.name}</span>
                   </div>
                   {profile.summary && (
-                    <p className="text-gray-700 text-xs mb-3">{profile.summary}</p>
+                    <p className="text-ink-700 dark:text-ink-300 text-xs mb-3">{profile.summary}</p>
                   )}
                   {profile.commonRedlines && profile.commonRedlines.length > 0 && (
                     <div className="mb-2">
-                      <div className="text-xs font-medium text-gray-500 mb-1">
+                      <div className="text-xs font-medium text-ink-500 dark:text-ink-400 mb-1">
                         Negotiation patterns
                       </div>
-                      <ul className="text-xs text-gray-700 space-y-0.5 list-disc list-inside">
+                      <ul className="text-xs text-ink-700 dark:text-ink-300 space-y-0.5 list-disc list-inside">
                         {profile.commonRedlines.map((r, i) => (
                           <li key={i}>{r}</li>
                         ))}
@@ -275,7 +302,7 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
                       <div className="text-xs font-medium text-red-600 mb-1">
                         Escalation history
                       </div>
-                      <ul className="text-xs text-gray-700 space-y-0.5 list-disc list-inside">
+                      <ul className="text-xs text-ink-700 dark:text-ink-300 space-y-0.5 list-disc list-inside">
                         {profile.escalationTriggers.map((e, i) => (
                           <li key={i}>{e}</li>
                         ))}
@@ -283,11 +310,11 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
                     </div>
                   )}
                   {profile.practiceAreas && profile.practiceAreas.length > 0 && (
-                    <div className="flex gap-1 flex-wrap mt-2 pt-2 border-t border-gray-100">
+                    <div className="flex gap-1 flex-wrap mt-2 pt-2 border-t border-ink-100 dark:border-ink-800">
                       {profile.practiceAreas.map((p) => (
                         <span
                           key={p.area}
-                          className="text-xs bg-gray-100 px-1.5 py-0.5 rounded capitalize"
+                          className="text-xs bg-ink-100 dark:bg-ink-800 px-1.5 py-0.5 rounded capitalize"
                         >
                           {p.area} ({p.count})
                         </span>
@@ -295,7 +322,7 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
                     </div>
                   )}
                   {profile.avgCycleTimeDays != null && (
-                    <div className="text-xs text-gray-500 mt-2">
+                    <div className="text-xs text-ink-500 dark:text-ink-400 mt-2">
                       Avg resolution: {profile.avgCycleTimeDays.toFixed(1)} days
                     </div>
                   )}
@@ -304,7 +331,7 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
             })()}
 
           {matter.attachments.length > 0 && (
-            <div className="bg-white border rounded-lg p-4 text-sm">
+            <div className="bg-white dark:bg-ink-900 border rounded-lg p-4 text-sm">
               <h2 className="font-medium mb-2">Attachments</h2>
               <ul className="space-y-1">
                 {matter.attachments.map((a) => (
@@ -315,11 +342,11 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
           )}
 
           {similarMatters.length > 0 && (
-            <div className="bg-white border rounded-lg p-4 text-sm">
+            <div className="bg-white dark:bg-ink-900 border rounded-lg p-4 text-sm">
               <h2 className="font-medium mb-3">Similar Past Matters</h2>
               <ul className="space-y-3">
                 {similarMatters.map((sm) => (
-                  <li key={sm.id} className="border-t border-gray-100 pt-2 first:border-t-0 first:pt-0">
+                  <li key={sm.id} className="border-t border-ink-100 dark:border-ink-800 pt-2 first:border-t-0 first:pt-0">
                     <a
                       href={`/matters/${sm.id}`}
                       className="font-medium text-brand-600 hover:underline"
@@ -328,21 +355,21 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
                     </a>
                     <div className="flex items-center gap-2 mt-0.5">
                       {sm.practice_area && (
-                        <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded capitalize">
+                        <span className="text-xs bg-ink-100 dark:bg-ink-800 px-1.5 py-0.5 rounded capitalize">
                           {sm.practice_area}
                         </span>
                       )}
                       {sm.priority && (
-                        <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">
+                        <span className="text-xs bg-ink-100 dark:bg-ink-800 px-1.5 py-0.5 rounded">
                           {sm.priority}
                         </span>
                       )}
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-ink-400 dark:text-ink-500">
                         {Math.round(Number(sm.similarity) * 100)}% match
                       </span>
                     </div>
                     {sm.summary && (
-                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{sm.summary}</p>
+                      <p className="text-xs text-ink-500 dark:text-ink-400 mt-1 line-clamp-2">{sm.summary}</p>
                     )}
                   </li>
                 ))}
@@ -350,6 +377,12 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
             </div>
           )}
         </aside>
+
+        {chatOpen && (
+          <aside className="col-span-3">
+            <ChatPanel matterId={matter.id} />
+          </aside>
+        )}
       </div>
     </div>
   );
