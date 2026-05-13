@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { use, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { MatterStatusSchema } from '@legal/types';
 
@@ -96,11 +96,12 @@ interface CounterpartyMemoryProfile {
   typicalPositions?: string[];
 }
 
-export default function MatterDetailPage({ params }: { params: { id: string } }) {
-  const { data: matter, isLoading, refetch } = trpc.matters.get.useQuery({ id: params.id });
+export default function MatterDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const { data: matter, isLoading, refetch } = trpc.matters.get.useQuery({ id });
   const { data: similarMatters = [] } = trpc.matters.similarMatters.useQuery(
-    { matterId: params.id },
-    { enabled: !!params.id },
+    { matterId: id },
+    { enabled: !!id },
   );
   const { data: counterparty } = trpc.counterparties.get.useQuery(
     { id: matter?.counterpartyId ?? '' },
