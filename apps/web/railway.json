@@ -5,6 +5,7 @@
     "buildCommand": "pnpm install --frozen-lockfile && pnpm --filter @legal/web build"
   },
   "deploy": {
+    "preDeployCommand": "pnpm --filter @legal/db migrate",
     "startCommand": "pnpm --filter @legal/web start",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 30,
