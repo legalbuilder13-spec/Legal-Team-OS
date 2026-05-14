@@ -105,32 +105,61 @@ export function StageTraceDrawer({
             )}
             {sources && sources.length > 0 && (
               <ul className="space-y-1.5">
-                {sources.map((s) => (
-                  <li key={s.id} className="text-xs flex items-start gap-2 min-w-0">
-                    <span className="text-ink-400 dark:text-ink-500 font-mono shrink-0">
-                      [{s.sourceType}]
-                    </span>
-                    <div className="min-w-0">
-                      <div className="truncate">
-                        {s.url ? (
-                          <a
-                            href={s.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-brand-700 dark:text-brand-300 hover:underline"
-                          >
-                            {s.citation}
-                          </a>
-                        ) : (
-                          s.citation
-                        )}
+                {sources.map((s) => {
+                  const snapshotLink =
+                    s.verificationEvidenceUrl &&
+                    /^https?:\/\//.test(s.verificationEvidenceUrl)
+                      ? s.verificationEvidenceUrl
+                      : null;
+                  const verTone =
+                    s.verificationStatus === 'verified'
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : s.verificationStatus === 'material_discrepancy' ||
+                          s.verificationStatus === 'not_found'
+                        ? 'text-red-600 dark:text-red-400'
+                        : s.verificationStatus === 'minor_discrepancy'
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-ink-400 dark:text-ink-500';
+                  return (
+                    <li key={s.id} className="text-xs flex items-start gap-2 min-w-0">
+                      <span className="text-ink-400 dark:text-ink-500 font-mono shrink-0">
+                        [{s.sourceType}]
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate">
+                          {s.url ? (
+                            <a
+                              href={s.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-brand-700 dark:text-brand-300 hover:underline"
+                            >
+                              {s.citation}
+                            </a>
+                          ) : (
+                            s.citation
+                          )}
+                        </div>
+                        <div className="text-[10px] font-mono">
+                          <span className={verTone}>verification: {s.verificationStatus}</span>
+                          {snapshotLink && (
+                            <>
+                              {' · '}
+                              <a
+                                href={snapshotLink}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-brand-700 dark:text-brand-300 hover:underline"
+                              >
+                                view snapshot
+                              </a>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-[10px] font-mono text-ink-400 dark:text-ink-500">
-                        verification: {s.verificationStatus}
-                      </div>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

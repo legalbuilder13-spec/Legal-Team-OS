@@ -19,6 +19,8 @@ import { handleAnalyzeJob } from './handlers/analyze.js';
 import { handleRunStatutoryJob } from './handlers/tools/run-statutory.js';
 import { handleRunCaseLawJob } from './handlers/tools/run-case-law.js';
 import { handleRunDeconstructJob } from './handlers/tools/run-deconstruct.js';
+import { handleTakeSnapshotJob } from './handlers/take-snapshot.js';
+import { closeSnapshotBrowser } from './integrations/playwright_snapshot.js';
 import { runSlaCheck } from './handlers/sla-check.js';
 import { runDailyDigest } from './handlers/daily-digest.js';
 import { runPortfolioAnalysis } from './handlers/analyze-portfolio.js';
@@ -101,6 +103,9 @@ async function dispatch(job: Job) {
       break;
     case 'run_deconstruct':
       await handleRunDeconstructJob(db, job);
+      break;
+    case 'take_snapshot':
+      await handleTakeSnapshotJob(db, job);
       break;
     default:
       throw new Error(`unknown job kind: ${job.kind}`);
@@ -219,4 +224,14 @@ cron.schedule(
 console.log(
   `Worker started — digest cron: '${env.DIGEST_CRON}' in ${env.DIGEST_TIMEZONE}`,
 );
+// Graceful shutdown — close the Playwright browser if it was lazy-
+// launched. The poll loop is fire-and-forget so we don't await it.
+async function shutdown(signal: string) {
+  console.log(`worker: received ${signal}, shutting down`);
+  await closeSnapshotBrowser();
+  process.exit(0);
+}
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
+
 pollLoop();
