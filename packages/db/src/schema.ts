@@ -92,6 +92,7 @@ export const jobKind = pgEnum('job_kind', [
   'run_statutory',
   'run_case_law',
   'run_deconstruct',
+  'take_snapshot',
 ]);
 
 export const insightKind = pgEnum('insight_kind', [
