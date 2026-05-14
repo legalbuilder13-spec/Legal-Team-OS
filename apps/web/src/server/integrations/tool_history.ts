@@ -109,34 +109,33 @@ export async function getHistoricalToolHints(
   // multi-jurisdiction invocations write multiple jobIds in a single
   // audit row). acceptanceCount tallies tool.*_complete events
   // (worker successfully wrote a complete stage row).
-  const tools: Array<'statutory' | 'case_law' | 'deconstruct'> = [
-    'statutory',
-    'case_law',
-    'deconstruct',
-  ];
-  const invocationMatters: Record<string, Set<string>> = {
+  type ToolKey = 'statutory' | 'case_law' | 'deconstruct';
+  const tools: ToolKey[] = ['statutory', 'case_law', 'deconstruct'];
+  const invocationMatters: Record<ToolKey, Set<string>> = {
     statutory: new Set(),
     case_law: new Set(),
     deconstruct: new Set(),
   };
-  const acceptanceMatters: Record<string, Set<string>> = {
+  const acceptanceMatters: Record<ToolKey, Set<string>> = {
     statutory: new Set(),
     case_law: new Set(),
     deconstruct: new Set(),
   };
-  const blockedMatters: Record<string, Set<string>> = {
+  const blockedMatters: Record<ToolKey, Set<string>> = {
     statutory: new Set(),
     case_law: new Set(),
     deconstruct: new Set(),
   };
 
+  const isToolKey = (s: string): s is ToolKey =>
+    s === 'statutory' || s === 'case_law' || s === 'deconstruct';
   for (const r of auditRows) {
     if (r.action === 'tool.invoked') {
       const tool = (r.details?.tool as string | undefined) ?? '';
-      if (invocationMatters[tool]) invocationMatters[tool].add(r.matter_id);
+      if (isToolKey(tool)) invocationMatters[tool].add(r.matter_id);
     } else if (r.action === 'tool.invoke_blocked') {
       const tool = (r.details?.tool as string | undefined) ?? '';
-      if (blockedMatters[tool]) blockedMatters[tool].add(r.matter_id);
+      if (isToolKey(tool)) blockedMatters[tool].add(r.matter_id);
     } else if (r.action === 'tool.statutory_complete') {
       acceptanceMatters.statutory.add(r.matter_id);
     } else if (r.action === 'tool.case_law_complete') {
