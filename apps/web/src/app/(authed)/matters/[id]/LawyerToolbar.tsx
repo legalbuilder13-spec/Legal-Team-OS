@@ -50,7 +50,7 @@ export function LawyerToolbar({ matterId, defaultJurisdiction }: Props) {
     );
   }
 
-  function suggestionPill(kind: ToolKind): string | null {
+  function suggestionPill(kind: ToolKind): { reason: string; source: 'rule' | 'history' } | null {
     if (!toolCtx) return null;
     if (kind === 'statutory') {
       const h = toolCtx.hints.statutory;
@@ -60,15 +60,40 @@ export function LawyerToolbar({ matterId, defaultJurisdiction }: Props) {
           : h.keywords.length
             ? `${h.keywords.length} statutory keyword${h.keywords.length > 1 ? 's' : ''}`
             : 'practice area match';
-        return reason;
+        return { reason, source: 'rule' };
+      }
+      // PR8 — historical hint when no rule-based hint fired.
+      if (h.historicallySuggested && h.historical) {
+        return {
+          reason: `${Math.round(h.historical.invocationRate * 100)}% of similar matters used this`,
+          source: 'history',
+        };
       }
     }
     if (kind === 'case_law') {
       const h = toolCtx.hints.caseLaw;
       if (h.suggested) {
-        return h.citations.length
-          ? `${h.citations.length} case citation${h.citations.length > 1 ? 's' : ''} detected`
-          : 'practice area match';
+        return {
+          reason: h.citations.length
+            ? `${h.citations.length} case citation${h.citations.length > 1 ? 's' : ''} detected`
+            : 'practice area match',
+          source: 'rule',
+        };
+      }
+      if (h.historicallySuggested && h.historical) {
+        return {
+          reason: `${Math.round(h.historical.invocationRate * 100)}% of similar matters used this`,
+          source: 'history',
+        };
+      }
+    }
+    if (kind === 'deconstruct') {
+      const h = toolCtx.hints.deconstruct;
+      if (h.historicallySuggested && h.historical) {
+        return {
+          reason: `${Math.round(h.historical.invocationRate * 100)}% of similar matters used this`,
+          source: 'history',
+        };
       }
     }
     return null;
@@ -102,7 +127,16 @@ export function LawyerToolbar({ matterId, defaultJurisdiction }: Props) {
         <div className="mt-1 flex items-center justify-between gap-2 text-[11px]">
           {avail.enabled ? (
             suggestion ? (
-              <span className="text-amber-700 dark:text-amber-300">Suggested · {suggestion}</span>
+              <span
+                className={
+                  suggestion.source === 'rule'
+                    ? 'text-amber-700 dark:text-amber-300'
+                    : 'text-purple-700 dark:text-purple-300'
+                }
+              >
+                {suggestion.source === 'rule' ? 'Suggested' : 'Suggested by history'} ·{' '}
+                {suggestion.reason}
+              </span>
             ) : (
               <span className="text-ink-400 dark:text-ink-500">Available</span>
             )
@@ -154,10 +188,20 @@ export function LawyerToolbar({ matterId, defaultJurisdiction }: Props) {
     }
   }
 
+  const historyConsidered =
+    (toolCtx as unknown as { historyMetadata?: { similarMattersConsidered: number } })
+      .historyMetadata?.similarMattersConsidered ?? 0;
+
   return (
     <div className="space-y-2">
       <div className="text-xs font-medium text-ink-600 dark:text-ink-400">Research tools</div>
       {(['statutory', 'case_law', 'deconstruct'] as const).map(buttonFor)}
+      {historyConsidered > 0 && (
+        <div className="text-[10px] text-ink-400 dark:text-ink-500 italic">
+          History-based suggestions drawn from {historyConsidered} similar prior matter
+          {historyConsidered === 1 ? '' : 's'}.
+        </div>
+      )}
 
       {openDialog && (
         <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4">
