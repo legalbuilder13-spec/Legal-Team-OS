@@ -48,7 +48,7 @@ export function StageDecisionBar({
   matterId,
 }: Props) {
   const utils = trpc.useUtils();
-  const [open, setOpen] = useState<'reject' | 'escalate' | 'playbook' | null>(null);
+  const [open, setOpen] = useState<'reject' | 'escalate' | 'playbook' | 'revise' | null>(null);
   const [reason, setReason] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -56,6 +56,13 @@ export function StageDecisionBar({
   const [pbTitle, setPbTitle] = useState('');
   const [pbAlsoSaveNotion, setPbAlsoSaveNotion] = useState(false);
   const [pbSavedMsg, setPbSavedMsg] = useState<string | null>(null);
+
+  // M5 — revision text the lawyer pastes into the "revise & accept"
+  // panel. Captured on the matter_analysis_stages row so the weekly
+  // mine-revisions cron can extract terminology / verb / jurisdiction
+  // patterns. Optional — the existing one-click revise → accept keeps
+  // working unchanged.
+  const [revisionText, setRevisionText] = useState('');
 
   const override = trpc.analysis.overrideStage.useMutation({
     onSuccess: () => {
@@ -130,10 +137,66 @@ export function StageDecisionBar({
             >
               revise → accept
             </button>
+            <button
+              onClick={() => {
+                setOpen('revise');
+                setRevisionText('');
+                setErrorMsg(null);
+              }}
+              className="text-[11px] px-1.5 py-0.5 border rounded hover:bg-ink-50 dark:hover:bg-ink-800"
+              title="Accept with revised text (M5: revision feeds the domain-config mining cron)"
+            >
+              with revision…
+            </button>
           </div>
         </div>
         {pbSavedMsg && (
           <div className="text-[11px] text-emerald-700 dark:text-emerald-300">{pbSavedMsg}</div>
+        )}
+        {open === 'revise' && (
+          <div className="border rounded p-2 space-y-1.5 bg-ink-50 dark:bg-ink-900/40">
+            <div className="text-[11px] text-ink-600 dark:text-ink-400">
+              Paste your revised version of this stage&apos;s output. The text is stored on the
+              stage row and feeds the weekly domain-config mining cron — recurring swaps become
+              proposed terminology / verb rules.
+            </div>
+            <textarea
+              value={revisionText}
+              onChange={(e) => setRevisionText(e.target.value)}
+              rows={6}
+              className="w-full text-xs border rounded p-2 font-mono"
+              placeholder="Revised output (markdown, free-form)"
+            />
+            {errorMsg && (
+              <div className="text-[11px] text-red-600 dark:text-red-400">{errorMsg}</div>
+            )}
+            <div className="flex justify-end gap-1.5">
+              <button
+                onClick={() => {
+                  setOpen(null);
+                  setErrorMsg(null);
+                }}
+                className="text-[11px] px-2 py-0.5 border rounded hover:bg-white dark:hover:bg-ink-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() =>
+                  override.mutate({
+                    stageId,
+                    decision: 'accepted',
+                    revisedOutput: revisionText.trim()
+                      ? { text: revisionText.trim() }
+                      : undefined,
+                  })
+                }
+                disabled={override.isPending || revisionText.trim().length < 5}
+                className="text-[11px] px-2 py-0.5 bg-brand-600 text-white border border-brand-700 rounded disabled:opacity-50 hover:bg-brand-700"
+              >
+                {override.isPending ? 'Saving…' : 'Accept with revision'}
+              </button>
+            </div>
+          </div>
         )}
         {open === 'playbook' && (
           <PlaybookForm

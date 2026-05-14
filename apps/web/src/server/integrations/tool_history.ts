@@ -79,14 +79,26 @@ export async function getHistoricalToolHints(
 
   let similarRows: SimilarRow[];
   if (hasEmbedding) {
+    // M2 — Prefer matter_summaries.summary_embedding when the
+    // candidate matter has one (closed + compacted). Summary
+    // embeddings reflect the resolved outcome, not just intake text,
+    // so K-NN quality goes up. Fallback to matters.embedding via
+    // COALESCE; matters that never closed (or didn't compact) still
+    // participate in the ranking using their intake embedding.
     const similar = await db.execute(sql`
-      SELECT id::text AS id,
-        1 - (embedding <=> (SELECT embedding FROM matters WHERE id = ${args.matterId}::uuid)) AS rank
-      FROM matters
-      WHERE id != ${args.matterId}::uuid
-        AND status != 'cancelled'
-        AND embedding IS NOT NULL
-      ORDER BY embedding <=> (SELECT embedding FROM matters WHERE id = ${args.matterId}::uuid)
+      WITH q AS (
+        SELECT embedding AS qvec
+        FROM matters
+        WHERE id = ${args.matterId}::uuid
+      )
+      SELECT m.id::text AS id,
+        1 - (COALESCE(ms.summary_embedding, m.embedding) <=> (SELECT qvec FROM q)) AS rank
+      FROM matters m
+      LEFT JOIN matter_summaries ms ON ms.matter_id = m.id
+      WHERE m.id != ${args.matterId}::uuid
+        AND m.status != 'cancelled'
+        AND COALESCE(ms.summary_embedding, m.embedding) IS NOT NULL
+      ORDER BY COALESCE(ms.summary_embedding, m.embedding) <=> (SELECT qvec FROM q)
       LIMIT ${k}
     `);
     similarRows = similar as unknown as SimilarRow[];

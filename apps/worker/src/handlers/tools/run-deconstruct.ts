@@ -352,6 +352,8 @@ export async function handleRunDeconstructJob(db: Db, job: Job) {
         confidence,
         durationMs: Date.now() - startedAt,
         auditNotes: auditNotes.length > 0 ? auditNotes.join(' | ') : null,
+        // Item 8 — capture skill request for eval-corpus replay.
+        skillInputJson: skillReq as unknown as Record<string, unknown>,
       })
       .where(eq(matterAnalysisStages.id, stageId));
 

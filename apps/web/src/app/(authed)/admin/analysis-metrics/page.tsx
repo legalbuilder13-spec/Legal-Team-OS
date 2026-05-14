@@ -54,6 +54,7 @@ function Num({ value }: { value: number | null | undefined }) {
 export default function AnalysisMetricsPage() {
   const [days, setDays] = useState(7);
   const { data, isLoading } = trpc.analysisMetrics.summary.useQuery({ lookbackDays: days });
+  const { data: rejectionSummary } = trpc.rejectionThemes.summary.useQuery();
 
   return (
     <div className="max-w-5xl space-y-5">
@@ -82,6 +83,33 @@ export default function AnalysisMetricsPage() {
           ))}
         </div>
       </header>
+
+      {rejectionSummary && (rejectionSummary.pendingCount > 0 || rejectionSummary.actionedLast30d > 0) && (
+        <a
+          href="/admin/rejection-themes"
+          className="block border rounded-lg p-3 hover:bg-ink-50 dark:hover:bg-ink-800 transition-colors"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm">
+              <span className="font-medium">Rejection themes:</span>{' '}
+              <span className="text-amber-700 dark:text-amber-300">
+                <Num value={rejectionSummary.pendingCount} /> pending
+              </span>
+              {rejectionSummary.actionedLast30d > 0 && (
+                <span className="text-emerald-700 dark:text-emerald-300 ml-2">
+                  · <Num value={rejectionSummary.actionedLast30d} /> actioned in last 30d
+                </span>
+              )}
+              {rejectionSummary.latestRun?.error && (
+                <span className="text-red-700 dark:text-red-300 ml-2">
+                  · last run errored
+                </span>
+              )}
+            </div>
+            <span className="text-xs text-ink-500 dark:text-ink-400">Review →</span>
+          </div>
+        </a>
+      )}
 
       {isLoading || !data ? (
         <div className="text-ink-500 dark:text-ink-400">Loading…</div>
@@ -251,6 +279,53 @@ export default function AnalysisMetricsPage() {
                 </tbody>
               </table>
             )}
+          </MetricBlock>
+
+          {/* 8. M6 — Memory nudges */}
+          {(data.nudges.runs > 0 || data.nudges.candidates > 0) && (
+            <MetricBlock title="Memory nudges (M6)" status="neutral">
+              <div className="text-sm">
+                <Num value={data.nudges.runs} /> nudge runs ·{' '}
+                <Num value={data.nudges.candidates} /> candidate stages surfaced ·{' '}
+                <Num value={data.nudges.dms} /> DMs sent (last {days}d)
+              </div>
+              <div className="text-xs text-ink-500 dark:text-ink-400 mt-1">
+                Daily cron at 08:00 surfaces accepted stages that haven&apos;t been saved as
+                playbooks but would have matched ≥2 other recent matters.
+              </div>
+            </MetricBlock>
+          )}
+
+          {/* 7. M4 — Playbook canon tier distribution */}
+          <MetricBlock
+            title="Playbook canon tiers (M4)"
+            status={data.playbookTiers.counts.length === 0 ? 'neutral' : 'pass'}
+          >
+            <div className="text-sm space-y-2">
+              <div className="flex gap-4">
+                {(['draft', 'org', 'industry'] as const).map((tier) => {
+                  const row = data.playbookTiers.counts.find((r) => r.tier === tier);
+                  return (
+                    <span key={tier}>
+                      <span className="text-ink-500 dark:text-ink-400">{tier}:</span>{' '}
+                      <Num value={row?.count ?? 0} />
+                    </span>
+                  );
+                })}
+              </div>
+              {(data.playbookTiers.promoted > 0 || data.playbookTiers.demoted > 0) && (
+                <div className="text-xs text-ink-600 dark:text-ink-400">
+                  Last {days}d:{' '}
+                  <span className="text-emerald-700 dark:text-emerald-300">
+                    +<Num value={data.playbookTiers.promoted} /> promoted
+                  </span>
+                  {' · '}
+                  <span className="text-amber-700 dark:text-amber-300">
+                    −<Num value={data.playbookTiers.demoted} /> demoted
+                  </span>
+                </div>
+              )}
+            </div>
           </MetricBlock>
 
           {/* 6. Lawyer override rate (PR10) */}

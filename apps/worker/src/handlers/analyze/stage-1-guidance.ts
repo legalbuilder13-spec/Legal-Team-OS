@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import {
   matterAnalysisStages,
+  auditLog,
   type Db,
   type Matter,
 } from '@legal/db';
@@ -282,8 +283,27 @@ export async function runStage1(
         outputJson: output as unknown as Record<string, unknown>,
         confidence,
         durationMs: Date.now() - startedAt,
+        // Item 8 — capture skill request for eval-corpus replay.
+        skillInputJson: skillRequest as unknown as Record<string, unknown>,
       })
       .where(eq(matterAnalysisStages.id, stageId));
+
+    // M4 — record the matched candidate's notion_page_id so the
+    // promote-playbooks cron can attribute matches to specific
+    // playbooks. Only fires on matched verdicts; related_only / no_hit
+    // emit nothing.
+    if (raw.verdict === 'matched' && topGrade?.candidate.notionPageId) {
+      await db.insert(auditLog).values({
+        actorKind: 'system',
+        matterId: matter.id,
+        action: 'playbook.matched_in_guidance',
+        details: {
+          notion_page_id: topGrade.candidate.notionPageId,
+          stage_id: stageId,
+          on_point_score: topGrade.onPointScore,
+        },
+      });
+    }
 
     return { stageId, status: 'complete', confidence, output, verdict: raw.verdict };
   } catch (err) {

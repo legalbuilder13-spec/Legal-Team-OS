@@ -93,6 +93,7 @@ export const jobKind = pgEnum('job_kind', [
   'run_case_law',
   'run_deconstruct',
   'take_snapshot',
+  'compact_matter',
 ]);
 
 export const insightKind = pgEnum('insight_kind', [
@@ -236,6 +237,43 @@ export const lawyerDecision = pgEnum('lawyer_decision', [
   'rejected',
   'escalated',
 ]);
+
+// M4 — Playbook canon tier. Promotes battle-tested playbooks to
+// higher retrieval weight via a nightly auto-promotion cron driven by
+// usage telemetry (matched_count + accepted_when_matched_count).
+export const playbookCanonTier = pgEnum('playbook_canon_tier', [
+  'draft',
+  'org',
+  'industry',
+]);
+
+// M5 — Dialectic org-config proposal status. A weekly cron mines
+// lawyer revisions (matter_analysis_stages.lawyer_revised_output) and
+// proposes terminology / verb / jurisdiction patches; admins accept
+// or dismiss in /admin/domain-config.
+export const domainConfigProposalStatus = pgEnum('domain_config_proposal_status', [
+  'pending',
+  'accepted',
+  'dismissed',
+]);
+
+// M1 — Rejection-reason mining. A weekly worker cron clusters lawyer
+// rejection reasons from audit_log; each cluster proposes a follow-up
+// (new playbook draft, or a domain_config rule patch). 'none' = the
+// cluster surfaces a pattern but no automatic action is appropriate.
+export const rejectionClusterProposalTarget = pgEnum(
+  'rejection_cluster_proposal_target',
+  ['playbook', 'domain_config', 'none'],
+);
+
+// 'pending' = freshly written by the cron; 'accepted'/'dismissed' set
+// by an admin in /admin/rejection-themes; 'actioned' set when the
+// downstream artifact (playbook draft or domain_config patch) was
+// created.
+export const rejectionClusterProposalStatus = pgEnum(
+  'rejection_cluster_proposal_status',
+  ['pending', 'accepted', 'dismissed', 'actioned'],
+);
 
 // PR12 §15 — per-organization domain config. Singleton in v1; multi-
 // tenant scoping is a future PR.
@@ -466,11 +504,20 @@ export const playbooks = pgTable(
     isActive: boolean('is_active').notNull().default(true),
     version: integer('version').notNull().default(1),
     createdById: uuid('created_by_id').references(() => users.id),
+    // M4 — auto-promotion telemetry. Updated by the nightly cron;
+    // see runPromotePlaybooks in apps/worker.
+    canonTier: playbookCanonTier('canon_tier').notNull().default('draft'),
+    matchedCount: integer('matched_count').notNull().default(0),
+    acceptedWhenMatchedCount: integer('accepted_when_matched_count').notNull().default(0),
+    lastPromotedAt: timestamp('last_promoted_at', { withTimezone: true }),
+    lastDemotedAt: timestamp('last_demoted_at', { withTimezone: true }),
+    notionPageId: text('notion_page_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({
     practiceAreaIdx: index('playbooks_practice_area_idx').on(t.practiceArea),
+    canonTierIdx: index('playbooks_canon_tier_idx').on(t.canonTier, t.practiceArea),
   }),
 );
 
@@ -958,6 +1005,15 @@ export const matterAnalysisStages = pgTable(
     lawyerDecidedByUserId: uuid('lawyer_decided_by_user_id').references(() => users.id, {
       onDelete: 'set null',
     }),
+    // M5 — lawyer's revised stage output when the "revise → accept"
+    // affordance is used. Free-form jsonb; mining cron expects a
+    // {text: string} shape but stores anything the UI sends.
+    lawyerRevisedOutput: jsonb('lawyer_revised_output').$type<Record<string, unknown>>(),
+    // Item 8 follow-up — captures the structured skill request the
+    // worker actually sent. Lets the eval-corpus replay runner
+    // reconstruct skill calls without re-deriving inputs from the
+    // matter + analysis tree.
+    skillInputJson: jsonb('skill_input_json').$type<Record<string, unknown>>(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({
@@ -1016,6 +1072,217 @@ export const matterAnalysisStagesRelations = relations(
     sources: many(matterAnalysisSources),
   }),
 );
+
+// M1 — Rejection-reason mining runs. One row per cron execution; the
+// cluster rows below FK back here so trend comparison across runs is
+// possible. organization_id is nullable for the singleton/'default'
+// case (PR12); will be backfilled when multi-tenant scoping lands.
+export const rejectionClusterRuns = pgTable(
+  'rejection_cluster_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'cascade',
+    }),
+    lookbackDays: integer('lookback_days').notNull(),
+    windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
+    windowEnd: timestamp('window_end', { withTimezone: true }).notNull(),
+    rejectionCount: integer('rejection_count').notNull().default(0),
+    clusterCount: integer('cluster_count').notNull().default(0),
+    aiModel: text('ai_model'),
+    tokensIn: integer('tokens_in').notNull().default(0),
+    tokensOut: integer('tokens_out').notNull().default(0),
+    durationMs: integer('duration_ms').notNull().default(0),
+    error: text('error'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    orgIdx: index('rejection_cluster_runs_org_idx').on(t.organizationId, t.createdAt),
+  }),
+);
+
+// One row per cluster produced by a run. representativeReasons captures
+// the verbatim rejection strings the LLM grouped; memberAuditLogIds
+// is the back-pointer to the audit_log rows for forensic drill-in.
+// proposedPayload is the LLM's draft of what the action should look
+// like (e.g. a playbook title + body sketch, or a domain_config patch
+// snippet). actionedPayload is what the admin ultimately accepted —
+// usually the proposed payload with edits.
+export interface RepresentativeReason {
+  audit_log_id: string;
+  matter_id: string | null;
+  reason: string;
+  worker_confidence: string | null;
+  decided_at: string;
+}
+
+export interface ProposedPlaybookPayload {
+  kind: 'playbook';
+  title: string;
+  body: string;
+  practice_area: string | null;
+}
+
+export interface ProposedDomainConfigPayload {
+  kind: 'domain_config';
+  patch_path: string; // e.g. 'verb_rules', 'terminology_rules'
+  patch_value: unknown;
+  rationale: string;
+}
+
+export type ProposedPayload =
+  | ProposedPlaybookPayload
+  | ProposedDomainConfigPayload
+  | Record<string, never>;
+
+export const rejectionClusters = pgTable(
+  'rejection_clusters',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => rejectionClusterRuns.id, { onDelete: 'cascade' }),
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'cascade',
+    }),
+    stageName: text('stage_name').notNull(),
+    practiceArea: text('practice_area'),
+    label: text('label').notNull(),
+    summary: text('summary').notNull(),
+    memberCount: integer('member_count').notNull(),
+    representativeReasons: jsonb('representative_reasons')
+      .$type<RepresentativeReason[]>()
+      .notNull()
+      .default([]),
+    memberAuditLogIds: jsonb('member_audit_log_ids')
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    proposalTarget: rejectionClusterProposalTarget('proposal_target')
+      .notNull()
+      .default('none'),
+    proposedPayload: jsonb('proposed_payload')
+      .$type<ProposedPayload>()
+      .notNull()
+      .default({}),
+    proposalStatus: rejectionClusterProposalStatus('proposal_status')
+      .notNull()
+      .default('pending'),
+    actionedAt: timestamp('actioned_at', { withTimezone: true }),
+    actionedByUserId: uuid('actioned_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    actionedPayload: jsonb('actioned_payload').$type<Record<string, unknown>>(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    runIdx: index('rejection_clusters_run_idx').on(t.runId),
+    orgStatusIdx: index('rejection_clusters_org_status_idx').on(
+      t.organizationId,
+      t.proposalStatus,
+      t.createdAt,
+    ),
+    stageIdx: index('rejection_clusters_stage_idx').on(t.stageName, t.practiceArea),
+  }),
+);
+
+export const rejectionClusterRunsRelations = relations(
+  rejectionClusterRuns,
+  ({ many }) => ({
+    clusters: many(rejectionClusters),
+  }),
+);
+
+export const rejectionClustersRelations = relations(rejectionClusters, ({ one }) => ({
+  run: one(rejectionClusterRuns, {
+    fields: [rejectionClusters.runId],
+    references: [rejectionClusterRuns.id],
+  }),
+  organization: one(organizations, {
+    fields: [rejectionClusters.organizationId],
+    references: [organizations.id],
+  }),
+  actionedBy: one(users, {
+    fields: [rejectionClusters.actionedByUserId],
+    references: [users.id],
+  }),
+}));
+
+// M2 — Matter compression at close. One row per matter. The
+// summary_md + summary_embedding are higher-signal than the raw intake
+// embedding on matters.embedding because they reflect the resolved
+// outcome. source_version_hash gates regeneration: when stages or
+// sources change, the worker recomputes and updates this row.
+export const matterSummaries = pgTable(
+  'matter_summaries',
+  {
+    matterId: uuid('matter_id')
+      .primaryKey()
+      .references(() => matters.id, { onDelete: 'cascade' }),
+    summaryMd: text('summary_md').notNull(),
+    summaryEmbedding: vector(1024)('summary_embedding'),
+    sourceVersionHash: text('source_version_hash').notNull(),
+    model: text('model'),
+    tokensIn: integer('tokens_in').notNull().default(0),
+    tokensOut: integer('tokens_out').notNull().default(0),
+    durationMs: integer('duration_ms').notNull().default(0),
+    generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    generatedAtIdx: index('matter_summaries_generated_at_idx').on(t.generatedAt),
+  }),
+);
+
+export const matterSummariesRelations = relations(matterSummaries, ({ one }) => ({
+  matter: one(matters, {
+    fields: [matterSummaries.matterId],
+    references: [matters.id],
+  }),
+}));
+
+// M5 — domain_config_proposals. One row per LLM-or-rule-mined
+// proposed patch to organizations.domainConfig. The /admin/domain-config
+// admin page renders pending rows as a queue. Accepting a proposal
+// validates the patched config against DomainConfigSchema and writes
+// it to organizations.domain_config.
+export const domainConfigProposals = pgTable(
+  'domain_config_proposals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'cascade',
+    }),
+    patchPath: text('patch_path').notNull(),
+    patchValue: jsonb('patch_value').notNull(),
+    rationale: text('rationale').notNull(),
+    evidenceCount: integer('evidence_count').notNull().default(1),
+    evidenceStageIds: jsonb('evidence_stage_ids').$type<string[]>().notNull().default([]),
+    status: domainConfigProposalStatus('status').notNull().default('pending'),
+    actionedByUserId: uuid('actioned_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    actionedAt: timestamp('actioned_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    orgStatusIdx: index('domain_config_proposals_org_status_idx').on(
+      t.organizationId,
+      t.status,
+      t.createdAt,
+    ),
+  }),
+);
+
+export const domainConfigProposalsRelations = relations(domainConfigProposals, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [domainConfigProposals.organizationId],
+    references: [organizations.id],
+  }),
+  actionedBy: one(users, {
+    fields: [domainConfigProposals.actionedByUserId],
+    references: [users.id],
+  }),
+}));
 
 export const matterAnalysisSourcesRelations = relations(matterAnalysisSources, ({ one }) => ({
   stage: one(matterAnalysisStages, {
@@ -1102,3 +1369,14 @@ export type MatterAnalysisStage = typeof matterAnalysisStages.$inferSelect;
 export type NewMatterAnalysisStage = typeof matterAnalysisStages.$inferInsert;
 export type MatterAnalysisSource = typeof matterAnalysisSources.$inferSelect;
 export type NewMatterAnalysisSource = typeof matterAnalysisSources.$inferInsert;
+
+export type RejectionClusterRun = typeof rejectionClusterRuns.$inferSelect;
+export type NewRejectionClusterRun = typeof rejectionClusterRuns.$inferInsert;
+export type RejectionCluster = typeof rejectionClusters.$inferSelect;
+export type NewRejectionCluster = typeof rejectionClusters.$inferInsert;
+
+export type MatterSummary = typeof matterSummaries.$inferSelect;
+export type NewMatterSummary = typeof matterSummaries.$inferInsert;
+
+export type DomainConfigProposal = typeof domainConfigProposals.$inferSelect;
+export type NewDomainConfigProposal = typeof domainConfigProposals.$inferInsert;

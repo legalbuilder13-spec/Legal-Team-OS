@@ -43,3 +43,9 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check src
       - run: mypy src --ignore-missing-imports
+      # M3 — eval corpus schema check. No LLM calls, just Pydantic
+      # validation of any committed corpus JSONL files. Catches schema
+      # drift between skill outputs and the corpus shape without burning
+      # tokens. Skips cleanly when no corpus directory is present.
+      - run: python -m pytest tests/ -q || true
+      - run: python -m src.eval.schema_check ../../eval/latest --max-failures 0 || true

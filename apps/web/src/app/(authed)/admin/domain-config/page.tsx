@@ -9,8 +9,19 @@ import { trpc } from '@/lib/trpc';
 // before save; server re-validates and writes audit_log.
 
 export default function DomainConfigPage() {
+  const utils = trpc.useUtils();
   const { data, isLoading, refetch } = trpc.domainConfig.current.useQuery();
   const update = trpc.domainConfig.update.useMutation();
+  const proposals = trpc.domainConfig.proposals.useQuery({ statuses: ['pending'] });
+  const acceptProposal = trpc.domainConfig.acceptProposal.useMutation({
+    onSuccess: async () => {
+      await utils.domainConfig.proposals.invalidate();
+      await utils.domainConfig.current.invalidate();
+    },
+  });
+  const dismissProposal = trpc.domainConfig.dismissProposal.useMutation({
+    onSuccess: () => utils.domainConfig.proposals.invalidate(),
+  });
 
   const [json, setJson] = useState<string>('');
   const [parseError, setParseError] = useState<string | null>(null);
@@ -57,6 +68,57 @@ export default function DomainConfigPage() {
           Org: {data.orgName} ({data.orgId})
         </div>
       </header>
+
+      {proposals.data && proposals.data.length > 0 && (
+        <section className="border rounded-md p-3 bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-900 space-y-3">
+          <h2 className="text-sm font-medium text-purple-900 dark:text-purple-200">
+            Auto-proposed edits ({proposals.data.length})
+          </h2>
+          <p className="text-xs text-purple-800 dark:text-purple-300">
+            Patterns mined from lawyer revisions in the last 30 days. Accepting appends to the
+            existing list at <code>patch_path</code>; dismissing won&apos;t re-propose until a new
+            pattern accumulates.
+          </p>
+          <div className="space-y-2">
+            {proposals.data.map((p) => (
+              <div
+                key={p.id}
+                className="border rounded p-3 bg-white dark:bg-ink-900 space-y-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs">
+                    <span className="text-ink-500 dark:text-ink-400">path: </span>
+                    <code className="font-mono">{p.patchPath}</code>
+                    <span className="text-ink-500 dark:text-ink-400 ml-2">
+                      · {p.evidenceCount} revisions
+                    </span>
+                  </div>
+                </div>
+                <pre className="text-xs font-mono bg-ink-50 dark:bg-ink-800 rounded p-2 whitespace-pre-wrap">
+                  {JSON.stringify(p.patchValue, null, 2)}
+                </pre>
+                <div className="text-xs text-ink-700 dark:text-ink-300">{p.rationale}</div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    disabled={acceptProposal.isPending}
+                    onClick={() => acceptProposal.mutate({ proposalId: p.id })}
+                    className="text-xs px-2 py-1 border rounded bg-purple-600 text-white border-purple-700 hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    {acceptProposal.isPending ? 'Applying…' : 'Apply'}
+                  </button>
+                  <button
+                    disabled={dismissProposal.isPending}
+                    onClick={() => dismissProposal.mutate({ proposalId: p.id })}
+                    className="text-xs px-2 py-1 border rounded hover:bg-ink-50 dark:hover:bg-ink-800"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <details className="border rounded-md p-3 bg-ink-50/30 dark:bg-ink-800/30">
         <summary className="text-sm font-medium cursor-pointer">Shape reference</summary>

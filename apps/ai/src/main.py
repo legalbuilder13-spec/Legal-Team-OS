@@ -13,6 +13,16 @@ from .analysis_schemas import (
 )
 from .analyze_clause import AnalyzeClauseRequest, AnalyzeClauseResult, analyze_clause
 from .case_law_research import CaseLawRequest, CaseLawResult, research_case_law
+from .cluster_rejections import (
+    ClusterRejectionsRequest,
+    ClusterRejectionsResult,
+    cluster_rejections,
+)
+from .compact_matter import (
+    CompactMatterRequest,
+    CompactMatterResult,
+    compact_matter,
+)
 from .compile_rule import CompileRuleRequest, CompileRuleResult, compile_rule
 from .config import settings
 from .context.salesforce import lookup_counterparty
@@ -22,6 +32,11 @@ from .deconstruct_draft import (
     deconstruct_and_draft,
 )
 from .enrich_counterparty import EnrichRequest, EnrichResult, enrich_counterparty
+from .extract_terminology_diffs import (
+    ExtractDiffsRequest,
+    ExtractDiffsResult,
+    extract_terminology_diffs,
+)
 from .guidance_grader import grade_guidance
 from .parse_document import ParseRequest, ParseResult, parse_document
 from .schemas import ContextCard, ContextRequest, TriageRequest, TriageResult
@@ -203,3 +218,46 @@ def post_deconstruct(request: DeconstructRequest) -> DeconstructResult:
         request.prior.case_law_summary is not None,
     )
     return deconstruct_and_draft(request)
+
+
+@app.post(
+    "/cluster-rejections",
+    response_model=ClusterRejectionsResult,
+    dependencies=[Depends(require_token)],
+)
+def post_cluster_rejections(request: ClusterRejectionsRequest) -> ClusterRejectionsResult:
+    logger.info(
+        "cluster_rejections org=%s rejections=%d",
+        request.organization_id or "default",
+        len(request.rejections),
+    )
+    return cluster_rejections(request)
+
+
+@app.post(
+    "/compact-matter",
+    response_model=CompactMatterResult,
+    dependencies=[Depends(require_token)],
+)
+def post_compact_matter(request: CompactMatterRequest) -> CompactMatterResult:
+    logger.info(
+        "compact_matter matter=%s stages=%d sources=%d",
+        request.matter_id,
+        len(request.stages),
+        len(request.sources),
+    )
+    return compact_matter(request)
+
+
+@app.post(
+    "/extract-terminology-diffs",
+    response_model=ExtractDiffsResult,
+    dependencies=[Depends(require_token)],
+)
+def post_extract_terminology_diffs(request: ExtractDiffsRequest) -> ExtractDiffsResult:
+    logger.info(
+        "extract_terminology_diffs org=%s revisions=%d",
+        request.organization_id or "default",
+        len(request.revisions),
+    )
+    return extract_terminology_diffs(request)

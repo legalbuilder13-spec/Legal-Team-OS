@@ -24,6 +24,14 @@ import { closeSnapshotBrowser } from './integrations/playwright_snapshot.js';
 import { runSlaCheck } from './handlers/sla-check.js';
 import { runDailyDigest } from './handlers/daily-digest.js';
 import { runPortfolioAnalysis } from './handlers/analyze-portfolio.js';
+import { runMineRejections } from './handlers/mine-rejections.js';
+import {
+  enqueueClosedMatterCompaction,
+  handleCompactMatterJob,
+} from './handlers/compact-matter.js';
+import { runPromotePlaybooks } from './handlers/promote-playbooks.js';
+import { runMineRevisions } from './handlers/mine-revisions.js';
+import { runNudgeMissedPlaybooks } from './handlers/nudge-missed-playbooks.js';
 import { isPermanentJobError } from './utils.js';
 
 const db = getDb();
@@ -107,6 +115,9 @@ async function dispatch(job: Job) {
     case 'take_snapshot':
       await handleTakeSnapshotJob(db, job);
       break;
+    case 'compact_matter':
+      await handleCompactMatterJob(db, job);
+      break;
     default:
       throw new Error(`unknown job kind: ${job.kind}`);
   }
@@ -188,6 +199,109 @@ cron.schedule(
       console.log(`portfolio analysis: ${generated} new insights generated`);
     } catch (err) {
       console.error('portfolio analysis failed:', err);
+    }
+  },
+  { timezone: env.DIGEST_TIMEZONE },
+);
+
+// M2 — Daily enqueue compact-matter jobs for newly-closed matters
+// without summaries. The compact handler is idempotent on
+// source_version_hash, so re-enqueuing a matter that didn't change
+// is a no-op LLM-cost-wise. Runs at 06:00 so summaries are ready by
+// the time the daily digest fires.
+cron.schedule(
+  '0 6 * * *',
+  async () => {
+    try {
+      const enqueued = await enqueueClosedMatterCompaction(db);
+      if (enqueued > 0) console.log(`compact-matter: enqueued ${enqueued} jobs`);
+    } catch (err) {
+      console.error('compact-matter enqueue failed:', err);
+    }
+  },
+  { timezone: env.DIGEST_TIMEZONE },
+);
+
+// M4 — Nightly playbook tier promotion. Recomputes matched_count +
+// accepted_when_matched_count per playbook from audit_log and applies
+// the draft → org / org → draft transitions. Idempotent. 02:00 so it
+// runs after most stage decisions have been recorded for the day.
+cron.schedule(
+  '0 2 * * *',
+  async () => {
+    try {
+      const result = await runPromotePlaybooks(db);
+      if (result.promoted > 0 || result.demoted > 0) {
+        console.log(
+          `playbook tiers: scanned=${result.scanned} promoted=${result.promoted} demoted=${result.demoted}`,
+        );
+      }
+    } catch (err) {
+      console.error('promote-playbooks failed:', err);
+    }
+  },
+  { timezone: env.DIGEST_TIMEZONE },
+);
+
+// M6 — Daily nudge cycle. Surfaces accepted stages from the last 7d
+// that haven't been saved as playbooks but would have matched ≥2
+// other recent matters. Sends a Slack DM to admin users. 08:00
+// local time so it lands with the start-of-day digest.
+cron.schedule(
+  '0 8 * * *',
+  async () => {
+    try {
+      const result = await runNudgeMissedPlaybooks(db);
+      if (result.candidates > 0) {
+        console.log(
+          `nudge-missed-playbooks: ${result.candidates} candidates, ${result.dmsSent} DMs sent` +
+            (result.skipped ? ` (skipped: ${result.skipped})` : ''),
+        );
+      }
+    } catch (err) {
+      console.error('nudge-missed-playbooks failed:', err);
+    }
+  },
+  { timezone: env.DIGEST_TIMEZONE },
+);
+
+// M5 — Weekly mining of lawyer revisions into domain_config patches.
+// Reads lawyer_revised_output rows from the last 30d, diffs vs.
+// original, calls the AI service to extract terminology / verb /
+// jurisdiction patterns. Sunday 10:00 in DIGEST_TIMEZONE so the
+// proposals land just after the M1 rejection-themes batch.
+cron.schedule(
+  '0 10 * * 0',
+  async () => {
+    try {
+      const result = await runMineRevisions(db, { lookbackDays: 30 });
+      console.log(
+        `mine-revisions: ${result.revisionCount} revisions → ${result.proposalCount} proposals` +
+          (result.skipped ? ` (skipped: ${result.skipped})` : ''),
+      );
+    } catch (err) {
+      console.error('mine-revisions failed:', err);
+    }
+  },
+  { timezone: env.DIGEST_TIMEZONE },
+);
+
+// M1 — Weekly rejection-reason mining. Clusters lawyer rejection
+// reasons from audit_log and writes proposals to rejection_clusters
+// for admin review in /admin/rejection-themes. Sunday 09:00 so admins
+// see fresh clusters at the start of the work week. No-ops when there
+// are fewer than 2 rejections in the lookback window.
+cron.schedule(
+  '0 9 * * 0',
+  async () => {
+    try {
+      const result = await runMineRejections(db, { lookbackDays: 7 });
+      console.log(
+        `rejection mining: ${result.rejectionCount} rejections → ${result.clusterCount} clusters` +
+          (result.skipped ? ` (skipped: ${result.skipped})` : ''),
+      );
+    } catch (err) {
+      console.error('rejection mining failed:', err);
     }
   },
   { timezone: env.DIGEST_TIMEZONE },

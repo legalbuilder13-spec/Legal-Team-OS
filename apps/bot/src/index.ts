@@ -3,6 +3,7 @@ import { env } from './env.js';
 import { registerLegalCommand } from './commands/legal.js';
 import { registerAppMention } from './events/app-mention.js';
 import { registerMessageEvents } from './events/message.js';
+import { registerSavePlaybookAction } from './actions/save-playbook.js';
 
 const { App, LogLevel } = bolt;
 
@@ -17,6 +18,7 @@ const app = new App({
 registerLegalCommand(app);
 registerAppMention(app);
 registerMessageEvents(app);
+registerSavePlaybookAction(app);
 
 async function main() {
   await app.start(env.PORT);

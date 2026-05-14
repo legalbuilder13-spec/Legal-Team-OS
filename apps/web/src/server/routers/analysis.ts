@@ -22,6 +22,15 @@ const StageDecisionInput = z.object({
   stageId: z.string().uuid(),
   decision: z.enum(['accepted', 'rejected', 'escalated']),
   reason: z.string().max(2000).optional(),
+  // M5 — optional revised stage output. When the lawyer uses the
+  // "revise → accept" affordance with a textarea, the revision is
+  // captured here so the M5 mining cron can extract terminology /
+  // verb / jurisdiction patterns from the diff.
+  revisedOutput: z
+    .object({
+      text: z.string().min(1).max(20_000),
+    })
+    .optional(),
 });
 
 export const analysisRouter = router({
@@ -91,6 +100,12 @@ export const analysisRouter = router({
           lawyerDecisionReason: input.reason ?? null,
           lawyerDecidedAt: new Date(),
           lawyerDecidedByUserId: ctx.user.id,
+          // M5 — preserve the revision if supplied. Don't clear on
+          // accept-without-revision; an earlier reject's reason
+          // history stays informative.
+          ...(input.revisedOutput
+            ? { lawyerRevisedOutput: input.revisedOutput as Record<string, unknown> }
+            : {}),
         })
         .where(eq(matterAnalysisStages.id, input.stageId));
 
@@ -186,6 +201,7 @@ export const analysisRouter = router({
       // structure too. Best-effort; failures here don't roll back the
       // database insert.
       let notionUrl: string | null = null;
+      let notionPageId: string | null = null;
       if (input.alsoSaveToNotion) {
         try {
           const result = await createNotionPage({
@@ -193,9 +209,20 @@ export const analysisRouter = router({
             body: `${body}\n\n---\nDerived from ${matter.shortId} stage ${stage.stageName} accepted by ${ctx.user.name} on ${new Date().toISOString()}.`,
           });
           notionUrl = result?.url ?? null;
+          notionPageId = result?.id ?? null;
         } catch (err) {
           console.warn('savePlaybookFromStage: Notion write failed', { err: String(err) });
         }
+      }
+
+      // M4 — persist the Notion page id so the promote-playbooks cron
+      // can attribute future stage-1 matches back to this playbook
+      // via the audit_log 'playbook.matched_in_guidance' event.
+      if (notionPageId) {
+        await ctx.db
+          .update(playbooks)
+          .set({ notionPageId, updatedAt: new Date() })
+          .where(eq(playbooks.id, created!.id));
       }
 
       await ctx.db.insert(auditLog).values({
