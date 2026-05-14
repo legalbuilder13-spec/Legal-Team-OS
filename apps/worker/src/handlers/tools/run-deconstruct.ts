@@ -288,8 +288,10 @@ export async function handleRunDeconstructJob(db: Db, job: Job) {
     // substring match keeps it deterministic; the upstream stages
     // already verified the cites themselves.
     const allowedCites: string[] = [];
-    if (statutorySummary?.operative_provisions) {
-      for (const p of statutorySummary.operative_provisions as Array<Record<string, unknown>>) {
+    for (const summary of statutorySummaries) {
+      const provisions = (summary as Record<string, unknown>).operative_provisions;
+      if (!Array.isArray(provisions)) continue;
+      for (const p of provisions as Array<Record<string, unknown>>) {
         const cite = p.citation;
         if (typeof cite === 'string') allowedCites.push(cite);
       }
