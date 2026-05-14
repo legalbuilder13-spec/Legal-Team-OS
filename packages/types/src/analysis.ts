@@ -1,0 +1,176 @@
+import { z } from 'zod';
+
+// PRD §7 — Pre-review analysis pipeline. These schemas are the typed JSON
+// contracts between the worker (TypeScript) and the AI skills (Python). The
+// worker enforces schema on every skill response; malformed output fails
+// closed and routes the matter to a lawyer rather than degrading silently.
+
+export const AnalysisStatusSchema = z.enum([
+  'pending',
+  'running',
+  'complete',
+  'failed',
+  'escalated',
+]);
+export type AnalysisStatus = z.infer<typeof AnalysisStatusSchema>;
+
+export const AnalysisStageNameSchema = z.enum([
+  'pre_merits',
+  'guidance',
+  'statutory',
+  'case_law',
+  'deconstruct',
+]);
+export type AnalysisStageName = z.infer<typeof AnalysisStageNameSchema>;
+
+export const AnalysisStageStatusSchema = z.enum([
+  'skipped',
+  'running',
+  'complete',
+  'failed',
+  'deferred',
+]);
+export type AnalysisStageStatus = z.infer<typeof AnalysisStageStatusSchema>;
+
+export const AnalysisConfidenceSchema = z.enum(['HIGH', 'MEDIUM', 'LOW', 'SPLIT', 'N_A']);
+export type AnalysisConfidence = z.infer<typeof AnalysisConfidenceSchema>;
+
+export const AnalysisSourceTypeSchema = z.enum([
+  'notion',
+  'statute',
+  'regulation',
+  'case',
+  'guidance',
+  'prior_matter',
+  'webfetch',
+]);
+export type AnalysisSourceType = z.infer<typeof AnalysisSourceTypeSchema>;
+
+export const AnalysisVerificationStatusSchema = z.enum([
+  'pending',
+  'verified',
+  'minor_discrepancy',
+  'material_discrepancy',
+  'not_found',
+  'unverifiable',
+]);
+export type AnalysisVerificationStatus = z.infer<typeof AnalysisVerificationStatusSchema>;
+
+// ----- Stage 0: pre-merits threshold checklist -----
+// PRD §7.5. The checklist itself is hardcoded per practice area; the skill
+// reads the matter + checklist and returns a status per item.
+
+export const ThresholdSeveritySchema = z.enum(['high', 'medium', 'low']);
+export type ThresholdSeverity = z.infer<typeof ThresholdSeveritySchema>;
+
+export const ThresholdItemSchema = z.object({
+  id: z.string().min(1),
+  prompt: z.string().min(1),
+  severityIfRaised: ThresholdSeveritySchema,
+  docAnchor: z.string().optional(),
+});
+export type ThresholdItem = z.infer<typeof ThresholdItemSchema>;
+
+export const ThresholdSpotterFindingSchema = z.object({
+  id: z.string().min(1),
+  status: z.enum(['raised', 'not_raised', 'cant_tell']),
+  confidence: z.number().min(0).max(1),
+  evidenceQuote: z.string(),
+  oneLineJustification: z.string(),
+});
+export type ThresholdSpotterFinding = z.infer<typeof ThresholdSpotterFindingSchema>;
+
+export const PreMeritsStageOutputSchema = z.object({
+  practiceArea: z.string(),
+  checklistVersion: z.string(),
+  findings: z.array(ThresholdSpotterFindingSchema),
+  raisedHighSeverity: z.array(z.string()),
+  notesForLawyer: z.string().optional(),
+});
+export type PreMeritsStageOutput = z.infer<typeof PreMeritsStageOutputSchema>;
+
+// ----- Stage 1: guidance / playbook check -----
+// PRD §7.5/§7.3. Searches the Notion-backed KB / playbooks / Saved Matters
+// and grades each candidate for on-point-ness. The hardcoded gate then
+// decides whether to "match" or escalate to lawyer.
+
+export const GuidanceCandidateSchema = z.object({
+  source: z.enum(['notion_playbook', 'notion_kb', 'notion_saved_matter']),
+  title: z.string(),
+  url: z.string().url().optional(),
+  notionPageId: z.string().optional(),
+  excerpt: z.string(),
+  retrievedAt: z.string(),
+});
+export type GuidanceCandidate = z.infer<typeof GuidanceCandidateSchema>;
+
+export const GuidanceGradeSchema = z.object({
+  candidate: GuidanceCandidateSchema,
+  onPointScore: z.number().min(0).max(1),
+  jurisdictionMatch: z.boolean(),
+  factPatternOverlap: z.number().min(0).max(1),
+  ageConcern: z.boolean(),
+  citationAnchor: z.string().nullable(),
+  oneLineRationale: z.string(),
+});
+export type GuidanceGrade = z.infer<typeof GuidanceGradeSchema>;
+
+export const GuidanceVerdictSchema = z.enum(['matched', 'related_only', 'no_hit']);
+export type GuidanceVerdict = z.infer<typeof GuidanceVerdictSchema>;
+
+export const GuidanceStageOutputSchema = z.object({
+  verdict: GuidanceVerdictSchema,
+  queriesRun: z.array(z.string()),
+  grades: z.array(GuidanceGradeSchema),
+  topMatch: GuidanceGradeSchema.nullable(),
+  headlineAnswer: z
+    .object({
+      summary: z.string(),
+      citation: z.string(),
+      sourceUrl: z.string().url().optional(),
+    })
+    .nullable(),
+  notesForLawyer: z.string().optional(),
+});
+export type GuidanceStageOutput = z.infer<typeof GuidanceStageOutputSchema>;
+
+// ----- The on-point gating thresholds (hardcoded) -----
+// PRD §7.5. These are the numeric thresholds the hardcoded gate uses to
+// classify a guidance verdict. Tunable per organization in domain config.
+
+export const GUIDANCE_MATCH_THRESHOLDS = {
+  onPointScoreForMatch: 0.8,
+  onPointScoreForRelated: 0.5,
+  // Docs older than this lose match status even at high on-point score.
+  maxAgeMonthsForMatch: 18,
+} as const;
+
+// ----- Tool invocation payloads (Phase 2+) -----
+// PRD §7.6/§7.7/§12. Defined here so the web -> worker contract is stable
+// even though the tool implementations land in later phases.
+
+export const StatutoryToolInvocationSchema = z.object({
+  matterId: z.string().uuid(),
+  jurisdiction: z.string().min(1),
+  candidateStatutes: z.array(z.string()).default([]),
+  invokedByUserId: z.string().uuid(),
+});
+export type StatutoryToolInvocation = z.infer<typeof StatutoryToolInvocationSchema>;
+
+export const CaseLawToolInvocationSchema = z.object({
+  matterId: z.string().uuid(),
+  jurisdiction: z.string().min(1),
+  candidateDoctrines: z.array(z.string()).default([]),
+  invokedByUserId: z.string().uuid(),
+});
+export type CaseLawToolInvocation = z.infer<typeof CaseLawToolInvocationSchema>;
+
+export const DeconstructToolInvocationSchema = z.object({
+  matterId: z.string().uuid(),
+  invokedByUserId: z.string().uuid(),
+});
+export type DeconstructToolInvocation = z.infer<typeof DeconstructToolInvocationSchema>;
+
+// Current pipeline version. Bumped when the stage contracts change so old
+// matter_analyses rows can be identified as belonging to an older shape.
+export const PIPELINE_VERSION = '1.0.0';

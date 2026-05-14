@@ -40,6 +40,10 @@ export type MatterStatus = z.infer<typeof MatterStatusSchema>;
 
 export * from './insight-card.js';
 export * from './rule-dsl.js';
+export * from './analysis.js';
+export * from './thresholds/index.js';
+export * from './senior-review-triggers.js';
+export * from './statute-triggers.js';
 
 export const IntakePayloadSchema = z.object({
   source: z.literal('slack'),

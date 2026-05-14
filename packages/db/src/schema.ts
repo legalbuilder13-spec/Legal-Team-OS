@@ -88,6 +88,10 @@ export const jobKind = pgEnum('job_kind', [
   'generate_embedding',
   'enrich_counterparty_memory',
   'analyze_portfolio',
+  'analyze',
+  'run_statutory',
+  'run_case_law',
+  'run_deconstruct',
 ]);
 
 export const insightKind = pgEnum('insight_kind', [
@@ -168,6 +172,58 @@ export const executionPatternOutputFormat = pgEnum('execution_pattern_output_for
   'risk_assessment',
   'rewrite_pairs',
   'action_checklist',
+]);
+
+// PRD §7.2: pre-review analysis pipeline enums.
+export const analysisStatus = pgEnum('analysis_status', [
+  'pending',
+  'running',
+  'complete',
+  'failed',
+  'escalated',
+]);
+
+export const analysisStageName = pgEnum('analysis_stage_name', [
+  'pre_merits',
+  'guidance',
+  'statutory',
+  'case_law',
+  'deconstruct',
+]);
+
+export const analysisStageStatus = pgEnum('analysis_stage_status', [
+  'skipped',
+  'running',
+  'complete',
+  'failed',
+  'deferred',
+]);
+
+export const analysisSourceType = pgEnum('analysis_source_type', [
+  'notion',
+  'statute',
+  'regulation',
+  'case',
+  'guidance',
+  'prior_matter',
+  'webfetch',
+]);
+
+export const analysisVerificationStatus = pgEnum('analysis_verification_status', [
+  'pending',
+  'verified',
+  'minor_discrepancy',
+  'material_discrepancy',
+  'not_found',
+  'unverifiable',
+]);
+
+export const analysisConfidence = pgEnum('analysis_confidence', [
+  'HIGH',
+  'MEDIUM',
+  'LOW',
+  'SPLIT',
+  'N_A',
 ]);
 
 export const users = pgTable(
@@ -813,6 +869,119 @@ export const contextCache = pgTable(
   }),
 );
 
+// PRD §7.2: pre-review analysis pipeline.
+// One row per analysis run (one per matter, occasionally more if re-run).
+export const matterAnalyses = pgTable(
+  'matter_analyses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    matterId: uuid('matter_id')
+      .notNull()
+      .references(() => matters.id, { onDelete: 'cascade' }),
+    pipelineVersion: text('pipeline_version').notNull(),
+    status: analysisStatus('status').notNull().default('pending'),
+    overallConfidence: analysisConfidence('overall_confidence').notNull().default('N_A'),
+    escalationReason: text('escalation_reason'),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    totalTokens: integer('total_tokens').notNull().default(0),
+    totalCostCents: integer('total_cost_cents').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    matterIdx: index('matter_analyses_matter_idx').on(t.matterId, t.createdAt),
+    statusIdx: index('matter_analyses_status_idx').on(t.status),
+  }),
+);
+
+// One row per stage that ran. Auto pipeline writes pre_merits + guidance
+// rows; each lawyer-invoked tool writes a statutory/case_law/deconstruct row.
+export const matterAnalysisStages = pgTable(
+  'matter_analysis_stages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    analysisId: uuid('analysis_id')
+      .notNull()
+      .references(() => matterAnalyses.id, { onDelete: 'cascade' }),
+    stageName: analysisStageName('stage_name').notNull(),
+    status: analysisStageStatus('status').notNull().default('running'),
+    inputHash: text('input_hash').notNull(),
+    outputJson: jsonb('output_json').$type<Record<string, unknown>>().notNull().default({}),
+    confidence: analysisConfidence('confidence').notNull().default('N_A'),
+    model: text('model'),
+    tokensIn: integer('tokens_in').notNull().default(0),
+    tokensOut: integer('tokens_out').notNull().default(0),
+    durationMs: integer('duration_ms').notNull().default(0),
+    retries: integer('retries').notNull().default(0),
+    auditNotes: text('audit_notes'),
+    invokedByUserId: uuid('invoked_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    analysisIdx: index('matter_analysis_stages_analysis_idx').on(t.analysisId, t.createdAt),
+    nameIdx: index('matter_analysis_stages_name_idx').on(t.stageName, t.status),
+    dedupIdx: index('matter_analysis_stages_dedup_idx').on(t.analysisId, t.stageName, t.inputHash),
+  }),
+);
+
+// Every factual claim a stage makes traces to one of these. The audit
+// backbone — verification protocol writes verification_status and the
+// snapshot URL here.
+export const matterAnalysisSources = pgTable(
+  'matter_analysis_sources',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    stageId: uuid('stage_id')
+      .notNull()
+      .references(() => matterAnalysisStages.id, { onDelete: 'cascade' }),
+    sourceType: analysisSourceType('source_type').notNull(),
+    citation: text('citation').notNull(),
+    url: text('url'),
+    retrievedAt: timestamp('retrieved_at', { withTimezone: true }).defaultNow().notNull(),
+    hash: text('hash').notNull(),
+    verificationStatus: analysisVerificationStatus('verification_status')
+      .notNull()
+      .default('pending'),
+    verificationEvidenceUrl: text('verification_evidence_url'),
+    rawExcerpt: text('raw_excerpt').notNull().default(''),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    stageIdx: index('matter_analysis_sources_stage_idx').on(t.stageId),
+    hashIdx: index('matter_analysis_sources_hash_idx').on(t.hash),
+    citationIdx: index('matter_analysis_sources_citation_idx').on(t.citation),
+  }),
+);
+
+export const matterAnalysesRelations = relations(matterAnalyses, ({ one, many }) => ({
+  matter: one(matters, { fields: [matterAnalyses.matterId], references: [matters.id] }),
+  stages: many(matterAnalysisStages),
+}));
+
+export const matterAnalysisStagesRelations = relations(
+  matterAnalysisStages,
+  ({ one, many }) => ({
+    analysis: one(matterAnalyses, {
+      fields: [matterAnalysisStages.analysisId],
+      references: [matterAnalyses.id],
+    }),
+    invokedBy: one(users, {
+      fields: [matterAnalysisStages.invokedByUserId],
+      references: [users.id],
+    }),
+    sources: many(matterAnalysisSources),
+  }),
+);
+
+export const matterAnalysisSourcesRelations = relations(matterAnalysisSources, ({ one }) => ({
+  stage: one(matterAnalysisStages, {
+    fields: [matterAnalysisSources.stageId],
+    references: [matterAnalysisStages.id],
+  }),
+}));
+
 export const usersRelations = relations(users, ({ many }) => ({
   requestedMatters: many(matters, { relationName: 'requester' }),
   assignedMatters: many(matters, { relationName: 'assignee' }),
@@ -881,3 +1050,10 @@ export type NewEscalation = typeof escalations.$inferInsert;
 export type MatterDraft = typeof matterDrafts.$inferSelect;
 export type NewMatterDraft = typeof matterDrafts.$inferInsert;
 export type MatterDraftVersion = typeof matterDraftVersions.$inferSelect;
+
+export type MatterAnalysis = typeof matterAnalyses.$inferSelect;
+export type NewMatterAnalysis = typeof matterAnalyses.$inferInsert;
+export type MatterAnalysisStage = typeof matterAnalysisStages.$inferSelect;
+export type NewMatterAnalysisStage = typeof matterAnalysisStages.$inferInsert;
+export type MatterAnalysisSource = typeof matterAnalysisSources.$inferSelect;
+export type NewMatterAnalysisSource = typeof matterAnalysisSources.$inferInsert;
