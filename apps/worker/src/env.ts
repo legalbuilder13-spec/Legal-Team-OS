@@ -15,6 +15,11 @@ const Env = z.object({
   NOTION_API_KEY: z.string().optional(),
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   GOOGLE_DRIVE_DEFAULT_FOLDER_ID: z.string().optional(),
+  // PRD §19.1: gate for the pre-review analysis pipeline. Default off
+  // until per-organization shadow-mode validation completes.
+  ANALYSIS_PIPELINE_ENABLED: z
+    .union([z.literal('true'), z.literal('false'), z.literal('shadow')])
+    .default('false'),
 });
 
 export const env = Env.parse(process.env);

@@ -5,13 +5,21 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 
+from .analysis_schemas import (
+    GuidanceGraderRequest,
+    GuidanceGraderResult,
+    ThresholdSpotterRequest,
+    ThresholdSpotterResult,
+)
 from .analyze_clause import AnalyzeClauseRequest, AnalyzeClauseResult, analyze_clause
 from .compile_rule import CompileRuleRequest, CompileRuleResult, compile_rule
 from .config import settings
 from .context.salesforce import lookup_counterparty
 from .enrich_counterparty import EnrichRequest, EnrichResult, enrich_counterparty
+from .guidance_grader import grade_guidance
 from .parse_document import ParseRequest, ParseResult, parse_document
 from .schemas import ContextCard, ContextRequest, TriageRequest, TriageResult
+from .threshold_spotter import spot_thresholds
 from .triage import triage
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -109,3 +117,32 @@ def post_compile_rule(request: CompileRuleRequest) -> CompileRuleResult:
         len(request.natural_text),
     )
     return compile_rule(request)
+
+
+@app.post(
+    "/threshold-spotter",
+    response_model=ThresholdSpotterResult,
+    dependencies=[Depends(require_token)],
+)
+def post_threshold_spotter(request: ThresholdSpotterRequest) -> ThresholdSpotterResult:
+    logger.info(
+        "threshold_spotter matter_id=%s practice_area=%s items=%d",
+        request.matter_id,
+        request.practice_area,
+        len(request.items),
+    )
+    return spot_thresholds(request)
+
+
+@app.post(
+    "/guidance-grader",
+    response_model=GuidanceGraderResult,
+    dependencies=[Depends(require_token)],
+)
+def post_guidance_grader(request: GuidanceGraderRequest) -> GuidanceGraderResult:
+    logger.info(
+        "guidance_grader matter_id=%s candidates=%d",
+        request.matter_id,
+        len(request.candidates),
+    )
+    return grade_guidance(request)

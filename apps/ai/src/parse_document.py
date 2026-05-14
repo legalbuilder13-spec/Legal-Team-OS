@@ -2,7 +2,6 @@ import base64
 import io
 import logging
 import re
-from typing import Literal
 
 from pydantic import BaseModel, Field
 
