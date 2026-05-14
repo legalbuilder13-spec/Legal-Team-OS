@@ -152,18 +152,22 @@ export const GUIDANCE_MATCH_THRESHOLDS = {
 // PR7 — multi-jurisdiction. `jurisdictions` is the canonical input;
 // `jurisdiction` (singular) is kept as a back-compat alias for clients
 // that haven't been updated yet. Web router normalizes to the array.
-export const StatutoryToolInvocationSchema = z
-  .object({
-    matterId: z.string().uuid(),
-    jurisdictions: z.array(z.string().min(1)).min(1).optional(),
-    jurisdiction: z.string().min(1).optional(),
-    candidateStatutes: z.array(z.string()).default([]),
-    invokedByUserId: z.string().uuid(),
-  })
-  .refine(
-    (v) => Boolean(v.jurisdictions?.length || v.jurisdiction),
-    'Must supply either jurisdictions[] or jurisdiction',
-  );
+export const StatutoryToolInvocationBaseSchema = z.object({
+  matterId: z.string().uuid(),
+  jurisdictions: z.array(z.string().min(1)).min(1).optional(),
+  jurisdiction: z.string().min(1).optional(),
+  candidateStatutes: z.array(z.string()).default([]),
+  invokedByUserId: z.string().uuid(),
+});
+const jurisdictionRefine = [
+  (v: { jurisdictions?: string[]; jurisdiction?: string }) =>
+    Boolean(v.jurisdictions?.length || v.jurisdiction),
+  'Must supply either jurisdictions[] or jurisdiction',
+] as const;
+export const StatutoryToolInvocationSchema = StatutoryToolInvocationBaseSchema.refine(
+  jurisdictionRefine[0],
+  jurisdictionRefine[1],
+);
 export type StatutoryToolInvocation = z.infer<typeof StatutoryToolInvocationSchema>;
 
 // Helper used by both web and worker to normalize legacy single-

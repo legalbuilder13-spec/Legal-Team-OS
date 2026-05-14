@@ -5,6 +5,7 @@ import { jobs, matters, auditLog } from '@legal/db';
 import { staffProcedure, router } from '../trpc.js';
 import {
   StatutoryToolInvocationSchema,
+  StatutoryToolInvocationBaseSchema,
   CaseLawToolInvocationSchema,
   DeconstructToolInvocationSchema,
   extractStatuteCitations,
@@ -80,8 +81,9 @@ export const toolsRouter = router({
 
   invokeStatutory: staffProcedure
     .input(
-      StatutoryToolInvocationSchema.omit({ invokedByUserId: true }).and(
-        z.object({ matterId: z.string().uuid() }),
+      StatutoryToolInvocationBaseSchema.omit({ invokedByUserId: true }).refine(
+        (v) => Boolean(v.jurisdictions?.length || v.jurisdiction),
+        'Must supply either jurisdictions[] or jurisdiction',
       ),
     )
     .mutation(async ({ ctx, input }) => {
