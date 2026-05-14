@@ -75,6 +75,7 @@ export const jobKind = pgEnum('job_kind', [
   'context_fetch',
   'context_fetch_salesforce',
   'context_fetch_similar_matters',
+  'context_fetch_notion',
   'sla_check',
   'daily_digest',
   'slack_notify',

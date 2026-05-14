@@ -21,10 +21,17 @@ export async function handleContextFetchJob(db: Db, job: Job) {
     throw new Error(`matter ${payload.matter_id} not found`);
   }
 
-  const subJobs: Array<{ kind: 'context_fetch_salesforce' | 'context_fetch_similar_matters'; reason: string }> = [];
+  const subJobs: Array<{
+    kind:
+      | 'context_fetch_salesforce'
+      | 'context_fetch_similar_matters'
+      | 'context_fetch_notion';
+    reason: string;
+  }> = [];
 
   if (payload.counterparty_name || payload.counterparty_domain) {
     subJobs.push({ kind: 'context_fetch_salesforce', reason: 'counterparty present' });
+    subJobs.push({ kind: 'context_fetch_notion', reason: 'counterparty present' });
   }
 
   // Similar-matters context is useful regardless of counterparty — searches

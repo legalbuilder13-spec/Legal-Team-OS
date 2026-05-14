@@ -11,6 +11,7 @@ const Env = z.object({
   DIGEST_TIMEZONE: z.string().default('America/Los_Angeles'),
   OPENAI_API_KEY: z.string().optional(),
   VOYAGE_API_KEY: z.string().optional(),
+  NOTION_API_KEY: z.string().optional(),
 });
 
 export const env = Env.parse(process.env);
