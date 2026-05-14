@@ -49,6 +49,9 @@
       "version": "7",
       "when": 1747526400000,
       "tag": "0006_voyage_embeddings",
+      "breakpoints": true
+    },
+    {
       "idx": 7,
       "version": "7",
       "when": 1747612800000,
@@ -137,6 +140,34 @@
       "version": "7",
       "when": 1748649600000,
       "tag": "0019_compile_playbook_triggers",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1778760000000,
+      "tag": "0020_matter_analyses",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1778763600000,
+      "tag": "0021_take_snapshot_job",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1778767200000,
+      "tag": "0022_lawyer_decision",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1778770800000,
+      "tag": "0023_organizations",
       "breakpoints": true
     }
   ]
