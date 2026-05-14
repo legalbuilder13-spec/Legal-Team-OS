@@ -21,11 +21,14 @@ import {
 // captured even when the tool is a placeholder. That lets us measure
 // lawyer demand for each tool before the implementation lands.
 
-const TOOL_AVAILABILITY = {
-  statutory: { enabled: false, reason: 'Available in Phase 2' },
+// Per-tool gate. Edit here when a phase ships its tool implementation.
+// `enabled: false` blocks invocation but still records the lawyer's
+// intent in audit_log (demand signal — PRD §20.1).
+const TOOL_AVAILABILITY: Record<'statutory' | 'case_law' | 'deconstruct', { enabled: boolean; reason: string }> = {
+  statutory: { enabled: true, reason: '' },
   case_law: { enabled: false, reason: 'Available in Phase 3' },
   deconstruct: { enabled: false, reason: 'Available in Phase 4' },
-} as const;
+};
 
 export const toolsRouter = router({
   // Returns invocation context for the matter detail page: the toolbar

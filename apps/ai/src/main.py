@@ -19,6 +19,11 @@ from .enrich_counterparty import EnrichRequest, EnrichResult, enrich_counterpart
 from .guidance_grader import grade_guidance
 from .parse_document import ParseRequest, ParseResult, parse_document
 from .schemas import ContextCard, ContextRequest, TriageRequest, TriageResult
+from .statute_analysis import (
+    StatuteAnalysisRequest,
+    StatuteAnalysisResult,
+    analyze_statute,
+)
 from .threshold_spotter import spot_thresholds
 from .triage import triage
 
@@ -146,3 +151,18 @@ def post_guidance_grader(request: GuidanceGraderRequest) -> GuidanceGraderResult
         len(request.candidates),
     )
     return grade_guidance(request)
+
+
+@app.post(
+    "/statute-analysis",
+    response_model=StatuteAnalysisResult,
+    dependencies=[Depends(require_token)],
+)
+def post_statute_analysis(request: StatuteAnalysisRequest) -> StatuteAnalysisResult:
+    logger.info(
+        "statute_analysis matter_id=%s jurisdiction=%s sources=%d",
+        request.matter_id,
+        request.jurisdiction,
+        len(request.sources),
+    )
+    return analyze_statute(request)

@@ -28,15 +28,21 @@ const TOOL_TIME_ESTIMATE: Record<ToolKind, string> = {
 };
 
 export function LawyerToolbar({ matterId, defaultJurisdiction }: Props) {
+  const utils = trpc.useUtils();
   const { data: toolCtx, isLoading } = trpc.tools.context.useQuery({ matterId });
   const [openDialog, setOpenDialog] = useState<ToolKind | null>(null);
   const [jurisdiction, setJurisdiction] = useState(defaultJurisdiction ?? '');
   const [candidates, setCandidates] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const invokeStatutory = trpc.tools.invokeStatutory.useMutation();
-  const invokeCaseLaw = trpc.tools.invokeCaseLaw.useMutation();
-  const invokeDeconstruct = trpc.tools.invokeDeconstruct.useMutation();
+  // After any tool invocation succeeds, kick the analysis query so the
+  // panel sees the new 'running' stage row and starts polling.
+  const onInvokeSuccess = () => {
+    utils.analysis.forMatter.invalidate({ matterId });
+  };
+  const invokeStatutory = trpc.tools.invokeStatutory.useMutation({ onSuccess: onInvokeSuccess });
+  const invokeCaseLaw = trpc.tools.invokeCaseLaw.useMutation({ onSuccess: onInvokeSuccess });
+  const invokeDeconstruct = trpc.tools.invokeDeconstruct.useMutation({ onSuccess: onInvokeSuccess });
 
   if (isLoading || !toolCtx) {
     return (

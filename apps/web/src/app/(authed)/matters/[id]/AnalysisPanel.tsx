@@ -3,6 +3,7 @@
 import { trpc } from '@/lib/trpc';
 import { LawyerToolbar } from './LawyerToolbar';
 import { StageTraceDrawer } from './StageTraceDrawer';
+import { StatutoryStageCard } from './StatutoryStageCard';
 
 // PRD §6.1 — the matter detail page's Analysis panel. Two sections:
 // the auto-pipeline output (always present once analysis runs), and the
@@ -70,7 +71,15 @@ function StatusPill({
 export function AnalysisPanel({ matterId }: Props) {
   const { data } = trpc.analysis.forMatter.useQuery(
     { matterId },
-    { refetchInterval: (q) => (q.state.data?.analysis.status === 'running' ? 2000 : false) },
+    {
+      refetchInterval: (q) => {
+        const s = q.state.data;
+        if (!s) return false;
+        if (s.analysis.status === 'running') return 2000;
+        if (s.stages.some((st) => st.status === 'running')) return 2000;
+        return false;
+      },
+    },
   );
 
   if (!data) {
@@ -93,6 +102,7 @@ export function AnalysisPanel({ matterId }: Props) {
   const { analysis, stages } = data;
   const preMeritsStage = stages.find((s) => s.stageName === 'pre_merits');
   const guidanceStage = stages.find((s) => s.stageName === 'guidance');
+  const statutoryStages = stages.filter((s) => s.stageName === 'statutory');
 
   const preMerits = preMeritsStage?.outputJson as PreMeritsOutput | undefined;
   const guidance = guidanceStage?.outputJson as GuidanceOutput | undefined;
@@ -218,6 +228,15 @@ export function AnalysisPanel({ matterId }: Props) {
           </ul>
         </div>
       )}
+
+      {statutoryStages.map((s) => (
+        <StatutoryStageCard
+          key={s.id}
+          status={s.status}
+          durationMs={s.durationMs}
+          output={s.outputJson as unknown as Parameters<typeof StatutoryStageCard>[0]['output']}
+        />
+      ))}
 
       <div className="border-t pt-3 space-y-1.5">
         <div className="text-xs font-medium text-ink-600 dark:text-ink-400">Stage trace</div>
