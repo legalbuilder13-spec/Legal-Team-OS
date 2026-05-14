@@ -3,11 +3,16 @@ import type { ThresholdItem } from '../analysis.js';
 import { COMMERCIAL_THRESHOLDS, COMMERCIAL_THRESHOLDS_VERSION } from './commercial.js';
 import { EMPLOYMENT_THRESHOLDS, EMPLOYMENT_THRESHOLDS_VERSION } from './employment.js';
 import { PRIVACY_THRESHOLDS, PRIVACY_THRESHOLDS_VERSION } from './privacy.js';
+import { LITIGATION_THRESHOLDS, LITIGATION_THRESHOLDS_VERSION } from './litigation.js';
+import { IP_THRESHOLDS, IP_THRESHOLDS_VERSION } from './ip.js';
+import { CORPORATE_THRESHOLDS, CORPORATE_THRESHOLDS_VERSION } from './corporate.js';
+import { REGULATORY_THRESHOLDS, REGULATORY_THRESHOLDS_VERSION } from './regulatory.js';
+import { REAL_ESTATE_THRESHOLDS, REAL_ESTATE_THRESHOLDS_VERSION } from './real_estate.js';
 
-// PRD §7.5 + §19.1. Phase 1 ships checklists for the three highest-volume
-// practice areas. Other practice areas get an empty checklist for now; the
-// pipeline still runs Stage 0 with no findings and continues to Stage 1.
-// Phase 2+ adds litigation, ip, corporate, regulatory, real_estate.
+// PRD §7.5. Phase 1 shipped three checklists; PR5 adds the remaining
+// five so every practice area in the triage enum has a curated list.
+// `other` remains an empty stub — Stage 0 still runs but produces no
+// findings.
 
 export interface ThresholdChecklist {
   practiceArea: PracticeArea;
@@ -33,11 +38,27 @@ export const THRESHOLD_CHECKLISTS: Record<PracticeArea, ThresholdChecklist> = {
     version: PRIVACY_THRESHOLDS_VERSION,
     items: PRIVACY_THRESHOLDS,
   },
-  litigation: { practiceArea: 'litigation', version: '0.0.0', items: EMPTY },
-  ip: { practiceArea: 'ip', version: '0.0.0', items: EMPTY },
-  corporate: { practiceArea: 'corporate', version: '0.0.0', items: EMPTY },
-  regulatory: { practiceArea: 'regulatory', version: '0.0.0', items: EMPTY },
-  real_estate: { practiceArea: 'real_estate', version: '0.0.0', items: EMPTY },
+  litigation: {
+    practiceArea: 'litigation',
+    version: LITIGATION_THRESHOLDS_VERSION,
+    items: LITIGATION_THRESHOLDS,
+  },
+  ip: { practiceArea: 'ip', version: IP_THRESHOLDS_VERSION, items: IP_THRESHOLDS },
+  corporate: {
+    practiceArea: 'corporate',
+    version: CORPORATE_THRESHOLDS_VERSION,
+    items: CORPORATE_THRESHOLDS,
+  },
+  regulatory: {
+    practiceArea: 'regulatory',
+    version: REGULATORY_THRESHOLDS_VERSION,
+    items: REGULATORY_THRESHOLDS,
+  },
+  real_estate: {
+    practiceArea: 'real_estate',
+    version: REAL_ESTATE_THRESHOLDS_VERSION,
+    items: REAL_ESTATE_THRESHOLDS,
+  },
   other: { practiceArea: 'other', version: '0.0.0', items: EMPTY },
 };
 
@@ -52,4 +73,14 @@ export {
   COMMERCIAL_THRESHOLDS_VERSION,
   PRIVACY_THRESHOLDS,
   PRIVACY_THRESHOLDS_VERSION,
+  LITIGATION_THRESHOLDS,
+  LITIGATION_THRESHOLDS_VERSION,
+  IP_THRESHOLDS,
+  IP_THRESHOLDS_VERSION,
+  CORPORATE_THRESHOLDS,
+  CORPORATE_THRESHOLDS_VERSION,
+  REGULATORY_THRESHOLDS,
+  REGULATORY_THRESHOLDS_VERSION,
+  REAL_ESTATE_THRESHOLDS,
+  REAL_ESTATE_THRESHOLDS_VERSION,
 };
