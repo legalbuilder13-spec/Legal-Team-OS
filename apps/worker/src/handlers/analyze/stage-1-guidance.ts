@@ -283,6 +283,8 @@ export async function runStage1(
         outputJson: output as unknown as Record<string, unknown>,
         confidence,
         durationMs: Date.now() - startedAt,
+        // Item 8 — capture skill request for eval-corpus replay.
+        skillInputJson: skillRequest as unknown as Record<string, unknown>,
       })
       .where(eq(matterAnalysisStages.id, stageId));
 

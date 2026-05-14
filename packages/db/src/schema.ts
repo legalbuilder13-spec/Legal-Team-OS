@@ -1009,6 +1009,11 @@ export const matterAnalysisStages = pgTable(
     // affordance is used. Free-form jsonb; mining cron expects a
     // {text: string} shape but stores anything the UI sends.
     lawyerRevisedOutput: jsonb('lawyer_revised_output').$type<Record<string, unknown>>(),
+    // Item 8 follow-up — captures the structured skill request the
+    // worker actually sent. Lets the eval-corpus replay runner
+    // reconstruct skill calls without re-deriving inputs from the
+    // matter + analysis tree.
+    skillInputJson: jsonb('skill_input_json').$type<Record<string, unknown>>(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({

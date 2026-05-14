@@ -40,6 +40,10 @@ interface EvalTuple {
   practice_area: string | null;
   request_text: string;
   input_hash: string;
+  // Item 8 follow-up — the actual skill request the worker sent.
+  // Null for stages run before the skill_input_json column landed.
+  // Replay only runs against tuples where this is non-null.
+  skill_input: Record<string, unknown> | null;
   stage_output: Record<string, unknown>;
   confidence: string;
   lawyer_decision: string;
@@ -64,6 +68,7 @@ async function main() {
       m.practice_area::text AS practice_area,
       m.request_text AS request_text,
       mas.input_hash AS input_hash,
+      mas.skill_input_json AS skill_input,
       mas.output_json AS stage_output,
       mas.confidence::text AS confidence,
       mas.lawyer_decision::text AS lawyer_decision,
@@ -87,6 +92,7 @@ async function main() {
       practice_area: r.practice_area,
       request_text: r.request_text ?? '',
       input_hash: r.input_hash,
+      skill_input: (r.skill_input as Record<string, unknown> | null) ?? null,
       stage_output: (r.stage_output ?? {}) as Record<string, unknown>,
       confidence: r.confidence,
       lawyer_decision: r.lawyer_decision,

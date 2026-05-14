@@ -43,7 +43,11 @@ settings:
       - message.mpim
 
   interactivity:
-    is_enabled: false
+    # Item 9 — M6 nudge DMs include a "Save as playbook" button whose
+    # action_id is handled by apps/bot/src/actions/save-playbook.ts.
+    # Interactivity must be enabled for Bolt to receive the action
+    # callback (delivered via socket_mode below).
+    is_enabled: true
 
   socket_mode_enabled: true
   token_rotation_enabled: false

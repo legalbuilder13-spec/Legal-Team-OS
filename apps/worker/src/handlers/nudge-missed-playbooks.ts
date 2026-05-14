@@ -40,7 +40,11 @@ interface CandidateRow {
   counterfactual_matches: number;
 }
 
-async function sendNudgeDm(slackUserId: string, text: string): Promise<void> {
+async function sendNudgeDm(
+  slackUserId: string,
+  text: string,
+  blocks: unknown[] | null,
+): Promise<void> {
   if (!env.SLACK_BOT_TOKEN) {
     console.warn('SLACK_BOT_TOKEN not set — nudge DM skipped');
     return;
@@ -51,33 +55,86 @@ async function sendNudgeDm(slackUserId: string, text: string): Promise<void> {
       'content-type': 'application/json; charset=utf-8',
       authorization: `Bearer ${env.SLACK_BOT_TOKEN}`,
     },
-    body: JSON.stringify({ channel: slackUserId, text }),
+    body: JSON.stringify({
+      channel: slackUserId,
+      text,
+      ...(blocks ? { blocks } : {}),
+    }),
   });
   const body = (await res.json()) as { ok: boolean; error?: string };
   if (!body.ok) throw new Error(`nudge DM failed: ${body.error}`);
 }
 
-function renderNudgeMessage(rows: CandidateRow[]): string {
-  const lines: string[] = [
-    '*Memory nudge — accepted stages you could promote to playbooks.*',
-    '',
-    `${rows.length} stage${rows.length === 1 ? '' : 's'} from the last ${NUDGE_LOOKBACK_DAYS} days look like they'd benefit future similar matters.`,
-    '',
+function renderNudgeFallbackText(rows: CandidateRow[]): string {
+  // text field is the notification + Slack accessibility fallback. The
+  // blocks payload below is what the user actually sees.
+  const top = rows
+    .slice(0, 3)
+    .map(
+      (r) =>
+        `${r.matter_short_id} ${r.stage_name} (${r.confidence}, ~${r.counterfactual_matches} matches)`,
+    )
+    .join(', ');
+  return `Memory nudge: ${rows.length} accepted stage${rows.length === 1 ? '' : 's'} to consider saving as playbook${rows.length === 1 ? '' : 's'} — ${top}.`;
+}
+
+// Item 9 — Block Kit message with a per-candidate "Save as playbook"
+// button. The button action_id 'nudge_save_playbook' is handled by
+// apps/bot/src/actions/save-playbook.ts; payload carries stage_id +
+// matter_id so the bot can call the internal API without re-fetching.
+function renderNudgeBlocks(rows: CandidateRow[]): unknown[] {
+  const blocks: unknown[] = [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Memory nudge — ${rows.length} accepted stage${rows.length === 1 ? '' : 's'} ${rows.length === 1 ? 'looks' : 'look'} like ${rows.length === 1 ? 'it' : 'they'} should become playbook${rows.length === 1 ? '' : 's'}.*`,
+      },
+    },
+    {
+      type: 'context',
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: `From the last ${NUDGE_LOOKBACK_DAYS} days · counterfactual = how many recent matters would have matched if this were a playbook.`,
+        },
+      ],
+    },
+    { type: 'divider' },
   ];
+
   for (const r of rows.slice(0, 5)) {
     const url = `${env.WEB_APP_URL}/matters/${r.matter_id}`;
-    lines.push(
-      `• <${url}|${r.matter_short_id}> ${r.matter_title} — ${r.stage_name} (${r.confidence}) · ~${r.counterfactual_matches} counterfactual matches`,
-    );
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `<${url}|${r.matter_short_id}> *${r.matter_title}*\n_${r.stage_name}_ · confidence ${r.confidence} · ~${r.counterfactual_matches} counterfactual matches`,
+      },
+      accessory: {
+        type: 'button',
+        text: { type: 'plain_text', text: 'Save as playbook' },
+        action_id: 'nudge_save_playbook',
+        value: JSON.stringify({
+          stage_id: r.stage_id,
+          matter_id: r.matter_id,
+          matter_short_id: r.matter_short_id,
+          stage_name: r.stage_name,
+        }),
+      },
+    });
   }
+
   if (rows.length > 5) {
-    lines.push(`  …and ${rows.length - 5} more.`);
+    blocks.push({
+      type: 'context',
+      elements: [
+        { type: 'mrkdwn', text: `_…and ${rows.length - 5} more candidates._` },
+      ],
+    });
   }
-  lines.push('');
-  lines.push(
-    `Open the matter detail page → click "Save as playbook…" on the accepted stage to lock it in.`,
-  );
-  return lines.join('\n');
+
+  return blocks;
 }
 
 export interface NudgeMissedPlaybooksResult {
@@ -232,12 +289,13 @@ export async function runNudgeMissedPlaybooks(db: Db): Promise<NudgeMissedPlaybo
     };
   }
 
-  const message = renderNudgeMessage(enriched);
+  const fallbackText = renderNudgeFallbackText(enriched);
+  const blocks = renderNudgeBlocks(enriched);
   let dmsSent = 0;
   for (const a of admins) {
     if (!a.slackUserId) continue;
     try {
-      await sendNudgeDm(a.slackUserId, message);
+      await sendNudgeDm(a.slackUserId, fallbackText, blocks);
       dmsSent += 1;
     } catch (err) {
       console.error(`nudge DM failed for ${a.email}:`, err);

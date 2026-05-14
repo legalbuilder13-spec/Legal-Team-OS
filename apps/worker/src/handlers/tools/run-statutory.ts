@@ -242,6 +242,8 @@ export async function handleRunStatutoryJob(db: Db, job: Job) {
         outputJson: output as unknown as Record<string, unknown>,
         confidence,
         durationMs: Date.now() - startedAt,
+        // Item 8 — capture skill request for eval-corpus replay.
+        skillInputJson: skillReq as unknown as Record<string, unknown>,
         auditNotes:
           verificationFailures.length > 0
             ? `verification: ${verificationFailures.length} quote(s) not traced to source`
