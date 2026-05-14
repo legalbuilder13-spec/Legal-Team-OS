@@ -32,7 +32,7 @@ export function LawyerToolbar({ matterId, defaultJurisdiction }: Props) {
   const { data: toolCtx, isLoading } = trpc.tools.context.useQuery({ matterId });
   const [openDialog, setOpenDialog] = useState<ToolKind | null>(null);
   const [jurisdiction, setJurisdiction] = useState(defaultJurisdiction ?? '');
-  const [candidates, setCandidates] = useState<string>('');
+  const [subjectMatter, setSubjectMatter] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // After any tool invocation succeeds, kick the analysis query so the
@@ -151,12 +151,9 @@ export function LawyerToolbar({ matterId, defaultJurisdiction }: Props) {
   async function submitDialog() {
     if (!openDialog) return;
     setErrorMsg(null);
+    const subject = subjectMatter.trim() || undefined;
     try {
       if (openDialog === 'statutory') {
-        const list = candidates
-          .split(/[\n,]/)
-          .map((s) => s.trim())
-          .filter(Boolean);
         // PR7 — split the jurisdiction input into a list. Comma or
         // newline separated; a single jurisdiction lands as a one-
         // element array. Empty falls back to 'unspecified'.
@@ -167,22 +164,19 @@ export function LawyerToolbar({ matterId, defaultJurisdiction }: Props) {
         await invokeStatutory.mutateAsync({
           matterId,
           jurisdictions: jurisdictionsList.length > 0 ? jurisdictionsList : ['unspecified'],
-          candidateStatutes: list,
+          subjectMatter: subject,
         });
       } else if (openDialog === 'case_law') {
-        const list = candidates
-          .split(/[\n,]/)
-          .map((s) => s.trim())
-          .filter(Boolean);
         await invokeCaseLaw.mutateAsync({
           matterId,
           jurisdiction: jurisdiction || 'unspecified',
-          candidateDoctrines: list,
+          subjectMatter: subject,
         });
       } else {
         await invokeDeconstruct.mutateAsync({ matterId });
       }
       setOpenDialog(null);
+      setSubjectMatter('');
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Tool invocation failed');
     }
@@ -249,21 +243,23 @@ export function LawyerToolbar({ matterId, defaultJurisdiction }: Props) {
                 </label>
                 <label className="block">
                   <span className="text-xs font-medium text-ink-600 dark:text-ink-400">
-                    {openDialog === 'statutory'
-                      ? 'Candidate statutes (one per line, or comma-separated)'
-                      : 'Candidate doctrines (one per line, or comma-separated)'}
+                    Subject matter <span className="text-ink-400 dark:text-ink-500 font-normal">(optional)</span>
                   </span>
                   <textarea
-                    value={candidates}
-                    onChange={(e) => setCandidates(e.target.value)}
+                    value={subjectMatter}
+                    onChange={(e) => setSubjectMatter(e.target.value)}
                     rows={3}
                     placeholder={
                       openDialog === 'statutory'
-                        ? '42 U.S.C. § 1395cc\nCal. Civ. Code § 1798.140'
-                        : 'Negligence per se\nERISA preemption'
+                        ? 'e.g. data breach notification timing, wage garnishment exemptions'
+                        : 'e.g. equitable tolling under the FLSA, first-sale doctrine in software'
                     }
-                    className="mt-1 w-full border rounded px-2 py-1.5 text-xs font-mono"
+                    className="mt-1 w-full border rounded px-2 py-1.5 text-sm"
                   />
+                  <span className="mt-1 block text-[11px] text-ink-500 dark:text-ink-400">
+                    Leave blank to run on the matter text alone. The tool will auto-detect
+                    citations from the request.
+                  </span>
                 </label>
                 {openDialog === 'statutory' &&
                   toolCtx.hints.statutory.citations.length > 0 && (
