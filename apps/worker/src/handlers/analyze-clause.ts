@@ -5,6 +5,7 @@ import {
   playbookPositions,
   playbooks,
   clauseAnalyses,
+  knowledgeArticles,
   auditLog,
   type Db,
   type Job,
@@ -103,6 +104,68 @@ export async function handleAnalyzeClauseJob(db: Db, job: Job) {
     citation: p.citation,
   }));
 
+  // Prior similar matters — pull the top 3 by tsvector match on the
+  // clause text against prior closed matters in the same practice area.
+  // Once vectors are populated for both clauses and matters, this should
+  // switch to cosine similarity over embeddings for tighter matches.
+  const priorMattersResult = matter.practiceArea
+    ? await db.execute(sql`
+        SELECT short_id AS id, title, summary, practice_area
+        FROM matters
+        WHERE id != ${matter.id}
+          AND status = 'closed'
+          AND practice_area = ${matter.practiceArea}
+          AND to_tsvector('english', coalesce(title, '') || ' ' || coalesce(summary, ''))
+              @@ plainto_tsquery('english', ${clause.clauseText.slice(0, 300)})
+        ORDER BY ts_rank(
+          to_tsvector('english', coalesce(title, '') || ' ' || coalesce(summary, '')),
+          plainto_tsquery('english', ${clause.clauseText.slice(0, 300)})
+        ) DESC
+        LIMIT 3
+      `)
+    : [];
+  const priorMatters = (priorMattersResult as unknown as Array<{
+    id: string;
+    title: string;
+    summary: string | null;
+    practice_area: string | null;
+  }>).map((m) => ({
+    id: m.id,
+    title: m.title,
+    summary: m.summary,
+    practice_area: m.practice_area,
+    outcome: null,
+  }));
+
+  // Knowledge base articles — by practice area, active only, top 3 by
+  // text relevance to the clause.
+  const kbResult = matter.practiceArea
+    ? await db.execute(sql`
+        SELECT id::text AS id, title, body, tags
+        FROM knowledge_articles
+        WHERE is_active = true
+          AND practice_area = ${matter.practiceArea}
+          AND to_tsvector('english', coalesce(title, '') || ' ' || coalesce(body, ''))
+              @@ plainto_tsquery('english', ${clause.clauseText.slice(0, 300)})
+        ORDER BY ts_rank(
+          to_tsvector('english', coalesce(title, '') || ' ' || coalesce(body, '')),
+          plainto_tsquery('english', ${clause.clauseText.slice(0, 300)})
+        ) DESC
+        LIMIT 3
+      `)
+    : [];
+  const knowledgeArticlesPayload = (kbResult as unknown as Array<{
+    id: string;
+    title: string;
+    body: string;
+    tags: string[] | null;
+  }>).map((a) => ({
+    id: a.id,
+    title: a.title,
+    body: a.body,
+    tags: a.tags ?? [],
+  }));
+
   const res = await fetch(`${env.AI_SERVICE_URL}/analyze-clause`, {
     method: 'POST',
     headers: {
@@ -118,6 +181,8 @@ export async function handleAnalyzeClauseJob(db: Db, job: Job) {
       matter_context: matterContext,
       practice_area: matter.practiceArea,
       positions: positionsPayload,
+      prior_matters: priorMatters,
+      knowledge_articles: knowledgeArticlesPayload,
     }),
   });
 
