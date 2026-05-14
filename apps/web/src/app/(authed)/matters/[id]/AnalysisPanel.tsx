@@ -245,7 +245,7 @@ export function AnalysisPanel({ matterId }: Props) {
           key={s.id}
           status={s.status}
           durationMs={s.durationMs}
-          output={s.outputJson as Parameters<typeof CaseLawStageCard>[0]['output']}
+          output={s.outputJson as unknown as Parameters<typeof CaseLawStageCard>[0]['output']}
         />
       ))}
 
