@@ -11,6 +11,7 @@ import { PIPELINE_VERSION, type AnalysisConfidence } from '@legal/types';
 import { env } from '../../env.js';
 import { fetchByJurisdiction, type FetchResult } from '../../integrations/research_sources.js';
 import { recordSource, hashContent } from '../analyze/sources.js';
+import { loadOrgConfigForUser, domainConfigForSkill } from '../../integrations/org_config.js';
 
 // PRD §7.6 + §8 — Statutory & Regulatory Research tool (lawyer-invoked).
 // The lawyer triggers this from the matter detail page; the worker
@@ -142,6 +143,7 @@ export async function handleRunStatutoryJob(db: Db, job: Job) {
 
     // ----- 2. Call the statute-analysis skill -----
 
+    const orgConfig = await loadOrgConfigForUser(db, payload.invoked_by_user_id);
     const skillReq = {
       matter_id: matter.id,
       request_text: matter.requestText,
@@ -159,6 +161,8 @@ export async function handleRunStatutoryJob(db: Db, job: Job) {
         hash: r.hash,
       })),
       focus_citations: payload.candidate_statutes,
+      // PR12 §15 — domain config blended into the skill's prompt.
+      domain_config: domainConfigForSkill(orgConfig),
     };
 
     const skillRes = await fetch(`${env.AI_SERVICE_URL}/statute-analysis`, {

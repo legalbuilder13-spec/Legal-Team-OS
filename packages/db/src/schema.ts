@@ -237,6 +237,20 @@ export const lawyerDecision = pgEnum('lawyer_decision', [
   'escalated',
 ]);
 
+// PR12 §15 — per-organization domain config. Singleton in v1; multi-
+// tenant scoping is a future PR.
+export const organizations = pgTable(
+  'organizations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    slug: text('slug').notNull().unique(),
+    domainConfig: jsonb('domain_config').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+);
+
 export const users = pgTable(
   'users',
   {
@@ -247,11 +261,17 @@ export const users = pgTable(
     name: text('name').notNull(),
     role: userRole('role').notNull().default('requester'),
     practiceAreas: practiceArea('practice_areas').array(),
+    // PR12 — points at the user's organization for domain-config
+    // lookup. Nullable; null = default org via slug='default'.
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({
     emailIdx: uniqueIndex('users_email_idx').on(t.email),
+    organizationIdx: index('users_organization_idx').on(t.organizationId),
   }),
 );
 
@@ -1072,6 +1092,9 @@ export type NewEscalation = typeof escalations.$inferInsert;
 export type MatterDraft = typeof matterDrafts.$inferSelect;
 export type NewMatterDraft = typeof matterDrafts.$inferInsert;
 export type MatterDraftVersion = typeof matterDraftVersions.$inferSelect;
+
+export type Organization = typeof organizations.$inferSelect;
+export type NewOrganization = typeof organizations.$inferInsert;
 
 export type MatterAnalysis = typeof matterAnalyses.$inferSelect;
 export type NewMatterAnalysis = typeof matterAnalyses.$inferInsert;

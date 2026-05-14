@@ -20,6 +20,7 @@ from .analysis_schemas import (
     ThresholdSpotterResult,
 )
 from .config import settings
+from .domain_config import domain_config_block
 from .llm.client import get_client
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,9 @@ def build_user_prompt(request: ThresholdSpotterRequest) -> str:
         parts.append(f"\nid: {item.id}")
         parts.append(f"severity_if_raised: {item.severity_if_raised}")
         parts.append(f"prompt: {item.prompt}")
+    # PR12 §15 — domain config block. Empty string when org has no
+    # custom rules, so we can append unconditionally.
+    parts.append(domain_config_block(request.domain_config))
     return "\n".join(parts)
 
 
