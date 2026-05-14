@@ -66,6 +66,7 @@ export const toolsRouter = router({
         similarMattersConsidered: 0,
         signals: [],
         topSimilarIds: [],
+        similarityBackend: 'none',
       };
       try {
         history = await getHistoricalToolHints(ctx.db, {
@@ -111,6 +112,7 @@ export const toolsRouter = router({
         historyMetadata: {
           similarMattersConsidered: history.similarMattersConsidered,
           topSimilarIds: history.topSimilarIds,
+          similarityBackend: history.similarityBackend,
         },
       };
     }),

@@ -188,9 +188,14 @@ export function LawyerToolbar({ matterId, defaultJurisdiction }: Props) {
     }
   }
 
-  const historyConsidered =
-    (toolCtx as unknown as { historyMetadata?: { similarMattersConsidered: number } })
-      .historyMetadata?.similarMattersConsidered ?? 0;
+  const historyMeta = (toolCtx as unknown as {
+    historyMetadata?: {
+      similarMattersConsidered: number;
+      similarityBackend?: 'embedding' | 'tsvector' | 'none';
+    };
+  }).historyMetadata;
+  const historyConsidered = historyMeta?.similarMattersConsidered ?? 0;
+  const backend = historyMeta?.similarityBackend ?? 'none';
 
   return (
     <div className="space-y-2">
@@ -199,7 +204,8 @@ export function LawyerToolbar({ matterId, defaultJurisdiction }: Props) {
       {historyConsidered > 0 && (
         <div className="text-[10px] text-ink-400 dark:text-ink-500 italic">
           History-based suggestions drawn from {historyConsidered} similar prior matter
-          {historyConsidered === 1 ? '' : 's'}.
+          {historyConsidered === 1 ? '' : 's'}
+          {backend === 'embedding' ? ' (embedding similarity)' : ' (text similarity)'}.
         </div>
       )}
 

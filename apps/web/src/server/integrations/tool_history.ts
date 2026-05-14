@@ -34,6 +34,10 @@ export interface ToolHistoryResult {
   signals: ToolHistoricalSignal[];
   // Most-similar matter ids so the UI can deep-link (future PR).
   topSimilarIds: string[];
+  // PR11 — which similarity backend produced the K-NN ranking.
+  // 'embedding' is preferred when available; 'tsvector' is the fallback
+  // for matters whose embedding column is null.
+  similarityBackend: 'embedding' | 'tsvector' | 'none';
 }
 
 interface SimilarRow {
@@ -54,29 +58,64 @@ export async function getHistoricalToolHints(
   const k = args.k ?? 10;
   const searchText = args.requestText.slice(0, 500);
 
-  // K-nearest-neighbor via text similarity. Same tsvector + ts_rank
-  // pattern as context-fetch-similar-matters so the relevance proxy
-  // is consistent across the system. Excludes the current matter.
-  // Includes only matters with status != 'cancelled' so abandoned
-  // intakes don't bias the signal.
-  const similar = await db.execute(sql`
-    SELECT id::text AS id,
-      ts_rank(
-        to_tsvector('english', coalesce(title, '') || ' ' || coalesce(request_text, '')),
-        plainto_tsquery('english', ${searchText})
-      ) AS rank
+  // PR11 — pgvector swap when the current matter has an embedding.
+  // Falls back to the tsvector path when embeddings aren't populated
+  // (OPENAI_API_KEY / VOYAGE_API_KEY not configured, or
+  // generate-embedding job hasn't run yet). Both paths return the
+  // same SimilarRow shape so downstream aggregation is identical.
+  //
+  // Cosine distance via `<=>` is the standard pgvector operator;
+  // smaller = more similar. We convert distance → rank so the same
+  // sort + threshold semantics carry over.
+  const currentMatter = await db.execute(sql`
+    SELECT embedding IS NOT NULL AS has_embedding
     FROM matters
-    WHERE id != ${args.matterId}::uuid
-      AND status != 'cancelled'
-      AND to_tsvector('english', coalesce(title, '') || ' ' || coalesce(request_text, ''))
-          @@ plainto_tsquery('english', ${searchText})
-    ORDER BY rank DESC
-    LIMIT ${k}
+    WHERE id = ${args.matterId}::uuid
+    LIMIT 1
   `);
-  const similarRows = similar as unknown as SimilarRow[];
+  const hasEmbedding = (
+    (currentMatter as unknown as Array<{ has_embedding: boolean }>)[0]?.has_embedding
+  ) === true;
+
+  let similarRows: SimilarRow[];
+  if (hasEmbedding) {
+    const similar = await db.execute(sql`
+      SELECT id::text AS id,
+        1 - (embedding <=> (SELECT embedding FROM matters WHERE id = ${args.matterId}::uuid)) AS rank
+      FROM matters
+      WHERE id != ${args.matterId}::uuid
+        AND status != 'cancelled'
+        AND embedding IS NOT NULL
+      ORDER BY embedding <=> (SELECT embedding FROM matters WHERE id = ${args.matterId}::uuid)
+      LIMIT ${k}
+    `);
+    similarRows = similar as unknown as SimilarRow[];
+  } else {
+    // Tsvector fallback — same logic as PR8 originally shipped.
+    const similar = await db.execute(sql`
+      SELECT id::text AS id,
+        ts_rank(
+          to_tsvector('english', coalesce(title, '') || ' ' || coalesce(request_text, '')),
+          plainto_tsquery('english', ${searchText})
+        ) AS rank
+      FROM matters
+      WHERE id != ${args.matterId}::uuid
+        AND status != 'cancelled'
+        AND to_tsvector('english', coalesce(title, '') || ' ' || coalesce(request_text, ''))
+            @@ plainto_tsquery('english', ${searchText})
+      ORDER BY rank DESC
+      LIMIT ${k}
+    `);
+    similarRows = similar as unknown as SimilarRow[];
+  }
 
   if (similarRows.length === 0) {
-    return { similarMattersConsidered: 0, signals: [], topSimilarIds: [] };
+    return {
+      similarMattersConsidered: 0,
+      signals: [],
+      topSimilarIds: [],
+      similarityBackend: 'none',
+    };
   }
 
   const similarIds = similarRows.map((r) => r.id);
@@ -223,5 +262,6 @@ export async function getHistoricalToolHints(
     similarMattersConsidered: similarRows.length,
     signals,
     topSimilarIds: similarIds.slice(0, 5),
+    similarityBackend: hasEmbedding ? 'embedding' : 'tsvector',
   };
 }
