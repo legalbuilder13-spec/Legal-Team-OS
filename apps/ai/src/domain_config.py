@@ -75,10 +75,10 @@ def domain_config_block(cfg: DomainConfig | None) -> str:
     if cfg.terminology_rules:
         parts.append("")
         parts.append("Terminology rules — use the preferred term; avoid the alternative:")
-        for r in cfg.terminology_rules:
-            line = f"  prefer: {r.preferred!r}  ·  avoid: {r.avoid!r}"
-            if r.rationale:
-                line += f"  ({r.rationale})"
+        for tr in cfg.terminology_rules:
+            line = f"  prefer: {tr.preferred!r}  ·  avoid: {tr.avoid!r}"
+            if tr.rationale:
+                line += f"  ({tr.rationale})"
             parts.append(line)
 
     if cfg.verb_rules:
@@ -87,10 +87,10 @@ def domain_config_block(cfg: DomainConfig | None) -> str:
             "Verb rules — when describing what the organization does, prefer the first verb; "
             "the second verb may create exposure or misframing:"
         )
-        for r in cfg.verb_rules:
-            line = f"  prefer: {r.prefer!r}  ·  avoid: {r.avoid!r}"
-            if r.context:
-                line += f"  ({r.context})"
+        for vr in cfg.verb_rules:
+            line = f"  prefer: {vr.prefer!r}  ·  avoid: {vr.avoid!r}"
+            if vr.context:
+                line += f"  ({vr.context})"
             parts.append(line)
 
     if cfg.high_scrutiny_jurisdictions:
