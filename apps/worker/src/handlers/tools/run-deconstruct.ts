@@ -28,7 +28,7 @@ interface RunDeconstructPayload {
   invoked_by_user_id: string;
 }
 
-interface SkillNode {
+export interface SkillNode {
   id: string;
   parent_id: string | null;
   question: string;
@@ -110,7 +110,7 @@ const THRESHOLD_TYPES = new Set([
   'threshold',
 ]);
 
-function thresholdFirstOrderingCheck(nodes: SkillNode[]): string[] {
+export function thresholdFirstOrderingCheck(nodes: SkillNode[]): string[] {
   const failures: string[] = [];
   const byId = new Map(nodes.map((n) => [n.id, n]));
   for (const n of nodes) {

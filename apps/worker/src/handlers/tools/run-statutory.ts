@@ -30,7 +30,7 @@ interface RunStatutoryPayload {
 // `quoted_text` the skill returned, look for an exact (case-sensitive)
 // match in the raw source text. Mismatches force confidence to LOW
 // and write material_discrepancy on the corresponding source row.
-function verifyQuotedAgainstSource(
+export function verifyQuotedAgainstSource(
   quotedText: string,
   sources: Array<{ rawText: string; hash: string }>,
 ): { matched: boolean; sourceHash: string | null } {
