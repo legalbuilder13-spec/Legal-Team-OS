@@ -1,7 +1,8 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import {
   matterAnalysisStages,
   auditLog,
+  playbooks,
   type Db,
   type Matter,
 } from '@legal/db';
@@ -63,6 +64,43 @@ export interface Stage1Result {
   confidence: AnalysisConfidence;
   output: GuidanceStageOutput | { error: string };
   verdict: 'matched' | 'related_only' | 'no_hit' | 'skipped';
+}
+
+// M4 — canon-tier weighting. After the LLM grader returns on-point
+// scores per candidate, we boost the score for candidates whose Notion
+// page is registered as a higher-tier playbook in the `playbooks` table
+// and re-pick the top match using the boosted scores. The verdict
+// itself remains the LLM grader's call; only top_match_index is
+// re-ranked. Boost values are deliberately conservative — a draft
+// playbook with a high on-point score still beats a low-scoring
+// industry-tier candidate. Tuned so a same-on-point-score tie always
+// breaks toward the higher tier.
+type CanonTier = 'draft' | 'org' | 'industry';
+const TIER_BOOST: Record<CanonTier, number> = {
+  industry: 0.15,
+  org: 0.10,
+  draft: 0,
+};
+
+async function fetchCanonTiers(
+  db: Db,
+  notionPageIds: string[],
+): Promise<Map<string, CanonTier>> {
+  if (notionPageIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      notionPageId: playbooks.notionPageId,
+      canonTier: playbooks.canonTier,
+    })
+    .from(playbooks)
+    .where(inArray(playbooks.notionPageId, notionPageIds));
+  const map = new Map<string, CanonTier>();
+  for (const r of rows) {
+    if (r.notionPageId) {
+      map.set(r.notionPageId, r.canonTier as CanonTier);
+    }
+  }
+  return map;
 }
 
 // Build topical search queries from triage output. The existing Notion
@@ -239,10 +277,49 @@ export async function runStage1(
       oneLineRationale: g.one_line_rationale,
     }));
 
+    // M4 — canon-tier weighting. Look up each candidate's playbook tier
+    // (if any) and re-pick top_match using on_point_score + tier_boost.
+    // Verdict stays as the LLM's call; only the surfaced top match
+    // changes. When no candidate has a playbook entry (or when the
+    // boost doesn't change the leader), the grader's pick is preserved.
+    const candidateNotionPageIds = candidates
+      .map((c) => c.notionPageId)
+      .filter((id): id is string => Boolean(id));
+    const tierMap = await fetchCanonTiers(db, candidateNotionPageIds);
+    const candidateTiers: Array<CanonTier | null> = candidates.map((c) =>
+      c.notionPageId ? (tierMap.get(c.notionPageId) ?? null) : null,
+    );
+
+    let effectiveTopIndex: number | null = raw.top_match_index;
+    let tierBoostChangedTopMatch = false;
+    if (raw.grades.length > 0) {
+      let bestIdx = raw.grades[0]!.candidate_index;
+      let bestScore =
+        raw.grades[0]!.on_point_score +
+        (candidateTiers[bestIdx] ? TIER_BOOST[candidateTiers[bestIdx]!] : 0);
+      for (const g of raw.grades.slice(1)) {
+        const tier = candidateTiers[g.candidate_index] ?? null;
+        const boosted = g.on_point_score + (tier ? TIER_BOOST[tier] : 0);
+        if (boosted > bestScore) {
+          bestIdx = g.candidate_index;
+          bestScore = boosted;
+        }
+      }
+      tierBoostChangedTopMatch =
+        raw.top_match_index !== null && bestIdx !== raw.top_match_index;
+      // Only override the grader when the verdict says there's a match
+      // worth surfacing. For related_only / no_hit, trust the grader's
+      // top_match_index (which may be null).
+      if (raw.verdict === 'matched') {
+        effectiveTopIndex = bestIdx;
+      }
+    }
+
     const topGrade =
-      raw.top_match_index !== null
-        ? grades.find((g) => g.candidate.notionPageId === candidates[raw.top_match_index!]?.notionPageId) ??
-          null
+      effectiveTopIndex !== null
+        ? grades.find(
+            (g) => g.candidate.notionPageId === candidates[effectiveTopIndex!]?.notionPageId,
+          ) ?? null
         : null;
 
     const output: GuidanceStageOutput = {
@@ -291,8 +368,13 @@ export async function runStage1(
     // M4 — record the matched candidate's notion_page_id so the
     // promote-playbooks cron can attribute matches to specific
     // playbooks. Only fires on matched verdicts; related_only / no_hit
-    // emit nothing.
+    // emit nothing. Also records the tier signal + whether the tier
+    // boost changed the top match relative to the grader's pick, so
+    // the promotion telemetry can distinguish boost-driven matches
+    // from LLM-only matches.
     if (raw.verdict === 'matched' && topGrade?.candidate.notionPageId) {
+      const effectiveTier =
+        effectiveTopIndex !== null ? candidateTiers[effectiveTopIndex] ?? null : null;
       await db.insert(auditLog).values({
         actorKind: 'system',
         matterId: matter.id,
@@ -301,6 +383,9 @@ export async function runStage1(
           notion_page_id: topGrade.candidate.notionPageId,
           stage_id: stageId,
           on_point_score: topGrade.onPointScore,
+          canon_tier: effectiveTier,
+          grader_top_match_index: raw.top_match_index,
+          tier_boost_changed_top_match: tierBoostChangedTopMatch,
         },
       });
     }
