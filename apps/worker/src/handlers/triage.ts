@@ -144,6 +144,21 @@ export async function handleTriageJob(db: Db, job: Job) {
     }
   }
 
+  // PRD §12.1 NL-configured triage rules. These supplement (don't replace)
+  // the base classification logic in the system prompt — they're operator-
+  // authored overrides that the model considers before falling back to the
+  // baseline practice-area/priority criteria.
+  const activeTriageRules = await db
+    .select({
+      id: rules.id,
+      name: rules.name,
+      naturalText: rules.naturalText,
+      priority: rules.priority,
+    })
+    .from(rules)
+    .where(sql`${rules.kind} = 'triage' AND ${rules.status} = 'active'`)
+    .orderBy(rules.priority);
+
   const res = await fetch(`${env.AI_SERVICE_URL}/triage`, {
     method: 'POST',
     headers: {
@@ -162,6 +177,12 @@ export async function handleTriageJob(db: Db, job: Job) {
         summary: pm.summary,
         practice_area: pm.practice_area,
         priority: pm.priority,
+      })),
+      triage_rules: activeTriageRules.map((r) => ({
+        id: r.id,
+        name: r.name,
+        natural_text: r.naturalText,
+        priority: r.priority,
       })),
     }),
   });

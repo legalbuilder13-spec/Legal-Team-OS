@@ -176,6 +176,26 @@ def build_user_prompt(request: TriageRequest) -> str:
             parts.append(f"\n[{pb.practice_area}] {pb.title}:")
             parts.append(pb.body)
 
+    if request.triage_rules:
+        # Active NL triage rules (PRD §12.1). These are operator-authored
+        # overrides that take precedence over the base classification logic
+        # in the system prompt. Sorted by priority ascending — lower priority
+        # number means it should be considered first.
+        sorted_rules = sorted(request.triage_rules, key=lambda r: r.priority)
+        parts.append("")
+        parts.append(
+            "--- Triage rules (operator-authored; apply BEFORE the base classification logic) ---"
+        )
+        parts.append(
+            "These rules describe specific cases the team has decided how to handle. "
+            "If a rule clearly applies to this request, follow it. If multiple rules apply, "
+            "the lower priority number wins. If no rule applies, fall through to the base "
+            "classification rules in the system prompt."
+        )
+        for rule in sorted_rules:
+            parts.append(f"\n[p={rule.priority}] {rule.name}")
+            parts.append(f"  {rule.natural_text}")
+
     return "\n".join(parts)
 
 
