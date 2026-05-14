@@ -13,6 +13,7 @@ import {
   detectStatuteKeywords,
   normalizeJurisdictions,
 } from '@legal/types';
+import { getHistoricalToolHints } from '../integrations/tool_history.js';
 
 // PRD §6.1 + §7.6 + §7.7 + §12 — lawyer-invoked research tools.
 // In Phase 1 (this PR) the buttons exist and the routes enqueue jobs,
@@ -57,6 +58,27 @@ export const toolsRouter = router({
         caseCitations.length > 0 ||
         ['litigation', 'ip'].includes(matter.practiceArea ?? '');
 
+      // PR8 — historical signal. Run alongside the deterministic
+      // hints so the deterministic version remains the primary signal;
+      // history is additive. Wrapped in try/catch so a slow / failing
+      // tsvector query doesn't block the toolbar from rendering.
+      let history: Awaited<ReturnType<typeof getHistoricalToolHints>> = {
+        similarMattersConsidered: 0,
+        signals: [],
+        topSimilarIds: [],
+      };
+      try {
+        history = await getHistoricalToolHints(ctx.db, {
+          matterId: input.matterId,
+          requestText: matter.requestText,
+          k: 10,
+        });
+      } catch (err) {
+        console.warn('tools.context: historical hint fetch failed', { err: String(err) });
+      }
+      const sigBy = new Map(history.signals.map((s) => [s.tool, s] as const));
+      const HISTORICAL_HINT_THRESHOLD = 0.4;
+
       return {
         availability: TOOL_AVAILABILITY,
         hints: {
@@ -64,18 +86,32 @@ export const toolsRouter = router({
             suggested: suggestStatutory,
             citations: statuteCitations.slice(0, 5),
             keywords: statuteKeywords.slice(0, 5),
+            historical: sigBy.get('statutory') ?? null,
+            historicallySuggested:
+              (sigBy.get('statutory')?.invocationRate ?? 0) >= HISTORICAL_HINT_THRESHOLD,
           },
           caseLaw: {
             suggested: suggestCaseLaw,
             citations: caseCitations.slice(0, 5),
+            historical: sigBy.get('case_law') ?? null,
+            historicallySuggested:
+              (sigBy.get('case_law')?.invocationRate ?? 0) >= HISTORICAL_HINT_THRESHOLD,
           },
           deconstruct: {
-            // Deconstruction is meaningful after some research has run;
-            // we'll suggest based on analysis history once Phase 2+ lands.
-            suggested: false,
+            // PR8 — deconstruct is suggested historically when similar
+            // matters consistently ran it after their research tools.
+            suggested:
+              (sigBy.get('deconstruct')?.invocationRate ?? 0) >= HISTORICAL_HINT_THRESHOLD,
+            historical: sigBy.get('deconstruct') ?? null,
+            historicallySuggested:
+              (sigBy.get('deconstruct')?.invocationRate ?? 0) >= HISTORICAL_HINT_THRESHOLD,
           },
         },
         detectedJurisdictionHint: statuteCitations[0]?.jurisdictionHint ?? null,
+        historyMetadata: {
+          similarMattersConsidered: history.similarMattersConsidered,
+          topSimilarIds: history.topSimilarIds,
+        },
       };
     }),
 
