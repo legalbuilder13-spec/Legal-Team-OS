@@ -161,6 +161,11 @@ export const CaseLawToolInvocationSchema = z.object({
   matterId: z.string().uuid(),
   jurisdiction: z.string().min(1),
   candidateDoctrines: z.array(z.string()).default([]),
+  // Optional anchor case for the 3rd retrieval strategy (citator
+  // traversal — PRD §11.2). Lawyer supplies a CourtListener opinion
+  // id when they have a known good anchor; the worker walks the
+  // cited-by graph from there to discover siblings.
+  anchorOpinionId: z.string().optional(),
   invokedByUserId: z.string().uuid(),
 });
 export type CaseLawToolInvocation = z.infer<typeof CaseLawToolInvocationSchema>;

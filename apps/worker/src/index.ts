@@ -17,6 +17,7 @@ import { handleAnalyzeClauseJob } from './handlers/analyze-clause.js';
 import { handleEnrichCounterpartyMemoryJob } from './handlers/enrich-counterparty-memory.js';
 import { handleAnalyzeJob } from './handlers/analyze.js';
 import { handleRunStatutoryJob } from './handlers/tools/run-statutory.js';
+import { handleRunCaseLawJob } from './handlers/tools/run-case-law.js';
 import { runSlaCheck } from './handlers/sla-check.js';
 import { runDailyDigest } from './handlers/daily-digest.js';
 import { runPortfolioAnalysis } from './handlers/analyze-portfolio.js';
@@ -95,11 +96,13 @@ async function dispatch(job: Job) {
       await handleRunStatutoryJob(db, job);
       break;
     case 'run_case_law':
+      await handleRunCaseLawJob(db, job);
+      break;
     case 'run_deconstruct':
-      // Lawyer-invoked research tools — Phase 3 / Phase 4. Placeholders
-      // accept the job and complete it as a no-op so the queue doesn't
-      // grow while the implementations are unfinished.
-      console.log(`worker: ${job.kind} is a Phase 3+ tool placeholder (no-op for now)`);
+      // Deconstruction tool — Phase 4 placeholder. Accepts the job and
+      // completes it as a no-op so the queue doesn't grow while the
+      // implementation is unfinished.
+      console.log(`worker: ${job.kind} is a Phase 4 placeholder (no-op for now)`);
       break;
     default:
       throw new Error(`unknown job kind: ${job.kind}`);

@@ -26,7 +26,7 @@ import {
 // intent in audit_log (demand signal — PRD §20.1).
 const TOOL_AVAILABILITY: Record<'statutory' | 'case_law' | 'deconstruct', { enabled: boolean; reason: string }> = {
   statutory: { enabled: true, reason: '' },
-  case_law: { enabled: false, reason: 'Available in Phase 3' },
+  case_law: { enabled: true, reason: '' },
   deconstruct: { enabled: false, reason: 'Available in Phase 4' },
 };
 
@@ -148,10 +148,17 @@ export const toolsRouter = router({
             matter_id: input.matterId,
             jurisdiction: input.jurisdiction,
             candidate_doctrines: input.candidateDoctrines,
+            anchor_opinion_id: input.anchorOpinionId,
             invoked_by_user_id: ctx.user.id,
           },
         })
         .returning({ id: jobs.id });
+      await ctx.db.insert(auditLog).values({
+        actorId: ctx.user.id,
+        matterId: input.matterId,
+        action: 'tool.invoked',
+        details: { tool: 'case_law', jobId: job!.id, input },
+      });
       return { jobId: job!.id };
     }),
 

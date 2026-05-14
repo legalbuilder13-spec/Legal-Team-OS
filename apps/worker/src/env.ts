@@ -20,6 +20,11 @@ const Env = z.object({
   ANALYSIS_PIPELINE_ENABLED: z
     .union([z.literal('true'), z.literal('false'), z.literal('shadow')])
     .default('false'),
+  // PRD §11 + §20.2 — case-law backend. Optional; without it the worker
+  // hits CourtListener's anonymous tier (~100 req/day rate limit).
+  // Commercial citator providers can be plumbed in with their own env
+  // vars + a fetcher under integrations/case_law_sources.ts.
+  COURTLISTENER_API_KEY: z.string().optional(),
 });
 
 export const env = Env.parse(process.env);
