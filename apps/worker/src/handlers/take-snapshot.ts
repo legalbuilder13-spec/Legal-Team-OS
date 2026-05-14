@@ -25,7 +25,7 @@ function normalize(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
 }
 
-function compareExcerpt(
+export function compareExcerpt(
   excerpt: string,
   pageText: string,
 ): AnalysisVerificationStatus {

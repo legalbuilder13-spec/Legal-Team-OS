@@ -26,7 +26,7 @@ interface AnalyzePayload {
   matter_id: string;
 }
 
-function pickWorseConfidence(
+export function pickWorseConfidence(
   a: AnalysisConfidence,
   b: AnalysisConfidence,
 ): AnalysisConfidence {
