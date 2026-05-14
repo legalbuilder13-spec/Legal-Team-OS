@@ -10,6 +10,7 @@ import { escalationsRouter } from './escalations';
 import { draftsRouter } from './drafts';
 import { documentsRouter } from './documents';
 import { templatesRouter } from './templates';
+import { rulesRouter } from './rules';
 
 export const appRouter = router({
   matters: mattersRouter,
@@ -23,6 +24,7 @@ export const appRouter = router({
   drafts: draftsRouter,
   documents: documentsRouter,
   templates: templatesRouter,
+  rules: rulesRouter,
 });
 
 export type AppRouter = typeof appRouter;
