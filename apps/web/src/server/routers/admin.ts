@@ -9,6 +9,7 @@ import {
   playbookVersions,
   playbookSuggestions,
   playbookPositions,
+  executionPatterns,
   knowledgeArticles,
   systemInsights,
   jobs,
@@ -677,5 +678,77 @@ export const adminRouter = router({
         details: { playbookId: existing.playbookId, topic: existing.topic, id: input.id },
       });
       return { deleted: true };
+    }),
+
+  listExecutionPatterns: adminProcedure.query(async ({ ctx }) => {
+    return ctx.db
+      .select()
+      .from(executionPatterns)
+      .orderBy(asc(executionPatterns.practiceArea), asc(executionPatterns.name));
+  }),
+
+  upsertExecutionPattern: adminProcedure
+    .input(
+      z.object({
+        id: z.string().uuid().optional(),
+        practiceArea: PracticeAreaSchema,
+        matterType: z.string().optional(),
+        inputType: z.enum(['document', 'fact_pattern', 'checklist', 'content']),
+        outputFormat: z.enum([
+          'tagged_clauses',
+          'issue_memo',
+          'claim_matrix',
+          'gap_report',
+          'risk_assessment',
+          'rewrite_pairs',
+          'action_checklist',
+        ]),
+        name: z.string().min(1).max(120),
+        description: z.string().optional(),
+        promptTemplate: z.string().min(1),
+        outputSchema: z.record(z.string(), z.unknown()).default({}),
+        isDefault: z.boolean().default(false),
+        isActive: z.boolean().default(true),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const data = {
+        practiceArea: input.practiceArea,
+        matterType: input.matterType,
+        inputType: input.inputType,
+        outputFormat: input.outputFormat,
+        name: input.name,
+        description: input.description,
+        promptTemplate: input.promptTemplate,
+        outputSchema: input.outputSchema,
+        isDefault: input.isDefault,
+        isActive: input.isActive,
+        updatedAt: new Date(),
+      };
+      let result;
+      if (input.id) {
+        const [updated] = await ctx.db
+          .update(executionPatterns)
+          .set(data)
+          .where(eq(executionPatterns.id, input.id))
+          .returning();
+        result = updated;
+      } else {
+        const [created] = await ctx.db
+          .insert(executionPatterns)
+          .values({ ...data, createdById: ctx.user.id })
+          .returning();
+        result = created;
+      }
+      await ctx.db.insert(auditLog).values({
+        actorId: ctx.user.id,
+        action: 'execution_pattern.upserted',
+        details: {
+          id: result?.id,
+          practiceArea: input.practiceArea,
+          outputFormat: input.outputFormat,
+        },
+      });
+      return result;
     }),
 });

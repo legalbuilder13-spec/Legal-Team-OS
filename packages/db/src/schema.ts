@@ -138,6 +138,23 @@ export const clauseTag = pgEnum('clause_tag', [
   'FLAGGED',
 ]);
 
+export const executionPatternInputType = pgEnum('execution_pattern_input_type', [
+  'document',
+  'fact_pattern',
+  'checklist',
+  'content',
+]);
+
+export const executionPatternOutputFormat = pgEnum('execution_pattern_output_format', [
+  'tagged_clauses',
+  'issue_memo',
+  'claim_matrix',
+  'gap_report',
+  'risk_assessment',
+  'rewrite_pairs',
+  'action_checklist',
+]);
+
 export const users = pgTable(
   'users',
   {
@@ -548,6 +565,29 @@ export const matterDraftVersions = pgTable(
   },
   (t) => ({
     draftIdx: index('matter_draft_versions_draft_idx').on(t.draftId, t.versionNumber),
+  }),
+);
+
+export const executionPatterns = pgTable(
+  'execution_patterns',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    practiceArea: practiceArea('practice_area').notNull(),
+    matterType: text('matter_type'),
+    inputType: executionPatternInputType('input_type').notNull(),
+    outputFormat: executionPatternOutputFormat('output_format').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    promptTemplate: text('prompt_template').notNull(),
+    outputSchema: jsonb('output_schema').$type<Record<string, unknown>>().notNull().default({}),
+    isDefault: boolean('is_default').notNull().default(false),
+    isActive: boolean('is_active').notNull().default(true),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    practiceAreaIdx: index('execution_patterns_practice_area_idx').on(t.practiceArea),
   }),
 );
 
