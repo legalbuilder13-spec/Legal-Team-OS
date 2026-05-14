@@ -185,8 +185,13 @@ export async function handleRunDeconstructJob(db: Db, job: Job) {
 
     const preMeritsStage = priorStages.find((s) => s.stageName === 'pre_merits');
     const guidanceStage = priorStages.find((s) => s.stageName === 'guidance');
-    // Latest statutory + case-law (if multiple runs, take the most recent).
-    const statutoryStage = [...priorStages].reverse().find((s) => s.stageName === 'statutory');
+    // PR7 — multi-jurisdiction. Pull EVERY completed statutory + case-
+    // law stage row so the deconstruct skill can harmonize across
+    // jurisdictions. Each statutory stage carries its own jurisdiction
+    // tag (set by run-statutory's output_json.jurisdiction).
+    const statutoryStages = priorStages.filter(
+      (s) => s.stageName === 'statutory' && s.status === 'complete',
+    );
     const caseLawStage = [...priorStages].reverse().find((s) => s.stageName === 'case_law');
 
     const preMeritsOutput = (preMeritsStage?.outputJson ?? {}) as Record<string, unknown>;
@@ -207,9 +212,13 @@ export async function handleRunDeconstructJob(db: Db, job: Job) {
 
     const guidanceTopMatch = guidanceOutput.headlineAnswer ?? null;
 
-    const statutorySummary = statutoryStage?.status === 'complete'
-      ? compactStatutorySummary(statutoryStage.outputJson as Record<string, unknown>)
-      : null;
+    const statutorySummaries = statutoryStages.map((s) => {
+      const out = s.outputJson as Record<string, unknown>;
+      return {
+        jurisdiction: (out.jurisdiction as string | undefined) ?? 'unspecified',
+        ...compactStatutorySummary(out),
+      };
+    });
     const caseLawSummary = caseLawStage?.status === 'complete'
       ? compactCaseLawSummary(caseLawStage.outputJson as Record<string, unknown>)
       : null;
@@ -221,10 +230,18 @@ export async function handleRunDeconstructJob(db: Db, job: Job) {
 
     // ----- 3. Call the deconstruct skill -----
 
+    // PR7 — jurisdictions[] for multi-jurisdiction harmonization.
+    // Single-jurisdiction matters land in a one-element array; the
+    // skill handles both cases uniformly.
+    const jurisdictions = statutorySummaries.length > 0
+      ? Array.from(new Set(statutorySummaries.map((s) => s.jurisdiction)))
+      : ['unspecified'];
+
     const skillReq = {
       matter_id: matter.id,
       request_text: matter.requestText,
-      jurisdiction: 'unspecified',
+      jurisdiction: jurisdictions.join(' / '),
+      jurisdictions,
       practice_area: practiceArea,
       inventory_version: inventory.version,
       inventory_items: inventory.items.map((i) => ({
@@ -236,7 +253,8 @@ export async function handleRunDeconstructJob(db: Db, job: Job) {
       prior: {
         pre_merits_flags: preMeritsFlags,
         guidance_top_match: guidanceTopMatch,
-        statutory_summary: statutorySummary,
+        statutory_summary: statutorySummaries[0] ?? null, // back-compat
+        statutory_summaries: statutorySummaries,
         case_law_summary: caseLawSummary,
       },
     };
@@ -270,8 +288,10 @@ export async function handleRunDeconstructJob(db: Db, job: Job) {
     // substring match keeps it deterministic; the upstream stages
     // already verified the cites themselves.
     const allowedCites: string[] = [];
-    if (statutorySummary?.operative_provisions) {
-      for (const p of statutorySummary.operative_provisions as Array<Record<string, unknown>>) {
+    for (const summary of statutorySummaries) {
+      const provisions = (summary as Record<string, unknown>).operative_provisions;
+      if (!Array.isArray(provisions)) continue;
+      for (const p of provisions as Array<Record<string, unknown>>) {
         const cite = p.citation;
         if (typeof cite === 'string') allowedCites.push(cite);
       }

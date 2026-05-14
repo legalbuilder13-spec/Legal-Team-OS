@@ -5,11 +5,13 @@ import { jobs, matters, auditLog } from '@legal/db';
 import { staffProcedure, router } from '../trpc.js';
 import {
   StatutoryToolInvocationSchema,
+  StatutoryToolInvocationBaseSchema,
   CaseLawToolInvocationSchema,
   DeconstructToolInvocationSchema,
   extractStatuteCitations,
   extractCaseCitations,
   detectStatuteKeywords,
+  normalizeJurisdictions,
 } from '@legal/types';
 
 // PRD §6.1 + §7.6 + §7.7 + §12 — lawyer-invoked research tools.
@@ -79,9 +81,10 @@ export const toolsRouter = router({
 
   invokeStatutory: staffProcedure
     .input(
-      StatutoryToolInvocationSchema.omit({ invokedByUserId: true }).extend({
-        matterId: z.string().uuid(),
-      }),
+      StatutoryToolInvocationBaseSchema.omit({ invokedByUserId: true }).refine(
+        (v) => Boolean(v.jurisdictions?.length || v.jurisdiction),
+        'Must supply either jurisdictions[] or jurisdiction',
+      ),
     )
     .mutation(async ({ ctx, input }) => {
       if (!TOOL_AVAILABILITY.statutory.enabled) {
@@ -98,26 +101,40 @@ export const toolsRouter = router({
           message: TOOL_AVAILABILITY.statutory.reason,
         });
       }
-      const [job] = await ctx.db
-        .insert(jobs)
-        .values({
-          kind: 'run_statutory',
-          matterId: input.matterId,
-          payload: {
-            matter_id: input.matterId,
-            jurisdiction: input.jurisdiction,
-            candidate_statutes: input.candidateStatutes,
-            invoked_by_user_id: ctx.user.id,
-          },
-        })
-        .returning({ id: jobs.id });
+
+      // PR7 — multi-jurisdiction. Fan out one job per jurisdiction;
+      // each writes its own statutory stage row. The deconstruct tool
+      // aggregates across all stage rows for the matter.
+      const jurisdictions = normalizeJurisdictions(input);
+      const insertedJobIds: string[] = [];
+      for (const jurisdiction of jurisdictions) {
+        const [job] = await ctx.db
+          .insert(jobs)
+          .values({
+            kind: 'run_statutory',
+            matterId: input.matterId,
+            payload: {
+              matter_id: input.matterId,
+              jurisdiction,
+              candidate_statutes: input.candidateStatutes,
+              invoked_by_user_id: ctx.user.id,
+            },
+          })
+          .returning({ id: jobs.id });
+        insertedJobIds.push(job!.id);
+      }
       await ctx.db.insert(auditLog).values({
         actorId: ctx.user.id,
         matterId: input.matterId,
         action: 'tool.invoked',
-        details: { tool: 'statutory', jobId: job!.id, input },
+        details: {
+          tool: 'statutory',
+          jurisdictions,
+          jobIds: insertedJobIds,
+          candidate_statutes: input.candidateStatutes,
+        },
       });
-      return { jobId: job!.id };
+      return { jobIds: insertedJobIds, jurisdictions };
     }),
 
   invokeCaseLaw: staffProcedure

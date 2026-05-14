@@ -57,6 +57,8 @@ interface StatutoryOutput {
   verify_flags: string[];
   verification?: { passed: boolean; failures: string[] };
   worker_confidence?: 'HIGH' | 'MEDIUM' | 'LOW' | 'SPLIT' | 'N_A';
+  // PR7 — set by run-statutory; one stage row per jurisdiction.
+  jurisdiction?: string;
 }
 
 interface Props {
@@ -100,8 +102,15 @@ export function StatutoryStageCard({ output, status, durationMs }: Props) {
 
   return (
     <div className="border rounded-lg p-3 bg-white dark:bg-ink-900 space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-medium">Statutory & Regulatory Research</h3>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
+          <h3 className="text-sm font-medium">Statutory & Regulatory Research</h3>
+          {output.jurisdiction && (
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-brand-200 dark:border-brand-800 bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300">
+              {output.jurisdiction}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2 text-[10px] font-mono">
           {verified ? (
             <span className="px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300">

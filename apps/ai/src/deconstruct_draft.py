@@ -47,14 +47,24 @@ class PriorStageContext(BaseModel):
     # the rule + authority nodes in the tree.
     pre_merits_flags: list[dict] = []  # high-severity raised items
     guidance_top_match: dict | None = None
-    statutory_summary: dict | None = None  # operative provisions + ambiguities + readings
-    case_law_summary: dict | None = None  # controlling + anti-analogous + mirror image
+    # Back-compat single-jurisdiction field (PR1-PR4 callers). New
+    # callers populate statutory_summaries[] instead.
+    statutory_summary: dict | None = None
+    # PR7 — multi-jurisdiction. One entry per jurisdiction that the
+    # statutory tool ran against. Each entry includes a 'jurisdiction'
+    # key + the compact operative_provisions / ambiguities / readings.
+    statutory_summaries: list[dict] = []
+    case_law_summary: dict | None = None
 
 
 class DeconstructRequest(BaseModel):
     matter_id: str
     request_text: str
+    # Joined string (back-compat) — e.g., "California / Texas / Federal".
     jurisdiction: str
+    # PR7 — canonical list. Single-jurisdiction matters land here as a
+    # one-element list.
+    jurisdictions: list[str] = []
     practice_area: str
     inventory_version: str
     inventory_items: list[InventoryItemInput]
@@ -110,12 +120,24 @@ class IRACMemo(BaseModel):
     word_count: int = Field(le=600)  # buffer over PRD's ≤500 for inline citations
 
 
+class JurisdictionHarmonization(BaseModel):
+    # PR7 — emitted only when multiple jurisdictions ran. One entry
+    # per issue that diverges across jurisdictions, plus a list of
+    # issues where jurisdictions agree.
+    agreement_summary: str
+    divergences: list[dict]  # [{issue, by_jurisdiction: {state: holding}, materiality}]
+    jurisdiction_specific_carveouts: list[dict]  # [{jurisdiction, carveout, citation}]
+
+
 class DeconstructResult(BaseModel):
     matter_id: str
     nodes: list[DeconstructionNode]
     memo: IRACMemo
     inventory_categories_addressed: list[str]
     inventory_items_pruned: list[str]
+    # PR7 — only populated when prior.statutory_summaries has > 1
+    # jurisdiction. Single-jurisdiction matters return None.
+    multi_jurisdiction_harmonization: JurisdictionHarmonization | None = None
     verify_flags: list[str] = Field(default_factory=list, max_length=3)
 
 
@@ -177,7 +199,19 @@ failures upstream block confident delivery; SPLIT when authorities are in genuin
 
 ## Verify flags (max 3)
 Use for: nodes whose facts you couldn't assign from the request, citations you want the lawyer to double-check, \
-or assertions you couldn't anchor to a prior stage."""
+or assertions you couldn't anchor to a prior stage.
+
+## Multi-jurisdiction harmonization (PRD §19.5)
+When `prior.statutory_summaries` contains more than one entry (i.e., the statutory tool ran against multiple \
+jurisdictions), you MUST also populate `multi_jurisdiction_harmonization`:
+- `agreement_summary`: 1-3 sentences on where the jurisdictions agree.
+- `divergences[]`: each entry is an issue where jurisdictions diverge, with the per-jurisdiction holding and a \
+materiality label ("dispositive", "shifts-cost", "minor"). Cite the specific operative provision from each \
+jurisdiction's summary that drives the divergence.
+- `jurisdiction_specific_carveouts[]`: list jurisdiction-specific exemptions, carve-outs, or unique \
+requirements that don't appear in the other jurisdictions.
+When only one summary is present, return `multi_jurisdiction_harmonization=null` and treat the analysis as \
+single-jurisdiction."""
 
 
 TOOL = {
@@ -210,19 +244,37 @@ def build_user_prompt(req: DeconstructRequest) -> str:
         parts.append(f"  {g.get('citation', '(no citation)')}")
         parts.append(f"  {g.get('summary', '')}")
         parts.append("")
-    if req.prior.statutory_summary:
-        parts.append("--- Statutory analysis (Stage 2a) ---")
-        s = req.prior.statutory_summary
-        if s.get('operative_provisions'):
-            parts.append("Operative provisions:")
-            for p in s['operative_provisions']:
-                parts.append(f"  - {p.get('citation')}: {p.get('quoted_text', '')[:160]}")
-        if s.get('ambiguities'):
-            parts.append(f"Ambiguities: {len(s['ambiguities'])}")
-        if s.get('textualist_reading'):
-            parts.append(f"Textualist: {s['textualist_reading'][:300]}")
-        if s.get('purposivist_reading'):
-            parts.append(f"Purposivist: {s['purposivist_reading'][:300]}")
+    # PR7 — render statutory summaries grouped by jurisdiction. Falls
+    # back to the back-compat single-summary path if statutory_summaries
+    # is empty but statutory_summary is set.
+    summaries = req.prior.statutory_summaries or (
+        [req.prior.statutory_summary] if req.prior.statutory_summary else []
+    )
+    if summaries:
+        parts.append(
+            f"--- Statutory analysis ({len(summaries)} jurisdiction"
+            f"{'s' if len(summaries) > 1 else ''}) ---"
+        )
+        for s in summaries:
+            if not s:
+                continue
+            juris = s.get('jurisdiction', 'unspecified')
+            parts.append(f"\n[Jurisdiction: {juris}]")
+            if s.get('operative_provisions'):
+                parts.append("  Operative provisions:")
+                for p in s['operative_provisions']:
+                    parts.append(f"    - {p.get('citation')}: {p.get('quoted_text', '')[:160]}")
+            if s.get('ambiguities'):
+                parts.append(f"  Ambiguities: {len(s['ambiguities'])}")
+            if s.get('textualist_reading'):
+                parts.append(f"  Textualist: {s['textualist_reading'][:300]}")
+            if s.get('purposivist_reading'):
+                parts.append(f"  Purposivist: {s['purposivist_reading'][:300]}")
+        if len(summaries) > 1:
+            parts.append("")
+            parts.append(
+                "MULTI-JURISDICTION: populate multi_jurisdiction_harmonization in your output."
+            )
         parts.append("")
     if req.prior.case_law_summary:
         parts.append("--- Case-law analysis (Stage 2b) ---")
