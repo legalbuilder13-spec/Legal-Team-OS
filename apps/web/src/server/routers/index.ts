@@ -11,6 +11,8 @@ import { draftsRouter } from './drafts';
 import { documentsRouter } from './documents';
 import { templatesRouter } from './templates';
 import { rulesRouter } from './rules';
+import { analysisRouter } from './analysis';
+import { toolsRouter } from './tools';
 
 export const appRouter = router({
   matters: mattersRouter,
@@ -25,6 +27,8 @@ export const appRouter = router({
   documents: documentsRouter,
   templates: templatesRouter,
   rules: rulesRouter,
+  analysis: analysisRouter,
+  tools: toolsRouter,
 });
 
 export type AppRouter = typeof appRouter;

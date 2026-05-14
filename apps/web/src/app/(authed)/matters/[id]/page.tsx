@@ -11,6 +11,7 @@ import { SaveToDriveButton } from './SaveToDriveButton';
 import { EscalationsCard } from './EscalationsCard';
 import { ContextCardGrid } from './ContextCardGrid';
 import { DocumentsCard } from './DocumentsCard';
+import { AnalysisPanel } from './AnalysisPanel';
 
 function TriageConfidence({ metadata }: { metadata: Record<string, unknown> }) {
   const practiceConf = metadata.practiceAreaConfidence;
@@ -126,6 +127,8 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
             <h2 className="font-medium mb-2">Original Request</h2>
             <p className="text-sm whitespace-pre-wrap text-ink-800 dark:text-ink-200">{matter.requestText}</p>
           </div>
+
+          <AnalysisPanel matterId={matter.id} />
 
           {matter.summary && (
             <div className="bg-white dark:bg-ink-900 border rounded-lg p-4">
