@@ -186,6 +186,7 @@ export const analysisRouter = router({
       // structure too. Best-effort; failures here don't roll back the
       // database insert.
       let notionUrl: string | null = null;
+      let notionPageId: string | null = null;
       if (input.alsoSaveToNotion) {
         try {
           const result = await createNotionPage({
@@ -193,9 +194,20 @@ export const analysisRouter = router({
             body: `${body}\n\n---\nDerived from ${matter.shortId} stage ${stage.stageName} accepted by ${ctx.user.name} on ${new Date().toISOString()}.`,
           });
           notionUrl = result?.url ?? null;
+          notionPageId = result?.id ?? null;
         } catch (err) {
           console.warn('savePlaybookFromStage: Notion write failed', { err: String(err) });
         }
+      }
+
+      // M4 — persist the Notion page id so the promote-playbooks cron
+      // can attribute future stage-1 matches back to this playbook
+      // via the audit_log 'playbook.matched_in_guidance' event.
+      if (notionPageId) {
+        await ctx.db
+          .update(playbooks)
+          .set({ notionPageId, updatedAt: new Date() })
+          .where(eq(playbooks.id, created!.id));
       }
 
       await ctx.db.insert(auditLog).values({

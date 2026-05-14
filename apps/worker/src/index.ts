@@ -29,6 +29,7 @@ import {
   enqueueClosedMatterCompaction,
   handleCompactMatterJob,
 } from './handlers/compact-matter.js';
+import { runPromotePlaybooks } from './handlers/promote-playbooks.js';
 import { isPermanentJobError } from './utils.js';
 
 const db = getDb();
@@ -214,6 +215,27 @@ cron.schedule(
       if (enqueued > 0) console.log(`compact-matter: enqueued ${enqueued} jobs`);
     } catch (err) {
       console.error('compact-matter enqueue failed:', err);
+    }
+  },
+  { timezone: env.DIGEST_TIMEZONE },
+);
+
+// M4 — Nightly playbook tier promotion. Recomputes matched_count +
+// accepted_when_matched_count per playbook from audit_log and applies
+// the draft → org / org → draft transitions. Idempotent. 02:00 so it
+// runs after most stage decisions have been recorded for the day.
+cron.schedule(
+  '0 2 * * *',
+  async () => {
+    try {
+      const result = await runPromotePlaybooks(db);
+      if (result.promoted > 0 || result.demoted > 0) {
+        console.log(
+          `playbook tiers: scanned=${result.scanned} promoted=${result.promoted} demoted=${result.demoted}`,
+        );
+      }
+    } catch (err) {
+      console.error('promote-playbooks failed:', err);
     }
   },
   { timezone: env.DIGEST_TIMEZONE },

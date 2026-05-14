@@ -51,6 +51,11 @@ export interface OverrideRow {
   override_pct: number | null;
 }
 
+export interface PlaybookTierRow {
+  tier: 'draft' | 'org' | 'industry';
+  count: number;
+}
+
 export const analysisMetricsRouter = router({
   summary: adminProcedure.input(WindowInput).query(async ({ ctx, input }) => {
     const days = input.lookbackDays;
@@ -146,6 +151,21 @@ export const analysisMetricsRouter = router({
       ORDER BY stage_name
     `)) as unknown as OverrideRow[];
 
+    // 7. M4 — Playbook canon tier distribution + recent transitions.
+    const tierCounts = (await ctx.db.execute(sql`
+      SELECT canon_tier::text AS tier, COUNT(*)::int AS count
+      FROM playbooks
+      GROUP BY canon_tier
+    `)) as unknown as PlaybookTierRow[];
+    const tierTransitions = (await ctx.db.execute(sql`
+      SELECT
+        COUNT(*) FILTER (WHERE action = 'playbook.promoted')::int AS promoted,
+        COUNT(*) FILTER (WHERE action = 'playbook.demoted')::int AS demoted
+      FROM audit_log
+      WHERE action IN ('playbook.promoted', 'playbook.demoted')
+        AND created_at > now() - interval ${interval}
+    `)) as unknown as Array<{ promoted: number; demoted: number }>;
+
     return {
       window: { days },
       matchedRate,
@@ -154,6 +174,11 @@ export const analysisMetricsRouter = router({
       stageFailures,
       verificationStatus,
       overrideRate,
+      playbookTiers: {
+        counts: tierCounts,
+        promoted: tierTransitions[0]?.promoted ?? 0,
+        demoted: tierTransitions[0]?.demoted ?? 0,
+      },
     };
   }),
 });

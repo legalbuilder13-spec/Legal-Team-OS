@@ -281,6 +281,38 @@ export default function AnalysisMetricsPage() {
             )}
           </MetricBlock>
 
+          {/* 7. M4 — Playbook canon tier distribution */}
+          <MetricBlock
+            title="Playbook canon tiers (M4)"
+            status={data.playbookTiers.counts.length === 0 ? 'neutral' : 'pass'}
+          >
+            <div className="text-sm space-y-2">
+              <div className="flex gap-4">
+                {(['draft', 'org', 'industry'] as const).map((tier) => {
+                  const row = data.playbookTiers.counts.find((r) => r.tier === tier);
+                  return (
+                    <span key={tier}>
+                      <span className="text-ink-500 dark:text-ink-400">{tier}:</span>{' '}
+                      <Num value={row?.count ?? 0} />
+                    </span>
+                  );
+                })}
+              </div>
+              {(data.playbookTiers.promoted > 0 || data.playbookTiers.demoted > 0) && (
+                <div className="text-xs text-ink-600 dark:text-ink-400">
+                  Last {days}d:{' '}
+                  <span className="text-emerald-700 dark:text-emerald-300">
+                    +<Num value={data.playbookTiers.promoted} /> promoted
+                  </span>
+                  {' · '}
+                  <span className="text-amber-700 dark:text-amber-300">
+                    −<Num value={data.playbookTiers.demoted} /> demoted
+                  </span>
+                </div>
+              )}
+            </div>
+          </MetricBlock>
+
           {/* 6. Lawyer override rate (PR10) */}
           <MetricBlock
             title={`Lawyer override rate (target < 15%, PRD §20.1)`}

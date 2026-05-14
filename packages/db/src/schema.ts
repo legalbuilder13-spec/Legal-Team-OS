@@ -237,6 +237,15 @@ export const lawyerDecision = pgEnum('lawyer_decision', [
   'escalated',
 ]);
 
+// M4 — Playbook canon tier. Promotes battle-tested playbooks to
+// higher retrieval weight via a nightly auto-promotion cron driven by
+// usage telemetry (matched_count + accepted_when_matched_count).
+export const playbookCanonTier = pgEnum('playbook_canon_tier', [
+  'draft',
+  'org',
+  'industry',
+]);
+
 // M1 — Rejection-reason mining. A weekly worker cron clusters lawyer
 // rejection reasons from audit_log; each cluster proposes a follow-up
 // (new playbook draft, or a domain_config rule patch). 'none' = the
@@ -484,11 +493,20 @@ export const playbooks = pgTable(
     isActive: boolean('is_active').notNull().default(true),
     version: integer('version').notNull().default(1),
     createdById: uuid('created_by_id').references(() => users.id),
+    // M4 — auto-promotion telemetry. Updated by the nightly cron;
+    // see runPromotePlaybooks in apps/worker.
+    canonTier: playbookCanonTier('canon_tier').notNull().default('draft'),
+    matchedCount: integer('matched_count').notNull().default(0),
+    acceptedWhenMatchedCount: integer('accepted_when_matched_count').notNull().default(0),
+    lastPromotedAt: timestamp('last_promoted_at', { withTimezone: true }),
+    lastDemotedAt: timestamp('last_demoted_at', { withTimezone: true }),
+    notionPageId: text('notion_page_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({
     practiceAreaIdx: index('playbooks_practice_area_idx').on(t.practiceArea),
+    canonTierIdx: index('playbooks_canon_tier_idx').on(t.canonTier, t.practiceArea),
   }),
 );
 
