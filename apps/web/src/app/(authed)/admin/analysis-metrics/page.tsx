@@ -84,22 +84,26 @@ export default function AnalysisMetricsPage() {
         </div>
       </header>
 
-      {rejectionSummary && (rejectionSummary.pendingCount > 0 || rejectionSummary.actionedLast30d > 0) && (
+      {rejectionSummary && (
         <a
           href="/admin/rejection-themes"
           className="block border rounded-lg p-3 hover:bg-ink-50 dark:hover:bg-ink-800 transition-colors"
         >
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm">
-              <span className="font-medium">Rejection themes:</span>{' '}
-              <span className="text-amber-700 dark:text-amber-300">
-                <Num value={rejectionSummary.pendingCount} /> pending
-              </span>
-              {rejectionSummary.actionedLast30d > 0 && (
-                <span className="text-emerald-700 dark:text-emerald-300 ml-2">
-                  · <Num value={rejectionSummary.actionedLast30d} /> actioned in last 30d
+              <span className="font-medium">Rejection themes (M1):</span>{' '}
+              {rejectionSummary.pendingCount > 0 ? (
+                <span className="text-amber-700 dark:text-amber-300">
+                  <Num value={rejectionSummary.pendingCount} /> pending
+                </span>
+              ) : (
+                <span className="text-ink-500 dark:text-ink-400">
+                  0 pending
                 </span>
               )}
+              <span className="text-ink-500 dark:text-ink-400 ml-2">
+                · <Num value={rejectionSummary.actionedLast30d} /> actioned in last 30d
+              </span>
               {rejectionSummary.latestRun?.error && (
                 <span className="text-red-700 dark:text-red-300 ml-2">
                   · last run errored
@@ -282,19 +286,17 @@ export default function AnalysisMetricsPage() {
           </MetricBlock>
 
           {/* 8. M6 — Memory nudges */}
-          {(data.nudges.runs > 0 || data.nudges.candidates > 0) && (
-            <MetricBlock title="Memory nudges (M6)" status="neutral">
-              <div className="text-sm">
-                <Num value={data.nudges.runs} /> nudge runs ·{' '}
-                <Num value={data.nudges.candidates} /> candidate stages surfaced ·{' '}
-                <Num value={data.nudges.dms} /> DMs sent (last {days}d)
-              </div>
-              <div className="text-xs text-ink-500 dark:text-ink-400 mt-1">
-                Daily cron at 08:00 surfaces accepted stages that haven&apos;t been saved as
-                playbooks but would have matched ≥2 other recent matters.
-              </div>
-            </MetricBlock>
-          )}
+          <MetricBlock title="Memory nudges (M6)" status="neutral">
+            <div className="text-sm">
+              <Num value={data.nudges.runs} /> nudge runs ·{' '}
+              <Num value={data.nudges.candidates} /> candidate stages surfaced ·{' '}
+              <Num value={data.nudges.dms} /> DMs sent (last {days}d)
+            </div>
+            <div className="text-xs text-ink-500 dark:text-ink-400 mt-1">
+              Daily cron at 08:00 surfaces accepted stages that haven&apos;t been saved as
+              playbooks but would have matched ≥2 other recent matters.
+            </div>
+          </MetricBlock>
 
           {/* 7. M4 — Playbook canon tier distribution */}
           <MetricBlock
