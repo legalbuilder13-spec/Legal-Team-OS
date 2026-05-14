@@ -7,6 +7,7 @@ import {
   PracticeAreaSchema,
   type PracticeArea,
 } from '@legal/types';
+import { formatPracticeArea } from '@/lib/format';
 
 const PRACTICE_AREAS = PracticeAreaSchema.options;
 
@@ -60,7 +61,7 @@ export default function AdminRoutingPage() {
                 draft.slaHours !== (existing?.slaHours ?? DEFAULT_SLA[area]);
               return (
                 <tr key={area} className="border-t border-ink-100 dark:border-ink-800">
-                  <td className="px-4 py-2 capitalize">{area}</td>
+                  <td className="px-4 py-2">{formatPracticeArea(area)}</td>
                   <td className="px-4 py-2">
                     <select
                       value={draft.defaultAssigneeId ?? ''}

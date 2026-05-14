@@ -34,7 +34,8 @@ The bot is defined by `apps/bot/slack-app-manifest.yaml`. To install:
 2. Paste the contents of `apps/bot/slack-app-manifest.yaml`.
 3. After creation, in **Basic Information** generate an **App-Level Token** with scope `connections:write` → that becomes `SLACK_APP_TOKEN`.
 4. **Install to workspace**. The Bot Token (`xoxb-…`) becomes `SLACK_BOT_TOKEN`, the Signing Secret becomes `SLACK_SIGNING_SECRET`.
-5. Set those three values in `.env` (or in Railway env vars). The manifest enables Socket Mode, so no public webhook URL is needed for development.
+5. **User OAuth Token** (`xoxp-…`). The worker's `context_fetch_slack` job calls `search.messages`, which Slack only allows with a user token holding the `search:read` scope. Copy the User OAuth Token from **OAuth & Permissions** into `SLACK_USER_TOKEN`. Without it, every matter logs `Slack search error: invalid_auth` and retries five times before giving up — no surface error, just missing Slack context. Re-install the app whenever you add scopes so the token reflects them.
+6. Set those four values in `.env` (or in Railway env vars). The manifest enables Socket Mode, so no public webhook URL is needed for development.
 
 The bot listens for the `/legal` slash command, app mentions, and thread replies on messages it can see (channels it's been invited to and any DMs).
 

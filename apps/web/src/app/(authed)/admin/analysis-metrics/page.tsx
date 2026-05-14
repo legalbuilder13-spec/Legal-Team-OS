@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
+import { formatPracticeArea } from '@/lib/format';
 
 // PR14 — admin dashboard for the four launch-gate metrics from PRD
 // §20.1 + the shadow-mode-metrics.sql queries. Designed to answer
@@ -141,7 +142,7 @@ export default function AnalysisMetricsPage() {
                 <tbody>
                   {data.matchedRate.map((r) => (
                     <tr key={r.practice_area ?? 'null'} className="border-t">
-                      <td className="py-1.5">{r.practice_area ?? '—'}</td>
+                      <td className="py-1.5">{formatPracticeArea(r.practice_area)}</td>
                       <td className="text-right">
                         <Num value={r.analyzed} />
                       </td>

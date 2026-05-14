@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { PracticeAreaSchema } from '@legal/types';
 import { PlaybookPositionsPanel } from './PlaybookPositionsPanel';
+import { formatPracticeArea } from '@/lib/format';
 
 const PRACTICE_AREAS = PracticeAreaSchema.options;
 
@@ -73,7 +74,7 @@ export default function PlaybooksAdminPage() {
               >
                 {PRACTICE_AREAS.map((a) => (
                   <option key={a} value={a}>
-                    {a}
+                    {formatPracticeArea(a)}
                   </option>
                 ))}
               </select>
@@ -150,7 +151,7 @@ export default function PlaybooksAdminPage() {
             items.length === 0 ? null : (
               <div key={area}>
                 <h2 className="text-xs uppercase tracking-wide text-ink-400 dark:text-ink-500 mb-2 font-medium">
-                  {area}
+                  {formatPracticeArea(area)}
                 </h2>
                 <div className="space-y-3">
                   {items.map((pb) => (
