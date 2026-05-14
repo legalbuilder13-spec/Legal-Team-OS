@@ -7,6 +7,7 @@ import {
 } from '@legal/types';
 import { env } from '../env.js';
 import { searchNotion } from '../integrations/notion.js';
+import { getCachedCard, setCachedCard } from '../cache.js';
 
 interface ContextFetchPayload {
   matter_id: string;
@@ -38,6 +39,26 @@ export async function handleContextFetchNotionJob(db: Db, job: Job) {
     payload.counterparty_name?.trim() ||
     payload.counterparty_domain?.trim() ||
     matter.title;
+
+  // Cache hit: copy the cached card into this matter's context and return.
+  const cached = await getCachedCard(db, 'notion', query);
+  if (cached) {
+    const existingContext = (matter.context ?? {}) as Record<string, unknown>;
+    await db
+      .update(matters)
+      .set({
+        context: { ...existingContext, notion: cached.card },
+        updatedAt: new Date(),
+      })
+      .where(eq(matters.id, matter.id));
+    await db.insert(auditLog).values({
+      actorKind: 'system',
+      matterId: matter.id,
+      action: 'matter.context_fetched',
+      details: { source: 'notion', cacheHit: true, ageSeconds: cached.ageSeconds, query },
+    });
+    return;
+  }
 
   const hits = await searchNotion(env.NOTION_API_KEY, query, 8);
 
@@ -84,10 +105,12 @@ export async function handleContextFetchNotionJob(db: Db, job: Job) {
     })
     .where(eq(matters.id, matter.id));
 
+  await setCachedCard(db, 'notion', query, card);
+
   await db.insert(auditLog).values({
     actorKind: 'system',
     matterId: matter.id,
     action: 'matter.context_fetched',
-    details: { source: 'notion', hitCount: hits.length, query },
+    details: { source: 'notion', hitCount: hits.length, query, cacheHit: false },
   });
 }

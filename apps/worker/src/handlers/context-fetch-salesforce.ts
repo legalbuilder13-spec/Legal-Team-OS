@@ -7,6 +7,7 @@ import {
 } from '@legal/types';
 import { env } from '../env.js';
 import { hostnameFromWebsite } from '../utils.js';
+import { getCachedCard, setCachedCard } from '../cache.js';
 
 interface ContextFetchPayload {
   matter_id: string;
@@ -35,6 +36,39 @@ interface SalesforceAccountRecord {
 export async function handleContextFetchSalesforceJob(db: Db, job: Job) {
   const payload = job.payload as unknown as ContextFetchPayload;
   if (!payload.counterparty_name && !payload.counterparty_domain) {
+    return;
+  }
+
+  const entityKey = payload.counterparty_name ?? payload.counterparty_domain ?? '';
+
+  // Cache hit: copy the cached card into this matter's context and return.
+  // Saves the round-trip to the AI service (which queries Salesforce).
+  const cached = await getCachedCard(db, 'salesforce', entityKey);
+  if (cached) {
+    const matter = await db.query.matters.findFirst({
+      where: eq(matters.id, payload.matter_id),
+    });
+    if (!matter) {
+      throw new Error(`matter ${payload.matter_id} not found`);
+    }
+    const existingContext = (matter.context ?? {}) as Record<string, unknown>;
+    await db
+      .update(matters)
+      .set({
+        context: { ...existingContext, salesforce: cached.card },
+        updatedAt: new Date(),
+      })
+      .where(eq(matters.id, matter.id));
+    await db.insert(auditLog).values({
+      actorKind: 'system',
+      matterId: matter.id,
+      action: 'matter.context_fetched',
+      details: {
+        source: 'salesforce',
+        cacheHit: true,
+        ageSeconds: cached.ageSeconds,
+      },
+    });
     return;
   }
 
@@ -104,6 +138,9 @@ export async function handleContextFetchSalesforceJob(db: Db, job: Job) {
     })
     .where(eq(matters.id, matter.id));
 
+  // Populate cross-matter cache for future requests on the same entity.
+  await setCachedCard(db, 'salesforce', entityKey, card);
+
   if (records.length === 1 && top && matter.counterpartyId) {
     await db
       .update(counterparties)
@@ -124,6 +161,6 @@ export async function handleContextFetchSalesforceJob(db: Db, job: Job) {
     actorKind: 'system',
     matterId: matter.id,
     action: 'matter.context_fetched',
-    details: { source: 'salesforce', recordCount: records.length },
+    details: { source: 'salesforce', recordCount: records.length, cacheHit: false },
   });
 }
