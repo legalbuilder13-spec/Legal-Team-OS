@@ -43,6 +43,13 @@ jobs:
     defaults:
       run:
         working-directory: apps/ai
+    env:
+      # apps/ai/src/config.py instantiates pydantic-settings Settings() at
+      # module import time. ANTHROPIC_API_KEY + DATABASE_URL are required
+      # fields. Any step that imports a module from src/ (pytest, schema_check,
+      # replay) needs these set. Runtime reads real values from Railway env.
+      ANTHROPIC_API_KEY: sk-ant-ci-stub-not-a-real-key
+      DATABASE_URL: postgres://stub:stub@localhost:5432/stub
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
