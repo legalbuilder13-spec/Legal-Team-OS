@@ -151,6 +151,19 @@ export const analysisMetricsRouter = router({
       ORDER BY stage_name
     `)) as unknown as OverrideRow[];
 
+    // 8. M6 — recent memory-nudge activity. Counts memory.nudge_sent
+    //    audit events in the lookback window.
+    const nudgeRows = (await ctx.db.execute(sql`
+      SELECT
+        COUNT(*)::int AS runs,
+        COALESCE(SUM((details->>'candidate_count')::int), 0)::int AS candidates,
+        COALESCE(SUM((details->>'dms_sent')::int), 0)::int AS dms
+      FROM audit_log
+      WHERE action = 'memory.nudge_sent'
+        AND created_at > now() - interval ${interval}
+    `)) as unknown as Array<{ runs: number; candidates: number; dms: number }>;
+    const nudges = nudgeRows[0] ?? { runs: 0, candidates: 0, dms: 0 };
+
     // 7. M4 — Playbook canon tier distribution + recent transitions.
     const tierCounts = (await ctx.db.execute(sql`
       SELECT canon_tier::text AS tier, COUNT(*)::int AS count
@@ -179,6 +192,7 @@ export const analysisMetricsRouter = router({
         promoted: tierTransitions[0]?.promoted ?? 0,
         demoted: tierTransitions[0]?.demoted ?? 0,
       },
+      nudges,
     };
   }),
 });

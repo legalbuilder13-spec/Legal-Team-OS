@@ -16,6 +16,8 @@ import json
 import sys
 from pathlib import Path
 
+from pydantic import BaseModel
+
 from ..analysis_schemas import GuidanceGraderResult, ThresholdSpotterResult
 from ..case_law_research import CaseLawResult
 from ..deconstruct_draft import DeconstructResult
@@ -23,7 +25,7 @@ from ..statute_analysis import StatuteAnalysisResult
 
 # Map stage_name (DB enum) → expected Pydantic result schema. New
 # stages added in future milestones extend this map.
-STAGE_RESULT_SCHEMAS = {
+STAGE_RESULT_SCHEMAS: dict[str, type[BaseModel]] = {
     "pre_merits": ThresholdSpotterResult,
     "guidance": GuidanceGraderResult,
     "statutory": StatuteAnalysisResult,

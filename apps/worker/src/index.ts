@@ -31,6 +31,7 @@ import {
 } from './handlers/compact-matter.js';
 import { runPromotePlaybooks } from './handlers/promote-playbooks.js';
 import { runMineRevisions } from './handlers/mine-revisions.js';
+import { runNudgeMissedPlaybooks } from './handlers/nudge-missed-playbooks.js';
 import { isPermanentJobError } from './utils.js';
 
 const db = getDb();
@@ -237,6 +238,28 @@ cron.schedule(
       }
     } catch (err) {
       console.error('promote-playbooks failed:', err);
+    }
+  },
+  { timezone: env.DIGEST_TIMEZONE },
+);
+
+// M6 — Daily nudge cycle. Surfaces accepted stages from the last 7d
+// that haven't been saved as playbooks but would have matched ≥2
+// other recent matters. Sends a Slack DM to admin users. 08:00
+// local time so it lands with the start-of-day digest.
+cron.schedule(
+  '0 8 * * *',
+  async () => {
+    try {
+      const result = await runNudgeMissedPlaybooks(db);
+      if (result.candidates > 0) {
+        console.log(
+          `nudge-missed-playbooks: ${result.candidates} candidates, ${result.dmsSent} DMs sent` +
+            (result.skipped ? ` (skipped: ${result.skipped})` : ''),
+        );
+      }
+    } catch (err) {
+      console.error('nudge-missed-playbooks failed:', err);
     }
   },
   { timezone: env.DIGEST_TIMEZONE },

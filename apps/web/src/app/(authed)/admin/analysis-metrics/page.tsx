@@ -281,6 +281,21 @@ export default function AnalysisMetricsPage() {
             )}
           </MetricBlock>
 
+          {/* 8. M6 — Memory nudges */}
+          {(data.nudges.runs > 0 || data.nudges.candidates > 0) && (
+            <MetricBlock title="Memory nudges (M6)" status="neutral">
+              <div className="text-sm">
+                <Num value={data.nudges.runs} /> nudge runs ·{' '}
+                <Num value={data.nudges.candidates} /> candidate stages surfaced ·{' '}
+                <Num value={data.nudges.dms} /> DMs sent (last {days}d)
+              </div>
+              <div className="text-xs text-ink-500 dark:text-ink-400 mt-1">
+                Daily cron at 08:00 surfaces accepted stages that haven&apos;t been saved as
+                playbooks but would have matched ≥2 other recent matters.
+              </div>
+            </MetricBlock>
+          )}
+
           {/* 7. M4 — Playbook canon tier distribution */}
           <MetricBlock
             title="Playbook canon tiers (M4)"
