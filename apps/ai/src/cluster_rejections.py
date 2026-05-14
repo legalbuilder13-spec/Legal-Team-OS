@@ -88,7 +88,7 @@ becomes a proposal queue for a human admin; you do not auto-create artifacts.
 Clustering rules:
 - Group rejections only when they share a recurring root cause, not surface similarity. Two \
 rejections that both say "wrong jurisdiction" but for different practice areas are two clusters, \
-not one. Two rejections that say "missed the materiality threshold" and "didn't catch the \$10M \
+not one. Two rejections that say "missed the materiality threshold" and "didn't catch the $10M \
 cap" are the same cluster.
 - Each cluster must have ≥2 members. Singleton rejections are noise; drop them.
 - Each cluster spans one stage_name + (optionally) one practice_area. Don't mix statutory and \
