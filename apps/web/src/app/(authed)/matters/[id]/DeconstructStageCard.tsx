@@ -507,6 +507,8 @@ export function DeconstructStageCard({
 
       <StageDecisionBar
         stageId={stageId}
+        stageName="deconstruct"
+        workerConfidence={output.worker_confidence}
         currentDecision={lawyerDecision}
         decidedAtIso={lawyerDecidedAt ?? null}
         decisionReason={lawyerDecisionReason ?? null}

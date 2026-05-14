@@ -293,6 +293,8 @@ export function CaseLawStageCard({
 
       <StageDecisionBar
         stageId={stageId}
+        stageName="case_law"
+        workerConfidence={output.worker_confidence}
         currentDecision={lawyerDecision}
         decidedAtIso={lawyerDecidedAt ?? null}
         decisionReason={lawyerDecisionReason ?? null}

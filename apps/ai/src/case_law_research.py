@@ -32,6 +32,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from .config import settings
+from .domain_config import DomainConfig, domain_config_block
 from .llm.client import get_client
 
 logger = logging.getLogger(__name__)
@@ -70,6 +71,10 @@ class CaseLawRequest(BaseModel):
     practice_area: str
     candidate_doctrines: list[str] = []
     candidates: list[CaseCandidate]
+    # PR12 §15 — organization domain config blended into the prompt.
+    # Worker loads from organizations.domain_config_json; absent for
+    # unauthenticated calls or orgs that haven't customized.
+    domain_config: DomainConfig | None = None
 
 
 CourtLevel = Literal[
@@ -218,6 +223,7 @@ def build_user_prompt(req: CaseLawRequest) -> str:
         parts.append(f"  url: {c.absolute_url}")
         snippet = c.snippet[:1200]
         parts.append(f"  snippet: {snippet}")
+    parts.append(domain_config_block(req.domain_config))
     return "\n".join(parts)
 
 

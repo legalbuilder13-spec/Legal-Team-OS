@@ -18,6 +18,7 @@ import {
   type TreatmentStatus,
 } from '../../integrations/case_law_sources.js';
 import { recordSource, hashContent } from '../analyze/sources.js';
+import { loadOrgConfigForUser, domainConfigForSkill } from '../../integrations/org_config.js';
 
 // PRD §11 + §7.7 — Case-Law Research tool (lawyer-invoked).
 // Worker executes three independent retrieval strategies (PRD §11.2
@@ -280,6 +281,7 @@ export async function handleRunCaseLawJob(db: Db, job: Job) {
 
     // ----- 3. Call the case-law-research skill -----
 
+    const orgConfig = await loadOrgConfigForUser(db, payload.invoked_by_user_id);
     const skillReq = {
       matter_id: matter.id,
       request_text: matter.requestText,
@@ -287,6 +289,8 @@ export async function handleRunCaseLawJob(db: Db, job: Job) {
       practice_area: matter.practiceArea ?? 'other',
       candidate_doctrines: payload.candidate_doctrines,
       candidates: dedupedCandidates,
+      // PR12 §15 — domain config blended into the skill's prompt.
+      domain_config: domainConfigForSkill(orgConfig),
     };
 
     const skillRes = await fetch(`${env.AI_SERVICE_URL}/case-law-research`, {

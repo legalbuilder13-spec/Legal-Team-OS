@@ -26,6 +26,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from .config import settings
+from .domain_config import DomainConfig, domain_config_block
 from .llm.client import get_client
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,8 @@ class DeconstructRequest(BaseModel):
     inventory_version: str
     inventory_items: list[InventoryItemInput]
     prior: PriorStageContext
+    # PR12 §15 — organization domain config blended into the prompt.
+    domain_config: DomainConfig | None = None
 
 
 # ----- Response: tree nodes + memo -----
@@ -289,6 +292,7 @@ def build_user_prompt(req: DeconstructRequest) -> str:
     parts.append(f"--- Practice-area inventory ({len(req.inventory_items)} candidate issues) ---")
     for item in req.inventory_items:
         parts.append(f"- [{item.category}/{item.id}] {item.label}: {item.description[:160]}")
+    parts.append(domain_config_block(req.domain_config))
     return "\n".join(parts)
 
 

@@ -10,12 +10,23 @@ import { trpc } from '@/lib/trpc';
 
 interface Props {
   stageId: string;
+  stageName?: 'pre_merits' | 'guidance' | 'statutory' | 'case_law' | 'deconstruct';
+  workerConfidence?: 'HIGH' | 'MEDIUM' | 'LOW' | 'SPLIT' | 'N_A';
   currentDecision: 'pending' | 'accepted' | 'rejected' | 'escalated';
   decidedAtIso?: string | null;
   decidedByName?: string | null;
   decisionReason?: string | null;
   matterId: string;
 }
+
+// PR15 — only these stage types are eligible to become playbooks.
+// Pre-merits + guidance produce checklist / retrieval output, not
+// synthesized content suitable for a future Stage 1 match.
+const PLAYBOOK_ELIGIBLE_STAGES = new Set([
+  'statutory',
+  'case_law',
+  'deconstruct',
+]);
 
 function decisionTone(d: Props['currentDecision']): string {
   return d === 'accepted'
@@ -29,15 +40,22 @@ function decisionTone(d: Props['currentDecision']): string {
 
 export function StageDecisionBar({
   stageId,
+  stageName,
+  workerConfidence,
   currentDecision,
   decidedAtIso,
   decisionReason,
   matterId,
 }: Props) {
   const utils = trpc.useUtils();
-  const [open, setOpen] = useState<'reject' | 'escalate' | null>(null);
+  const [open, setOpen] = useState<'reject' | 'escalate' | 'playbook' | null>(null);
   const [reason, setReason] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // PR15 — save-as-playbook follow-up state.
+  const [pbTitle, setPbTitle] = useState('');
+  const [pbAlsoSaveNotion, setPbAlsoSaveNotion] = useState(false);
+  const [pbSavedMsg, setPbSavedMsg] = useState<string | null>(null);
 
   const override = trpc.analysis.overrideStage.useMutation({
     onSuccess: () => {
@@ -52,30 +70,92 @@ export function StageDecisionBar({
     onError: (err) => setErrorMsg(err.message),
   });
 
+  const savePlaybook = trpc.analysis.savePlaybookFromStage.useMutation({
+    onSuccess: (data) => {
+      setOpen(null);
+      setPbTitle('');
+      setPbAlsoSaveNotion(false);
+      setPbSavedMsg(
+        `Playbook saved (id ${data.playbookId.slice(0, 8)}…)${
+          data.notionUrl ? ' — also written to Notion' : ''
+        }. Future similar matters will match this in Stage 1.`,
+      );
+      setErrorMsg(null);
+    },
+    onError: (err) => setErrorMsg(err.message),
+  });
+
+  const canSaveAsPlaybook =
+    currentDecision === 'accepted' &&
+    stageName !== undefined &&
+    PLAYBOOK_ELIGIBLE_STAGES.has(stageName) &&
+    workerConfidence !== 'LOW';
+
   if (currentDecision !== 'pending') {
     return (
-      <div className="border-t pt-2 flex items-center justify-between gap-2 text-[11px]">
-        <span className={`font-mono uppercase px-1.5 py-0.5 rounded border ${decisionTone(currentDecision)}`}>
-          {currentDecision}
-        </span>
-        <div className="flex-1 min-w-0 truncate text-ink-500 dark:text-ink-400">
-          {decisionReason && <span className="italic">"{decisionReason}"</span>}
-          {decidedAtIso && (
-            <span className="ml-2 text-ink-400 dark:text-ink-500">
-              · {new Date(decidedAtIso).toLocaleString()}
-            </span>
-          )}
+      <div className="border-t pt-2 space-y-2">
+        <div className="flex items-center justify-between gap-2 text-[11px]">
+          <span className={`font-mono uppercase px-1.5 py-0.5 rounded border ${decisionTone(currentDecision)}`}>
+            {currentDecision}
+          </span>
+          <div className="flex-1 min-w-0 truncate text-ink-500 dark:text-ink-400">
+            {decisionReason && <span className="italic">"{decisionReason}"</span>}
+            {decidedAtIso && (
+              <span className="ml-2 text-ink-400 dark:text-ink-500">
+                · {new Date(decidedAtIso).toLocaleString()}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {canSaveAsPlaybook && (
+              <button
+                onClick={() => {
+                  setOpen('playbook');
+                  setPbTitle('');
+                  setPbAlsoSaveNotion(false);
+                  setPbSavedMsg(null);
+                  setErrorMsg(null);
+                }}
+                className="text-[11px] px-2 py-0.5 border rounded border-brand-300 dark:border-brand-800 text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-950/40"
+                title="Save this stage's output as a playbook so future similar matters match in Stage 1"
+              >
+                Save as playbook…
+              </button>
+            )}
+            <button
+              onClick={() => override.mutate({ stageId, decision: 'accepted' })}
+              disabled={override.isPending}
+              className="text-[11px] px-1.5 py-0.5 border rounded hover:bg-ink-50 dark:hover:bg-ink-800 disabled:opacity-50"
+              title="Re-mark this stage as accepted (overrides the prior decision)"
+            >
+              revise → accept
+            </button>
+          </div>
         </div>
-        <button
-          onClick={() =>
-            override.mutate({ stageId, decision: 'accepted' })
-          }
-          disabled={override.isPending}
-          className="text-[11px] px-1.5 py-0.5 border rounded hover:bg-ink-50 dark:hover:bg-ink-800 disabled:opacity-50"
-          title="Re-mark this stage as accepted (overrides the prior decision)"
-        >
-          revise → accept
-        </button>
+        {pbSavedMsg && (
+          <div className="text-[11px] text-emerald-700 dark:text-emerald-300">{pbSavedMsg}</div>
+        )}
+        {open === 'playbook' && (
+          <PlaybookForm
+            title={pbTitle}
+            onTitleChange={setPbTitle}
+            alsoSaveNotion={pbAlsoSaveNotion}
+            onAlsoSaveNotionChange={setPbAlsoSaveNotion}
+            errorMsg={errorMsg}
+            onCancel={() => {
+              setOpen(null);
+              setErrorMsg(null);
+            }}
+            onSave={() =>
+              savePlaybook.mutate({
+                stageId,
+                title: pbTitle.trim() || undefined,
+                alsoSaveToNotion: pbAlsoSaveNotion,
+              })
+            }
+            saving={savePlaybook.isPending}
+          />
+        )}
       </div>
     );
   }
@@ -161,6 +241,69 @@ export function StageDecisionBar({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// PR15 — save-as-playbook form. Renders inline below the decision
+// pill when the lawyer clicks "Save as playbook…". Title is optional
+// (server derives a default from the matter + stage); body is always
+// derived from the stage output server-side.
+function PlaybookForm({
+  title,
+  onTitleChange,
+  alsoSaveNotion,
+  onAlsoSaveNotionChange,
+  errorMsg,
+  onCancel,
+  onSave,
+  saving,
+}: {
+  title: string;
+  onTitleChange: (s: string) => void;
+  alsoSaveNotion: boolean;
+  onAlsoSaveNotionChange: (b: boolean) => void;
+  errorMsg: string | null;
+  onCancel: () => void;
+  onSave: () => void;
+  saving: boolean;
+}) {
+  return (
+    <div className="border rounded p-2 space-y-2 bg-brand-50/30 dark:bg-brand-950/20">
+      <div className="text-[11px] text-ink-600 dark:text-ink-400">
+        Save this stage's output as a playbook. Future similar matters will see this in the
+        Stage 1 playbook check.
+      </div>
+      <input
+        value={title}
+        onChange={(e) => onTitleChange(e.target.value)}
+        placeholder="Optional title (default: matter title + stage)"
+        className="w-full border rounded px-2 py-1 text-xs"
+      />
+      <label className="flex items-center gap-1.5 text-[11px] text-ink-700 dark:text-ink-300">
+        <input
+          type="checkbox"
+          checked={alsoSaveNotion}
+          onChange={(e) => onAlsoSaveNotionChange(e.target.checked)}
+        />
+        Also mirror to Notion KB
+      </label>
+      {errorMsg && <div className="text-[11px] text-red-700 dark:text-red-300">{errorMsg}</div>}
+      <div className="flex items-center justify-end gap-2">
+        <button
+          onClick={onCancel}
+          className="text-[11px] px-2 py-0.5 border rounded hover:bg-ink-50 dark:hover:bg-ink-800"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onSave}
+          disabled={saving}
+          className="text-[11px] px-2 py-0.5 border rounded bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save playbook'}
+        </button>
+      </div>
     </div>
   );
 }
