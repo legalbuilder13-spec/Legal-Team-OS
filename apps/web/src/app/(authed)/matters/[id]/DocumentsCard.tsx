@@ -1,7 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useRef, useState } from 'react';
-import { FileText, Upload, RefreshCw } from 'lucide-react';
+import { FileText, Upload, RefreshCw, FileSearch } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 
 const STATUS_TONE: Record<string, string> = {
@@ -30,6 +31,10 @@ async function fileToBase64(file: File): Promise<string> {
     );
   }
   return btoa(binary);
+}
+
+function buildReviewHref(matterId: string, documentId: string): string {
+  return `/matters/${matterId}/documents/${documentId}`;
 }
 
 export function DocumentsCard({ matterId }: { matterId: string }) {
@@ -142,6 +147,16 @@ export function DocumentsCard({ matterId }: { matterId: string }) {
               >
                 {d.parseStatus}
               </span>
+              {d.parseStatus === 'parsed' && (
+                <Link
+                  href={buildReviewHref(matterId, d.id)}
+                  className="inline-flex items-center gap-1 text-xs text-brand-700 dark:text-brand-400 hover:underline"
+                  title="Review parsed clauses"
+                >
+                  <FileSearch className="h-3.5 w-3.5" />
+                  Review
+                </Link>
+              )}
               {(d.parseStatus === 'failed' || d.parseStatus === 'parsed') && (
                 <button
                   type="button"
