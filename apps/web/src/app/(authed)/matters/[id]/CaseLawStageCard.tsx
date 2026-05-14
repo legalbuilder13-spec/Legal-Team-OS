@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { StageDecisionBar } from './StageDecisionBar';
 
 // PRD §6.1 / §11. Case-law tool output card. Shows controlling +
 // persuasive authority side-by-side, then analogous + anti-analogous
@@ -60,6 +61,11 @@ interface Props {
   output: CaseLawOutput;
   status: string;
   durationMs: number;
+  stageId: string;
+  matterId: string;
+  lawyerDecision: 'pending' | 'accepted' | 'rejected' | 'escalated';
+  lawyerDecidedAt?: string | null;
+  lawyerDecisionReason?: string | null;
 }
 
 function TreatmentPill({ t }: { t: CaseSummary['treatment'] }) {
@@ -122,7 +128,16 @@ function Section({
   );
 }
 
-export function CaseLawStageCard({ output, status, durationMs }: Props) {
+export function CaseLawStageCard({
+  output,
+  status,
+  durationMs,
+  stageId,
+  matterId,
+  lawyerDecision,
+  lawyerDecidedAt,
+  lawyerDecisionReason,
+}: Props) {
   if (status === 'failed') {
     return (
       <div className="border rounded-lg p-3 bg-red-50/30 dark:bg-red-950/20 border-red-200 dark:border-red-900">
@@ -275,6 +290,14 @@ export function CaseLawStageCard({ output, status, durationMs }: Props) {
           </div>
         </div>
       )}
+
+      <StageDecisionBar
+        stageId={stageId}
+        currentDecision={lawyerDecision}
+        decidedAtIso={lawyerDecidedAt ?? null}
+        decisionReason={lawyerDecisionReason ?? null}
+        matterId={matterId}
+      />
     </div>
   );
 }

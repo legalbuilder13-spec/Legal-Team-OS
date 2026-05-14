@@ -81,15 +81,14 @@ export async function getHistoricalToolHints(
 
   const similarIds = similarRows.map((r) => r.id);
 
-  // Aggregate audit_log events for the similar matters. We look at
-  // three event kinds the tool router writes:
-  //   tool.invoked         — lawyer triggered the tool (whether
-  //                          output ended up accepted or rejected)
-  //   tool.invoke_blocked  — lawyer wanted to but tool was disabled
-  //   tool.<kind>_complete — worker finished a tool run (added to
-  //                          audit_log by run-statutory / run-case-law
-  //                          / run-deconstruct). Used as an acceptance
-  //                          proxy: the lawyer didn't cancel mid-flight.
+  // Aggregate audit_log events for the similar matters. PR10 added
+  // explicit lawyer-decision events (analysis.stage_accepted /
+  // analysis.stage_rejected / analysis.stage_escalated) which give a
+  // sharper acceptance signal than the prior proxy. We still tally
+  // tool.invoked + tool.invoke_blocked for invocation rate, and use
+  // tool.*_complete as a fallback acceptance proxy when no explicit
+  // lawyer decision was recorded (e.g., for matters created before
+  // PR10 shipped).
   const events = await db.execute(sql`
     SELECT matter_id::text AS matter_id, action, details
     FROM audit_log
@@ -99,7 +98,10 @@ export async function getHistoricalToolHints(
         'tool.invoke_blocked',
         'tool.statutory_complete',
         'tool.case_law_complete',
-        'tool.deconstruct_complete'
+        'tool.deconstruct_complete',
+        'analysis.stage_accepted',
+        'analysis.stage_rejected',
+        'analysis.stage_escalated'
       )
   `);
   const auditRows = events as unknown as AuditRow[];
@@ -116,7 +118,24 @@ export async function getHistoricalToolHints(
     case_law: new Set(),
     deconstruct: new Set(),
   };
-  const acceptanceMatters: Record<ToolKey, Set<string>> = {
+  // explicitAcceptances: matters where the lawyer clicked Accept on
+  // the corresponding tool's stage (PR10 signal).
+  const explicitAcceptances: Record<ToolKey, Set<string>> = {
+    statutory: new Set(),
+    case_law: new Set(),
+    deconstruct: new Set(),
+  };
+  // explicitRejections: lawyer clicked Reject/Escalate. Subtracts from
+  // the acceptance numerator so the rate reflects net positive signal.
+  const explicitRejections: Record<ToolKey, Set<string>> = {
+    statutory: new Set(),
+    case_law: new Set(),
+    deconstruct: new Set(),
+  };
+  // completionMatters: worker emitted tool.*_complete. Fallback for
+  // matters that don't yet have explicit lawyer decisions (PR10
+  // shipping date forward).
+  const completionMatters: Record<ToolKey, Set<string>> = {
     statutory: new Set(),
     case_law: new Set(),
     deconstruct: new Set(),
@@ -129,6 +148,13 @@ export async function getHistoricalToolHints(
 
   const isToolKey = (s: string): s is ToolKey =>
     s === 'statutory' || s === 'case_law' || s === 'deconstruct';
+
+  function stageNameFromDetails(details: Record<string, unknown> | null): ToolKey | null {
+    const name = details?.stageName;
+    if (typeof name !== 'string') return null;
+    return isToolKey(name) ? name : null;
+  }
+
   for (const r of auditRows) {
     if (r.action === 'tool.invoked') {
       const tool = (r.details?.tool as string | undefined) ?? '';
@@ -137,11 +163,42 @@ export async function getHistoricalToolHints(
       const tool = (r.details?.tool as string | undefined) ?? '';
       if (isToolKey(tool)) blockedMatters[tool].add(r.matter_id);
     } else if (r.action === 'tool.statutory_complete') {
-      acceptanceMatters.statutory.add(r.matter_id);
+      completionMatters.statutory.add(r.matter_id);
     } else if (r.action === 'tool.case_law_complete') {
-      acceptanceMatters.case_law.add(r.matter_id);
+      completionMatters.case_law.add(r.matter_id);
     } else if (r.action === 'tool.deconstruct_complete') {
-      acceptanceMatters.deconstruct.add(r.matter_id);
+      completionMatters.deconstruct.add(r.matter_id);
+    } else if (r.action === 'analysis.stage_accepted') {
+      const stage = stageNameFromDetails(r.details);
+      if (stage) explicitAcceptances[stage].add(r.matter_id);
+    } else if (
+      r.action === 'analysis.stage_rejected' ||
+      r.action === 'analysis.stage_escalated'
+    ) {
+      const stage = stageNameFromDetails(r.details);
+      if (stage) explicitRejections[stage].add(r.matter_id);
+    }
+  }
+
+  // Per-tool acceptance = explicit accepts when any are recorded for
+  // the tool; otherwise fall back to the worker-completion proxy from
+  // PR8. Subtract explicit rejections from acceptance to avoid
+  // double-counting matters that started with a completion but later
+  // got rejected by the lawyer.
+  const acceptanceMatters: Record<ToolKey, Set<string>> = {
+    statutory: new Set(),
+    case_law: new Set(),
+    deconstruct: new Set(),
+  };
+  for (const tool of tools) {
+    const explicit = explicitAcceptances[tool];
+    const rejected = explicitRejections[tool];
+    if (explicit.size > 0 || rejected.size > 0) {
+      // Explicit signal exists — use it.
+      for (const id of explicit) acceptanceMatters[tool].add(id);
+    } else {
+      // Fall back to the completion proxy for older matters.
+      for (const id of completionMatters[tool]) acceptanceMatters[tool].add(id);
     }
   }
 

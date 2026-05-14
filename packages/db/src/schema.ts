@@ -227,6 +227,16 @@ export const analysisConfidence = pgEnum('analysis_confidence', [
   'N_A',
 ]);
 
+// PR10 — explicit lawyer decision per stage. 'pending' until the
+// lawyer clicks accept/reject; 'escalated' when the override target
+// was a senior reviewer rather than a final disposition.
+export const lawyerDecision = pgEnum('lawyer_decision', [
+  'pending',
+  'accepted',
+  'rejected',
+  'escalated',
+]);
+
 export const users = pgTable(
   'users',
   {
@@ -918,12 +928,23 @@ export const matterAnalysisStages = pgTable(
     invokedByUserId: uuid('invoked_by_user_id').references(() => users.id, {
       onDelete: 'set null',
     }),
+    // PR10 — lawyer accept/reject state. 'pending' until the lawyer
+    // clicks accept/reject in the matter detail page. Drives the §20.1
+    // override-rate launch-gate metric + sharpens the tool-suggestion
+    // intelligence's acceptance signal.
+    lawyerDecision: lawyerDecision('lawyer_decision').notNull().default('pending'),
+    lawyerDecisionReason: text('lawyer_decision_reason'),
+    lawyerDecidedAt: timestamp('lawyer_decided_at', { withTimezone: true }),
+    lawyerDecidedByUserId: uuid('lawyer_decided_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({
     analysisIdx: index('matter_analysis_stages_analysis_idx').on(t.analysisId, t.createdAt),
     nameIdx: index('matter_analysis_stages_name_idx').on(t.stageName, t.status),
     dedupIdx: index('matter_analysis_stages_dedup_idx').on(t.analysisId, t.stageName, t.inputHash),
+    decisionIdx: index('matter_analysis_stages_decision_idx').on(t.lawyerDecision),
   }),
 );
 

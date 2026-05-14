@@ -236,6 +236,15 @@ export function AnalysisPanel({ matterId }: Props) {
       {statutoryStages.map((s) => (
         <StatutoryStageCard
           key={s.id}
+          stageId={s.id}
+          matterId={matterId}
+          lawyerDecision={s.lawyerDecision}
+          lawyerDecidedAt={
+            s.lawyerDecidedAt instanceof Date
+              ? s.lawyerDecidedAt.toISOString()
+              : (s.lawyerDecidedAt as string | null | undefined) ?? null
+          }
+          lawyerDecisionReason={s.lawyerDecisionReason ?? null}
           status={s.status}
           durationMs={s.durationMs}
           output={s.outputJson as unknown as Parameters<typeof StatutoryStageCard>[0]['output']}
@@ -245,6 +254,15 @@ export function AnalysisPanel({ matterId }: Props) {
       {caseLawStages.map((s) => (
         <CaseLawStageCard
           key={s.id}
+          stageId={s.id}
+          matterId={matterId}
+          lawyerDecision={s.lawyerDecision}
+          lawyerDecidedAt={
+            s.lawyerDecidedAt instanceof Date
+              ? s.lawyerDecidedAt.toISOString()
+              : (s.lawyerDecidedAt as string | null | undefined) ?? null
+          }
+          lawyerDecisionReason={s.lawyerDecisionReason ?? null}
           status={s.status}
           durationMs={s.durationMs}
           output={s.outputJson as unknown as Parameters<typeof CaseLawStageCard>[0]['output']}
@@ -254,6 +272,15 @@ export function AnalysisPanel({ matterId }: Props) {
       {deconstructStages.map((s) => (
         <DeconstructStageCard
           key={s.id}
+          stageId={s.id}
+          matterId={matterId}
+          lawyerDecision={s.lawyerDecision}
+          lawyerDecidedAt={
+            s.lawyerDecidedAt instanceof Date
+              ? s.lawyerDecidedAt.toISOString()
+              : (s.lawyerDecidedAt as string | null | undefined) ?? null
+          }
+          lawyerDecisionReason={s.lawyerDecisionReason ?? null}
           status={s.status}
           durationMs={s.durationMs}
           output={s.outputJson as unknown as Parameters<typeof DeconstructStageCard>[0]['output']}
@@ -271,6 +298,14 @@ export function AnalysisPanel({ matterId }: Props) {
             confidence={s.confidence}
             outputJson={s.outputJson as Record<string, unknown>}
             durationMs={s.durationMs}
+            matterId={matterId}
+            lawyerDecision={s.lawyerDecision}
+            lawyerDecidedAt={
+              s.lawyerDecidedAt instanceof Date
+                ? s.lawyerDecidedAt.toISOString()
+                : (s.lawyerDecidedAt as string | null | undefined) ?? null
+            }
+            lawyerDecisionReason={s.lawyerDecisionReason ?? null}
           />
         ))}
       </div>

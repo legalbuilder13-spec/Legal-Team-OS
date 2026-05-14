@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
+import { StageDecisionBar } from './StageDecisionBar';
 
 // PRD §6.1 — trace drawer for an analysis stage. Click to expand;
 // shows the structured stage output and the source rows the stage
-// relied upon (lazy-loaded on expand).
+// relied upon (lazy-loaded on expand). PR10 adds the accept/reject
+// controls at the bottom of every expanded drawer.
 
 interface Props {
   stageId: string;
@@ -14,6 +16,10 @@ interface Props {
   confidence: string;
   outputJson: Record<string, unknown>;
   durationMs: number;
+  matterId: string;
+  lawyerDecision: 'pending' | 'accepted' | 'rejected' | 'escalated';
+  lawyerDecidedAt?: string | null;
+  lawyerDecisionReason?: string | null;
 }
 
 function Confidence({ value }: { value: string }) {
@@ -51,6 +57,10 @@ export function StageTraceDrawer({
   confidence,
   outputJson,
   durationMs,
+  matterId,
+  lawyerDecision,
+  lawyerDecidedAt,
+  lawyerDecisionReason,
 }: Props) {
   const [open, setOpen] = useState(false);
   const { data: sources, isLoading: sourcesLoading } = trpc.analysis.stageSources.useQuery(
@@ -78,6 +88,19 @@ export function StageTraceDrawer({
           <span className="text-sm font-medium truncate">{label}</span>
           <StatusBadge status={status} />
           <Confidence value={confidence} />
+          {lawyerDecision !== 'pending' && (
+            <span
+              className={`text-[10px] font-mono uppercase px-1 py-0.5 rounded border ${
+                lawyerDecision === 'accepted'
+                  ? 'border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300'
+                  : lawyerDecision === 'rejected'
+                    ? 'border-red-200 text-red-700 dark:border-red-800 dark:text-red-300'
+                    : 'border-amber-200 text-amber-700 dark:border-amber-800 dark:text-amber-300'
+              }`}
+            >
+              {lawyerDecision}
+            </span>
+          )}
         </div>
         <span className="text-[10px] font-mono text-ink-400 dark:text-ink-500 shrink-0">
           {durationMs}ms
@@ -163,6 +186,13 @@ export function StageTraceDrawer({
               </ul>
             )}
           </div>
+          <StageDecisionBar
+            stageId={stageId}
+            currentDecision={lawyerDecision}
+            decidedAtIso={lawyerDecidedAt ?? null}
+            decisionReason={lawyerDecisionReason ?? null}
+            matterId={matterId}
+          />
         </div>
       )}
     </div>
