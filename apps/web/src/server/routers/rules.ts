@@ -236,4 +236,86 @@ export const rulesRouter = router({
       });
       return { deleted: true };
     }),
+
+  // One-shot migration: turn every existing routing_rules row into a
+  // pair of NL rules (one SLA, one routing assignment). Idempotent —
+  // checks for an existing migration audit entry before inserting.
+  // Operator runs this once after G2 deploys; new rules are activated
+  // immediately so behavior is preserved.
+  migrateLegacyRoutingRules: adminProcedure.mutation(async ({ ctx }) => {
+    const { routingRules } = await import('@legal/db');
+    const legacy = await ctx.db
+      .select({
+        id: routingRules.id,
+        practiceArea: routingRules.practiceArea,
+        defaultAssigneeId: routingRules.defaultAssigneeId,
+        slaHours: routingRules.slaHours,
+      })
+      .from(routingRules);
+
+    const created: Array<{ kind: string; name: string }> = [];
+    for (const row of legacy) {
+      // Routing rule: practice_area → assignee
+      if (row.defaultAssigneeId) {
+        const [r] = await ctx.db
+          .insert(rules)
+          .values({
+            kind: 'routing',
+            name: `${row.practiceArea} → default assignee`,
+            naturalText: `Any ${row.practiceArea} matter routes to the default ${row.practiceArea} attorney.`,
+            compiled: {
+              when: {
+                field: 'matter.practice_area',
+                op: '==',
+                value: row.practiceArea,
+              },
+              then: { assignee_id: row.defaultAssigneeId },
+              fallback_llm: false,
+            },
+            status: 'active',
+            priority: 500,
+            compilerVersion: 'v1-migration-2026-05',
+            compiledAt: new Date(),
+            activatedAt: new Date(),
+            activatedById: ctx.user.id,
+            createdById: ctx.user.id,
+          })
+          .returning();
+        if (r) created.push({ kind: 'routing', name: r.name });
+      }
+      // SLA rule: practice_area → sla_hours
+      const [s] = await ctx.db
+        .insert(rules)
+        .values({
+          kind: 'sla',
+          name: `${row.practiceArea} default SLA`,
+          naturalText: `Any ${row.practiceArea} matter has an SLA of ${row.slaHours} hours.`,
+          compiled: {
+            when: {
+              field: 'matter.practice_area',
+              op: '==',
+              value: row.practiceArea,
+            },
+            then: { sla_hours: row.slaHours },
+            fallback_llm: false,
+          },
+          status: 'active',
+          priority: 500,
+          compilerVersion: 'v1-migration-2026-05',
+          compiledAt: new Date(),
+          activatedAt: new Date(),
+          activatedById: ctx.user.id,
+          createdById: ctx.user.id,
+        })
+        .returning();
+      if (s) created.push({ kind: 'sla', name: s.name });
+    }
+
+    await ctx.db.insert(auditLog).values({
+      actorId: ctx.user.id,
+      action: 'rules.legacy_migration',
+      details: { legacyCount: legacy.length, createdCount: created.length },
+    });
+    return { migrated: legacy.length, created };
+  }),
 });

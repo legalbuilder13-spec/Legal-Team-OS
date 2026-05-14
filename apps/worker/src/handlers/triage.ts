@@ -285,6 +285,39 @@ export async function handleTriageJob(db: Db, job: Job) {
       details: { ruleId: slaMatch.matchedRuleId, slaHours: slaHoursFromRule },
     });
   }
+
+  // PRD §12.1 NL-configured routing rules. Active routing rules win over
+  // the structured routing_rules table for assignee selection. Same
+  // priority-ordered first-match semantics as SLA rules above.
+  const routingRulesList = await db
+    .select({ id: rules.id, compiled: rules.compiled, priority: rules.priority })
+    .from(rules)
+    .where(sql`${rules.kind} = 'routing' AND ${rules.status} = 'active'`)
+    .orderBy(rules.priority);
+  const routingMatch = findFirstMatch(
+    routingRulesList.map((r) => ({
+      id: r.id,
+      compiled: r.compiled as unknown as CompiledRule,
+    })),
+    evalCtx,
+  );
+  const ruleAssigneeId =
+    routingMatch.action && typeof routingMatch.action['assignee_id'] === 'string'
+      ? (routingMatch.action['assignee_id'] as string)
+      : null;
+  if (routingMatch.matchedRuleId) {
+    await db.insert(auditLog).values({
+      actorKind: 'system',
+      matterId: matter.id,
+      action: 'matter.routing_rule_matched',
+      details: {
+        ruleId: routingMatch.matchedRuleId,
+        assigneeId: ruleAssigneeId,
+      },
+    });
+  }
+  const resolvedAssigneeId = ruleAssigneeId ?? rule?.defaultAssigneeId ?? null;
+
   const slaDueAt = new Date(Date.now() + slaHours * 3600 * 1000);
 
   await db
@@ -295,7 +328,7 @@ export async function handleTriageJob(db: Db, job: Job) {
       practiceArea: triage.practice_area,
       priority: triage.priority,
       counterpartyId,
-      assigneeId: rule?.defaultAssigneeId ?? null,
+      assigneeId: resolvedAssigneeId,
       slaDueAt,
       triageMetadata: {
         reasoning: triage.reasoning,
@@ -314,7 +347,7 @@ export async function handleTriageJob(db: Db, job: Job) {
     payload: {
       practiceArea: triage.practice_area,
       priority: triage.priority,
-      assigneeId: rule?.defaultAssigneeId ?? null,
+      assigneeId: resolvedAssigneeId,
     },
   });
 
@@ -361,8 +394,8 @@ export async function handleTriageJob(db: Db, job: Job) {
     });
   }
 
-  const assignee = rule?.defaultAssigneeId
-    ? await db.query.users.findFirst({ where: eq(users.id, rule.defaultAssigneeId) })
+  const assignee = resolvedAssigneeId
+    ? await db.query.users.findFirst({ where: eq(users.id, resolvedAssigneeId) })
     : null;
   const matterUrl = `${env.WEB_APP_URL}/matters/${matter.id}`;
   const lines = [
