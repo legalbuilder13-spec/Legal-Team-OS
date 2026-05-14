@@ -1,47 +1,28 @@
 display_information:
-  name: Legal Team OS
-  description: Intake and triage for the in-house legal team
-  background_color: "#3730a3"
+  name: Legal Team OS 1
 
 features:
   bot_user:
-    display_name: Legal Bot
-    always_online: true
+    display_name: Legal Team OS 1
+    always_online: false
 
   slash_commands:
     - command: /legal
-      description: Open a new legal request
-      usage_hint: review the Acme MSA before Friday
+      description: Legal Escalation
       should_escape: false
 
 oauth_config:
   scopes:
+    user:
+      - search:read
     bot:
-      - app_mentions:read
-      - channels:history
-      - channels:read
       - chat:write
       - commands
-      - groups:history
-      - groups:read
-      - im:history
-      - im:read
       - im:write
-      - mpim:history
-      - mpim:read
       - users:read
       - users:read.email
-      - files:read
 
 settings:
-  event_subscriptions:
-    bot_events:
-      - app_mention
-      - message.channels
-      - message.groups
-      - message.im
-      - message.mpim
-
   interactivity:
     # Item 9 — M6 nudge DMs include a "Save as playbook" button whose
     # action_id is handled by apps/bot/src/actions/save-playbook.ts.
