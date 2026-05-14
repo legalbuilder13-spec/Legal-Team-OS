@@ -43,6 +43,13 @@ jobs:
     defaults:
       run:
         working-directory: apps/ai
+    env:
+      # apps/ai/src/config.py instantiates pydantic-settings Settings() at
+      # module import time. ANTHROPIC_API_KEY + DATABASE_URL are required
+      # fields. Any step that imports a module from src/ (pytest, schema_check,
+      # replay) needs these set. Runtime reads real values from Railway env.
+      ANTHROPIC_API_KEY: sk-ant-ci-stub-not-a-real-key
+      DATABASE_URL: postgres://stub:stub@localhost:5432/stub
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -51,9 +58,29 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check src
       - run: mypy src --ignore-missing-imports
+      # AI service unit tests — pytest failures now fail CI. The `|| true`
+      # that previously swallowed test failures was removed as part of the
+      # M3 hard-gate effort.
+      - run: python -m pytest tests/ -q
       # M3 — eval corpus schema check. No LLM calls, just Pydantic
       # validation of any committed corpus JSONL files. Catches schema
       # drift between skill outputs and the corpus shape without burning
-      # tokens. Skips cleanly when no corpus directory is present.
-      - run: python -m pytest tests/ -q || true
-      - run: python -m src.eval.schema_check ../../eval/latest --max-failures 0 || true
+      # tokens. schema_check.py self-skips (exit 0) when the corpus dir
+      # doesn't exist, so this is safe on fresh checkouts where no
+      # corpus has been committed yet.
+      - run: python -m src.eval.schema_check ../../eval/latest --max-failures 0
+      # M3 — eval replay regression gate. Only active when a baseline is
+      # committed at eval/latest/baseline.json. Runs replay against the
+      # committed corpus and fails the build if any per-stage metric
+      # regresses by more than the threshold (default 5%). Until first
+      # corpus + baseline land (Step 8 of the rollout — weeks out), this
+      # is a no-op skip. See replay.py --baseline / --threshold flags.
+      - name: Eval replay regression gate
+        run: |
+          if [ -f ../../eval/latest/baseline.json ]; then
+            python -m src.eval.replay ../../eval/latest \
+              --baseline ../../eval/latest/baseline.json \
+              --threshold 0.05
+          else
+            echo "No eval/latest/baseline.json committed — skipping replay regression gate"
+          fi

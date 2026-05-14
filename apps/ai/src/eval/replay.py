@@ -210,6 +210,54 @@ def replay_one(
     }
 
 
+def _aggregate_metrics(results_path: Path) -> dict[str, float]:
+    """Compute mean of each metric across all replayed results in a stage."""
+    sums: dict[str, float] = {}
+    counts: dict[str, int] = {}
+    with results_path.open() as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            result = json.loads(line)
+            for metric, value in (result.get("metrics") or {}).items():
+                if isinstance(value, (int, float)):
+                    sums[metric] = sums.get(metric, 0.0) + float(value)
+                    counts[metric] = counts.get(metric, 0) + 1
+    return {m: round(sums[m] / counts[m], 3) for m in sums if counts[m] > 0}
+
+
+def _compare_to_baseline(
+    overall_summary: dict[str, dict[str, Any]],
+    baseline: dict[str, dict[str, float]],
+    threshold: float,
+) -> list[str]:
+    """Return a list of regression messages; empty if all metrics within threshold."""
+    regressions: list[str] = []
+    for stage, expected in baseline.items():
+        stage_summary = overall_summary.get(stage)
+        if stage_summary is None:
+            regressions.append(f"  ! {stage}: not replayed (missing in corpus or out of --stages)")
+            continue
+        actual = stage_summary.get("aggregate_metrics") or {}
+        for metric, expected_value in expected.items():
+            if not isinstance(expected_value, (int, float)):
+                continue
+            actual_value = actual.get(metric)
+            if actual_value is None:
+                regressions.append(
+                    f"  ! {stage}.{metric}: not reported by replay (expected {expected_value})"
+                )
+                continue
+            delta = actual_value - expected_value
+            if delta < -threshold:
+                regressions.append(
+                    f"  ! {stage}.{metric}: {actual_value} vs baseline {expected_value} "
+                    f"(Δ={delta:+.3f}, threshold=-{threshold})"
+                )
+    return regressions
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("corpus_dir", type=Path)
@@ -225,6 +273,27 @@ def main() -> int:
         type=str,
         default="",
         help="Comma-separated stage allowlist (default: all stages with replay support)",
+    )
+    parser.add_argument(
+        "--baseline",
+        type=Path,
+        default=None,
+        help=(
+            "Path to baseline.json containing expected per-stage metric means. "
+            "Format: {stage: {metric: value}}. When provided, compares post-replay "
+            "aggregates against baseline and fails (exit 1) if any metric regresses "
+            "by more than --threshold."
+        ),
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.05,
+        help=(
+            "Maximum tolerated drop (in absolute metric units) vs. baseline. "
+            "A metric that falls by more than this triggers a regression failure. "
+            "Default: 0.05 (5 percentage points for normalized 0-1 metrics)."
+        ),
     )
     args = parser.parse_args()
 
@@ -273,20 +342,43 @@ def main() -> int:
                     replayed += 1
                 out_f.write(json.dumps(result) + "\n")
 
+        aggregate = _aggregate_metrics(results_path)
         overall_summary[stage] = {
             "replayed": replayed,
             "skipped_no_input": skipped_no_input,
             "skill_errors": skill_errors,
             "results_path": str(results_path),
+            "aggregate_metrics": aggregate,
         }
         print(
             f"  {stage}: replayed={replayed} skipped_no_input={skipped_no_input} "
-            f"errors={skill_errors}"
+            f"errors={skill_errors} metrics={aggregate}"
         )
 
     summary_path = args.out / "summary.json"
     summary_path.write_text(json.dumps(overall_summary, indent=2))
     print(f"\nwrote summary → {summary_path}")
+
+    if args.baseline is not None:
+        if not args.baseline.exists():
+            print(f"baseline file not found: {args.baseline} (skipping regression gate)")
+            return 0
+        try:
+            baseline = json.loads(args.baseline.read_text())
+        except Exception as e:  # noqa: BLE001
+            print(f"failed to parse baseline {args.baseline}: {type(e).__name__}: {e}")
+            return 1
+        if not isinstance(baseline, dict):
+            print(f"baseline must be a JSON object, got {type(baseline).__name__}")
+            return 1
+        regressions = _compare_to_baseline(overall_summary, baseline, args.threshold)
+        if regressions:
+            print("\nRegression gate FAILED:")
+            for r in regressions:
+                print(r)
+            return 1
+        print(f"\nRegression gate PASSED (threshold={args.threshold})")
+
     return 0
 
 
