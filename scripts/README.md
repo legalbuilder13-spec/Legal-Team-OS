@@ -3,6 +3,21 @@
 Operational scripts for the pre-review analysis pipeline (see
 [`PRD-Analysis-Pipeline.md`](../) in the repo root once published).
 
+## M3 — Eval corpus
+
+Extract a regression-replay corpus from production:
+
+```bash
+DATABASE_URL=postgres://... pnpm tsx scripts/build-eval-corpus.ts \
+  --out eval/v1/ --lookback-days 365 --limit 500
+```
+
+Outputs one JSONL per stage (`statutory.jsonl`, `case_law.jsonl`, ...)
+plus a `manifest.json`. CI validates committed corpus files against
+the current Pydantic output schemas (no LLM cost). Full LLM-replay is
+manual: `python -m src.eval.schema_check eval/latest/` and
+`python -m src.eval.replay eval/v1/ --out eval/results/`.
+
 ## Phase 1 rollout (auto pipeline → shadow mode)
 
 After PRs #32–#35 merge:
