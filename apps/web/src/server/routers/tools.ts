@@ -111,6 +111,7 @@ export const toolsRouter = router({
         historyMetadata: {
           similarMattersConsidered: history.similarMattersConsidered,
           topSimilarIds: history.topSimilarIds,
+          similarityBackend: history.similarityBackend,
         },
       };
     }),
