@@ -45,6 +45,7 @@ export * from './thresholds/index.js';
 export * from './inventories/index.js';
 export * from './senior-review-triggers.js';
 export * from './statute-triggers.js';
+export * from './domain-config.js';
 
 export const IntakePayloadSchema = z.object({
   source: z.literal('slack'),

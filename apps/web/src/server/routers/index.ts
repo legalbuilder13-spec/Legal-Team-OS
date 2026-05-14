@@ -13,6 +13,7 @@ import { templatesRouter } from './templates';
 import { rulesRouter } from './rules';
 import { analysisRouter } from './analysis';
 import { toolsRouter } from './tools';
+import { domainConfigRouter } from './domain-config';
 
 export const appRouter = router({
   matters: mattersRouter,
@@ -29,6 +30,7 @@ export const appRouter = router({
   rules: rulesRouter,
   analysis: analysisRouter,
   tools: toolsRouter,
+  domainConfig: domainConfigRouter,
 });
 
 export type AppRouter = typeof appRouter;

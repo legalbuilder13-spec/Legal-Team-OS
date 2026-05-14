@@ -28,6 +28,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from .config import settings
+from .domain_config import DomainConfig, domain_config_block
 from .llm.client import get_client
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,10 @@ class StatuteAnalysisRequest(BaseModel):
     # Lawyer can pre-narrow the analysis by candidate statute citation;
     # the skill is told these are the focus rather than the whole text.
     focus_citations: list[str] = []
+    # PR12 §15 — per-organization domain config; renders into the
+    # user prompt when the org has customized terminology, verb rules,
+    # high-scrutiny jurisdictions, or risk taxonomy.
+    domain_config: DomainConfig | None = None
 
 
 AmbiguityType = Literal["semantic", "syntactic", "latent", "vagueness"]
@@ -239,6 +244,8 @@ def build_user_prompt(req: StatuteAnalysisRequest) -> str:
         # provision to do whole-act / surplusage / ambiguity analysis.
         # The worker bounds source length upstream.
         parts.append(s.raw_text)
+    # PR12 §15 — domain config (no-op when empty).
+    parts.append(domain_config_block(req.domain_config))
     return "\n".join(parts)
 
 

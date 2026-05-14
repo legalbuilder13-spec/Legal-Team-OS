@@ -9,6 +9,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from .domain_config import DomainConfig
+
 # ----- Stage 0 — threshold spotter -----
 
 
@@ -25,6 +27,9 @@ class ThresholdSpotterRequest(BaseModel):
     request_text: str
     checklist_version: str
     items: list[ThresholdItem]
+    # PR12 §15 — per-organization domain config. Optional + defaults
+    # to empty; the prompt renderer no-ops when there's no content.
+    domain_config: DomainConfig | None = None
 
 
 class ThresholdFinding(BaseModel):

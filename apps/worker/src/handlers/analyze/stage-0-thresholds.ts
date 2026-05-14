@@ -9,6 +9,7 @@ import {
 } from '@legal/types';
 import { env } from '../../env.js';
 import { hashContent } from './sources.js';
+import { loadOrgConfigForUser, domainConfigForSkill } from '../../integrations/org_config.js';
 
 // PRD §7.5 — Stage 0 pre-merits threshold checklist.
 // Hardcoded: per-practice-area checklist load + verdict computation +
@@ -25,6 +26,10 @@ interface ThresholdSpotterRequest {
     severity_if_raised: 'high' | 'medium' | 'low';
     doc_anchor?: string;
   }>;
+  // PR12 §15 — per-org domain config the skill blends into its prompt
+  // (terminology rules, high-scrutiny jurisdictions, etc.). Empty
+  // object when no org config is set; the skill no-ops the block.
+  domain_config?: Record<string, unknown>;
 }
 
 interface ThresholdSpotterResult {
@@ -56,6 +61,7 @@ export async function runStage0(
   const practiceArea = matter.practiceArea ?? 'other';
   const checklist = getThresholdChecklist(practiceArea);
 
+  const orgConfig = await loadOrgConfigForUser(db, matter.requesterId);
   const skillRequest: ThresholdSpotterRequest = {
     matter_id: matter.id,
     practice_area: practiceArea,
@@ -67,6 +73,7 @@ export async function runStage0(
       severity_if_raised: i.severityIfRaised,
       doc_anchor: i.docAnchor,
     })),
+    domain_config: domainConfigForSkill(orgConfig),
   };
   const inputHash = hashContent(JSON.stringify(skillRequest));
 
