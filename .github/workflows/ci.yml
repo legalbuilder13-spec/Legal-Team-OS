@@ -6,6 +6,14 @@ on:
   pull_request:
 
 jobs:
+  migration-journal:
+    name: Migration journal guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check .sql files are registered with monotonic when values
+        run: bash scripts/check-migration-journal.sh
+
   ts:
     name: TypeScript apps & packages
     runs-on: ubuntu-latest

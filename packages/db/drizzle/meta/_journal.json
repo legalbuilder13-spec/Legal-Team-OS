@@ -169,6 +169,41 @@
       "when": 1778770800000,
       "tag": "0023_organizations",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1778774400000,
+      "tag": "0024_rejection_clusters",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1778778000000,
+      "tag": "0025_matter_summaries",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1778781600000,
+      "tag": "0026_playbook_canon_tier",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1778785200000,
+      "tag": "0027_lawyer_revisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1778788800000,
+      "tag": "0028_skill_input_json",
+      "breakpoints": true
     }
   ]
 }
