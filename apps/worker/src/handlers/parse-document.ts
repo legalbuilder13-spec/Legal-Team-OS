@@ -3,6 +3,7 @@ import {
   matterDocuments,
   matterDocumentClauses,
   auditLog,
+  jobs,
   type Db,
   type Job,
 } from '@legal/db';
@@ -116,6 +117,16 @@ export async function handleParseDocumentJob(db: Db, job: Job) {
         parserVersion: parsed.parser_version,
       },
     });
+
+    // Auto-trigger Stage 4 analysis. The coordinator fans out per-clause
+    // sub-jobs which each call the AI service for tagging.
+    if (parsed.clauses.length > 0) {
+      await db.insert(jobs).values({
+        kind: 'analyze_document_clauses',
+        matterId: doc.matterId,
+        payload: { document_id: doc.id },
+      });
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await db

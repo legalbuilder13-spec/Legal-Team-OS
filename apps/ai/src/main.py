@@ -5,6 +5,7 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 
+from .analyze_clause import AnalyzeClauseRequest, AnalyzeClauseResult, analyze_clause
 from .config import settings
 from .context.salesforce import lookup_counterparty
 from .enrich_counterparty import EnrichRequest, EnrichResult, enrich_counterparty
@@ -78,3 +79,17 @@ def post_parse_document(request: ParseRequest) -> ParseResult:
         request.mime_type,
     )
     return parse_document(request)
+
+
+@app.post(
+    "/analyze-clause",
+    response_model=AnalyzeClauseResult,
+    dependencies=[Depends(require_token)],
+)
+def post_analyze_clause(request: AnalyzeClauseRequest) -> AnalyzeClauseResult:
+    logger.info(
+        "analyze_clause clause_id=%s positions=%d",
+        request.clause_id,
+        len(request.positions),
+    )
+    return analyze_clause(request)

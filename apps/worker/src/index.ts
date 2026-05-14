@@ -12,6 +12,8 @@ import { handleContextFetchSlackJob } from './handlers/context-fetch-slack.js';
 import { handleContextFetchDriveJob } from './handlers/context-fetch-drive.js';
 import { handleGenerateEmbeddingJob } from './handlers/generate-embedding.js';
 import { handleParseDocumentJob } from './handlers/parse-document.js';
+import { handleAnalyzeDocumentClausesJob } from './handlers/analyze-document-clauses.js';
+import { handleAnalyzeClauseJob } from './handlers/analyze-clause.js';
 import { handleEnrichCounterpartyMemoryJob } from './handlers/enrich-counterparty-memory.js';
 import { runSlaCheck } from './handlers/sla-check.js';
 import { runDailyDigest } from './handlers/daily-digest.js';
@@ -68,6 +70,12 @@ async function dispatch(job: Job) {
       break;
     case 'parse_document':
       await handleParseDocumentJob(db, job);
+      break;
+    case 'analyze_document_clauses':
+      await handleAnalyzeDocumentClausesJob(db, job);
+      break;
+    case 'analyze_clause':
+      await handleAnalyzeClauseJob(db, job);
       break;
     case 'generate_embedding':
       await handleGenerateEmbeddingJob(db, job);

@@ -79,6 +79,8 @@ export const jobKind = pgEnum('job_kind', [
   'context_fetch_slack',
   'context_fetch_drive',
   'parse_document',
+  'analyze_document_clauses',
+  'analyze_clause',
   'sla_check',
   'daily_digest',
   'slack_notify',
@@ -128,6 +130,12 @@ export const documentParseStatus = pgEnum('document_parse_status', [
   'parsing',
   'parsed',
   'failed',
+]);
+
+export const clauseTag = pgEnum('clause_tag', [
+  'STANDARD',
+  'MODIFIED',
+  'FLAGGED',
 ]);
 
 export const users = pgTable(
@@ -567,6 +575,44 @@ export const matterDocuments = pgTable(
   (t) => ({
     matterIdx: index('matter_documents_matter_idx').on(t.matterId, t.createdAt),
     statusIdx: index('matter_documents_status_idx').on(t.parseStatus),
+  }),
+);
+
+export const clauseAnalyses = pgTable(
+  'clause_analyses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clauseId: uuid('clause_id').notNull(),
+    documentId: uuid('document_id').notNull(),
+    matterId: uuid('matter_id')
+      .notNull()
+      .references(() => matters.id, { onDelete: 'cascade' }),
+    playbookPositionId: uuid('playbook_position_id'),
+    tag: clauseTag('tag').notNull(),
+    reasoning: text('reasoning').notNull(),
+    suggestedRedline: text('suggested_redline'),
+    modelVersion: text('model_version').notNull(),
+    citations: jsonb('citations')
+      .$type<
+        Array<{
+          source: 'playbook_position' | 'prior_matter' | 'knowledge_article';
+          identifier: string;
+          excerpt?: string;
+        }>
+      >()
+      .notNull()
+      .default([]),
+    attorneyDecision: text('attorney_decision'),
+    attorneyModifiedRedline: text('attorney_modified_redline'),
+    decidedById: uuid('decided_by_id').references(() => users.id, { onDelete: 'set null' }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    clauseUq: uniqueIndex('clause_analyses_clause_uq').on(t.clauseId),
+    documentIdx: index('clause_analyses_document_idx').on(t.documentId),
+    matterIdx: index('clause_analyses_matter_idx').on(t.matterId),
+    tagIdx: index('clause_analyses_tag_idx').on(t.tag),
   }),
 );
 
