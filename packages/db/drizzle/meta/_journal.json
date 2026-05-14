@@ -110,6 +110,13 @@
       "when": 1748304000000,
       "tag": "0015_clause_analyses",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1748390400000,
+      "tag": "0016_templates",
+      "breakpoints": true
     }
   ]
 }
