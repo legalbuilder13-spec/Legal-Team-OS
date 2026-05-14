@@ -14,6 +14,7 @@ import { rulesRouter } from './rules';
 import { analysisRouter } from './analysis';
 import { toolsRouter } from './tools';
 import { domainConfigRouter } from './domain-config';
+import { analysisMetricsRouter } from './analysis-metrics';
 
 export const appRouter = router({
   matters: mattersRouter,
@@ -31,6 +32,7 @@ export const appRouter = router({
   analysis: analysisRouter,
   tools: toolsRouter,
   domainConfig: domainConfigRouter,
+  analysisMetrics: analysisMetricsRouter,
 });
 
 export type AppRouter = typeof appRouter;
