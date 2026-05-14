@@ -11,6 +11,8 @@ import {
   knowledgeArticles,
   systemInsights,
   jobs,
+  counterparties,
+  entityAliases,
 } from '@legal/db';
 import { PracticeAreaSchema } from '@legal/types';
 import { adminProcedure, router } from '../trpc.js';
@@ -486,4 +488,104 @@ export const adminRouter = router({
       total: Number(row?.total ?? 0),
     };
   }),
+
+  // Lists counterparties with their alias counts and matter counts. Used
+  // by the admin entity-resolution UI to find merge candidates.
+  listCounterpartiesWithAliases: adminProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db.execute(sql`
+      SELECT
+        c.id,
+        c.name,
+        c.domain,
+        c.salesforce_account_id,
+        (SELECT count(*)::int FROM matters m WHERE m.counterparty_id = c.id) AS matter_count,
+        (SELECT count(*)::int FROM entity_aliases ea WHERE ea.counterparty_id = c.id) AS alias_count,
+        (SELECT json_agg(json_build_object('text', ea.alias_text, 'source', ea.alias_source))
+         FROM entity_aliases ea WHERE ea.counterparty_id = c.id) AS aliases
+      FROM counterparties c
+      ORDER BY matter_count DESC, c.name ASC
+    `);
+    return (
+      rows as unknown as Array<{
+        id: string;
+        name: string;
+        domain: string | null;
+        salesforce_account_id: string | null;
+        matter_count: number;
+        alias_count: number;
+        aliases: Array<{ text: string; source: string }> | null;
+      }>
+    ).map((r) => ({
+      ...r,
+      aliases: r.aliases ?? [],
+    }));
+  }),
+
+  // Merge sourceId into targetId. Moves all matters, all aliases, then
+  // deletes the source row. Records the merge as an alias on the target
+  // so the source's name survives in entity history.
+  mergeCounterparties: adminProcedure
+    .input(
+      z.object({
+        targetId: z.string().uuid(),
+        sourceId: z.string().uuid(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.targetId === input.sourceId) {
+        return { merged: false, reason: 'same counterparty' };
+      }
+
+      const source = await ctx.db.query.counterparties.findFirst({
+        where: eq(counterparties.id, input.sourceId),
+      });
+      if (!source) return { merged: false, reason: 'source not found' };
+
+      const target = await ctx.db.query.counterparties.findFirst({
+        where: eq(counterparties.id, input.targetId),
+      });
+      if (!target) return { merged: false, reason: 'target not found' };
+
+      // Move matters to target
+      const moved = await ctx.db
+        .update(matters)
+        .set({ counterpartyId: input.targetId, updatedAt: new Date() })
+        .where(eq(matters.counterpartyId, input.sourceId))
+        .returning({ id: matters.id });
+
+      // Move aliases to target (ignoring conflicts on duplicate alias_text)
+      await ctx.db.execute(sql`
+        INSERT INTO entity_aliases (counterparty_id, alias_text, alias_source, confidence)
+        SELECT ${input.targetId}, alias_text, alias_source, confidence
+        FROM entity_aliases
+        WHERE counterparty_id = ${input.sourceId}
+        ON CONFLICT (counterparty_id, alias_text) DO NOTHING
+      `);
+
+      // Preserve the source's canonical name as an alias on the target
+      await ctx.db
+        .insert(entityAliases)
+        .values({
+          counterpartyId: input.targetId,
+          aliasText: source.name,
+          aliasSource: 'manual_merge',
+        })
+        .onConflictDoNothing();
+
+      // Delete the source row (cascade clears its aliases)
+      await ctx.db.delete(counterparties).where(eq(counterparties.id, input.sourceId));
+
+      await ctx.db.insert(auditLog).values({
+        actorId: ctx.user.id,
+        action: 'counterparty.merged',
+        details: {
+          targetId: input.targetId,
+          sourceId: input.sourceId,
+          sourceName: source.name,
+          mattersReassigned: moved.length,
+        },
+      });
+
+      return { merged: true, mattersReassigned: moved.length };
+    }),
 });
