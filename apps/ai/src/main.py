@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 
 from .config import settings
 from .context.salesforce import lookup_counterparty
+from .enrich_counterparty import EnrichRequest, EnrichResult, enrich_counterparty
 from .schemas import ContextCard, ContextRequest, TriageRequest, TriageResult
 from .triage import triage
 
@@ -46,3 +47,18 @@ def post_triage(request: TriageRequest) -> TriageResult:
 async def post_context(request: ContextRequest) -> ContextCard | None:
     logger.info("context request matter_id=%s", request.matter_id)
     return await lookup_counterparty(request.counterparty_name, request.counterparty_domain)
+
+
+@app.post(
+    "/enrich-counterparty",
+    response_model=EnrichResult,
+    dependencies=[Depends(require_token)],
+)
+def post_enrich_counterparty(request: EnrichRequest) -> EnrichResult:
+    logger.info(
+        "enrich request counterparty_id=%s name=%s matter_count=%d",
+        request.counterparty_id,
+        request.counterparty_name,
+        len(request.matters),
+    )
+    return enrich_counterparty(request)

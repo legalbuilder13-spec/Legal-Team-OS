@@ -1,5 +1,53 @@
 import { eq, sql, desc } from 'drizzle-orm';
 import { matters, counterparties, matterNotes, type Db, type Job } from '@legal/db';
+import { env } from '../env.js';
+
+interface EnrichLLMResponse {
+  counterparty_id: string;
+  summary: string;
+  negotiation_positions: Array<{
+    topic: string;
+    their_position: string | null;
+    our_position: string | null;
+    last_outcome: string | null;
+  }>;
+  response_latency_days: number | null;
+  escalation_frequency: number;
+  executive_involvement: 'high' | 'medium' | 'low' | 'unknown';
+}
+
+async function callEnrichLLM(
+  counterpartyId: string,
+  counterpartyName: string,
+  matters: Array<Record<string, unknown>>,
+  notes: Array<Record<string, unknown>>,
+): Promise<EnrichLLMResponse | null> {
+  if (matters.length === 0) return null;
+  try {
+    const res = await fetch(`${env.AI_SERVICE_URL}/enrich-counterparty`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(env.AI_SERVICE_TOKEN ? { authorization: `Bearer ${env.AI_SERVICE_TOKEN}` } : {}),
+      },
+      body: JSON.stringify({
+        counterparty_id: counterpartyId,
+        counterparty_name: counterpartyName,
+        matters,
+        notes,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      console.warn(`enrich LLM call failed: ${res.status} ${body.slice(0, 200)}`);
+      return null;
+    }
+    return (await res.json()) as EnrichLLMResponse;
+  } catch (err) {
+    console.warn('enrich LLM call threw:', err);
+    return null;
+  }
+}
 
 interface EnrichPayload {
   counterparty_id: string;
@@ -86,17 +134,56 @@ export async function handleEnrichCounterpartyMemoryJob(db: Db, job: Job) {
           ? ` Average resolution: ${avgCycleTimeDays.toFixed(1)} days.`
           : '');
 
+  // D2: call the AI service for richer LLM-extracted patterns. If the
+  // call fails, fall back to just the aggregate stats above — non-fatal.
+  const llmInput = {
+    matters: history.map((m) => ({
+      title: m.title,
+      summary: m.summary,
+      practice_area: m.practiceArea,
+      status: m.status,
+      created_at: m.createdAt.toISOString(),
+      closed_at: m.closedAt?.toISOString() ?? null,
+    })),
+    notes: noteRows.slice(0, 50).map((n) => ({
+      body: n.body,
+      source: n.source,
+    })),
+  };
+  const llm = await callEnrichLLM(
+    counterparty.id,
+    counterparty.name,
+    llmInput.matters,
+    llmInput.notes,
+  );
+
   await db
     .update(counterparties)
     .set({
       behavioralProfile: {
-        summary,
+        // LLM-generated narrative takes precedence over the simple
+        // keyword-derived one when available.
+        summary: llm?.summary ?? summary,
         totalMatters,
         avgCycleTimeDays,
         lastContactAt,
         practiceAreas,
         commonRedlines,
         escalationTriggers,
+        ...(llm
+          ? {
+              negotiationPositions: llm.negotiation_positions.map((p) => ({
+                topic: p.topic,
+                theirPosition: p.their_position,
+                ourPosition: p.our_position,
+                lastOutcome: p.last_outcome,
+              })),
+              responseLatencyDays: llm.response_latency_days,
+              escalationFrequency: llm.escalation_frequency,
+              executiveInvolvement: llm.executive_involvement,
+              lastEnrichedAt: new Date().toISOString(),
+            }
+          : {}),
       },
       updatedAt: new Date(),
     })

@@ -160,6 +160,34 @@ cron.schedule(
   { timezone: env.DIGEST_TIMEZONE },
 );
 
+// Weekly re-enrichment of counterparties with recent activity. Behavioral
+// profiles drift as new matters close — this keeps the LLM-extracted
+// patterns fresh without bombarding the AI service on every matter event.
+cron.schedule(
+  '0 8 * * 1',
+  async () => {
+    try {
+      const active = await db.execute(sql`
+        SELECT DISTINCT c.id
+        FROM counterparties c
+        JOIN matters m ON m.counterparty_id = c.id
+        WHERE m.updated_at > now() - INTERVAL '90 days'
+      `);
+      const ids = (active as unknown as Array<{ id: string }>).map((r) => r.id);
+      for (const id of ids) {
+        await db.insert(jobs).values({
+          kind: 'enrich_counterparty_memory',
+          payload: { counterparty_id: id },
+        });
+      }
+      console.log(`re-enrichment: enqueued ${ids.length} counterparty jobs`);
+    } catch (err) {
+      console.error('weekly re-enrichment failed:', err);
+    }
+  },
+  { timezone: env.DIGEST_TIMEZONE },
+);
+
 console.log(
   `Worker started — digest cron: '${env.DIGEST_CRON}' in ${env.DIGEST_TIMEZONE}`,
 );

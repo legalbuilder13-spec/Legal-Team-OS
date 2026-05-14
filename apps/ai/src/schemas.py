@@ -37,6 +37,13 @@ class KnowledgeArticleContext(BaseModel):
     tags: list[str] = []
 
 
+class CounterpartyNegotiationPosition(BaseModel):
+    topic: str
+    their_position: str | None = None
+    our_position: str | None = None
+    last_outcome: str | None = None
+
+
 class CounterpartyMemory(BaseModel):
     name: str
     summary: str | None = None
@@ -44,6 +51,11 @@ class CounterpartyMemory(BaseModel):
     common_redlines: list[str] = []
     escalation_triggers: list[str] = []
     typical_positions: list[str] = []
+    # D2 LLM-extracted fields
+    negotiation_positions: list[CounterpartyNegotiationPosition] | None = None
+    response_latency_days: float | None = None
+    escalation_frequency: float | None = None
+    executive_involvement: str | None = None
 
 
 class TriageRequest(BaseModel):

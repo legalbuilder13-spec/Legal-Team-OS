@@ -96,6 +96,18 @@ export async function handleTriageJob(db: Db, job: Job) {
     common_redlines: string[];
     escalation_triggers: string[];
     typical_positions: string[];
+    // D2 LLM-extracted fields — pass through to the triage prompt so
+    // the model can factor in negotiation positions, response latency,
+    // escalation frequency, and executive involvement.
+    negotiation_positions?: Array<{
+      topic: string;
+      their_position: string | null;
+      our_position: string | null;
+      last_outcome: string | null;
+    }>;
+    response_latency_days?: number | null;
+    escalation_frequency?: number;
+    executive_involvement?: string;
   } | null = null;
 
   if (matter.counterpartyId) {
@@ -111,6 +123,21 @@ export async function handleTriageJob(db: Db, job: Job) {
         common_redlines: (profile.commonRedlines as string[]) ?? [],
         escalation_triggers: (profile.escalationTriggers as string[]) ?? [],
         typical_positions: (profile.typicalPositions as string[]) ?? [],
+        negotiation_positions:
+          (profile.negotiationPositions as Array<{
+            topic: string;
+            theirPosition: string | null;
+            ourPosition: string | null;
+            lastOutcome: string | null;
+          }> | undefined)?.map((p) => ({
+            topic: p.topic,
+            their_position: p.theirPosition,
+            our_position: p.ourPosition,
+            last_outcome: p.lastOutcome,
+          })) ?? undefined,
+        response_latency_days: (profile.responseLatencyDays as number | null) ?? undefined,
+        escalation_frequency: (profile.escalationFrequency as number) ?? undefined,
+        executive_involvement: (profile.executiveInvolvement as string) ?? undefined,
       };
     }
   }
