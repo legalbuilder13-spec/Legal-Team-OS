@@ -16,6 +16,11 @@ from .case_law_research import CaseLawRequest, CaseLawResult, research_case_law
 from .compile_rule import CompileRuleRequest, CompileRuleResult, compile_rule
 from .config import settings
 from .context.salesforce import lookup_counterparty
+from .deconstruct_draft import (
+    DeconstructRequest,
+    DeconstructResult,
+    deconstruct_and_draft,
+)
 from .enrich_counterparty import EnrichRequest, EnrichResult, enrich_counterparty
 from .guidance_grader import grade_guidance
 from .parse_document import ParseRequest, ParseResult, parse_document
@@ -182,3 +187,19 @@ def post_case_law_research(request: CaseLawRequest) -> CaseLawResult:
         len(request.candidates),
     )
     return research_case_law(request)
+
+
+@app.post(
+    "/deconstruct",
+    response_model=DeconstructResult,
+    dependencies=[Depends(require_token)],
+)
+def post_deconstruct(request: DeconstructRequest) -> DeconstructResult:
+    logger.info(
+        "deconstruct matter_id=%s inventory_items=%d statutory=%s case_law=%s",
+        request.matter_id,
+        len(request.inventory_items),
+        request.prior.statutory_summary is not None,
+        request.prior.case_law_summary is not None,
+    )
+    return deconstruct_and_draft(request)

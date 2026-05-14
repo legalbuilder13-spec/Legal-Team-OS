@@ -27,7 +27,7 @@ import {
 const TOOL_AVAILABILITY: Record<'statutory' | 'case_law' | 'deconstruct', { enabled: boolean; reason: string }> = {
   statutory: { enabled: true, reason: '' },
   case_law: { enabled: true, reason: '' },
-  deconstruct: { enabled: false, reason: 'Available in Phase 4' },
+  deconstruct: { enabled: true, reason: '' },
 };
 
 export const toolsRouter = router({

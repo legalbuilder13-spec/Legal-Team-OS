@@ -42,6 +42,7 @@ export * from './insight-card.js';
 export * from './rule-dsl.js';
 export * from './analysis.js';
 export * from './thresholds/index.js';
+export * from './inventories/index.js';
 export * from './senior-review-triggers.js';
 export * from './statute-triggers.js';
 
