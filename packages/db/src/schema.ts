@@ -1170,6 +1170,38 @@ export const rejectionClustersRelations = relations(rejectionClusters, ({ one })
   }),
 }));
 
+// M2 — Matter compression at close. One row per matter. The
+// summary_md + summary_embedding are higher-signal than the raw intake
+// embedding on matters.embedding because they reflect the resolved
+// outcome. source_version_hash gates regeneration: when stages or
+// sources change, the worker recomputes and updates this row.
+export const matterSummaries = pgTable(
+  'matter_summaries',
+  {
+    matterId: uuid('matter_id')
+      .primaryKey()
+      .references(() => matters.id, { onDelete: 'cascade' }),
+    summaryMd: text('summary_md').notNull(),
+    summaryEmbedding: vector(1024)('summary_embedding'),
+    sourceVersionHash: text('source_version_hash').notNull(),
+    model: text('model'),
+    tokensIn: integer('tokens_in').notNull().default(0),
+    tokensOut: integer('tokens_out').notNull().default(0),
+    durationMs: integer('duration_ms').notNull().default(0),
+    generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    generatedAtIdx: index('matter_summaries_generated_at_idx').on(t.generatedAt),
+  }),
+);
+
+export const matterSummariesRelations = relations(matterSummaries, ({ one }) => ({
+  matter: one(matters, {
+    fields: [matterSummaries.matterId],
+    references: [matters.id],
+  }),
+}));
+
 export const matterAnalysisSourcesRelations = relations(matterAnalysisSources, ({ one }) => ({
   stage: one(matterAnalysisStages, {
     fields: [matterAnalysisSources.stageId],
@@ -1260,3 +1292,6 @@ export type RejectionClusterRun = typeof rejectionClusterRuns.$inferSelect;
 export type NewRejectionClusterRun = typeof rejectionClusterRuns.$inferInsert;
 export type RejectionCluster = typeof rejectionClusters.$inferSelect;
 export type NewRejectionCluster = typeof rejectionClusters.$inferInsert;
+
+export type MatterSummary = typeof matterSummaries.$inferSelect;
+export type NewMatterSummary = typeof matterSummaries.$inferInsert;

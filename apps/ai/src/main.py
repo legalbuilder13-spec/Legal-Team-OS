@@ -18,6 +18,11 @@ from .cluster_rejections import (
     ClusterRejectionsResult,
     cluster_rejections,
 )
+from .compact_matter import (
+    CompactMatterRequest,
+    CompactMatterResult,
+    compact_matter,
+)
 from .compile_rule import CompileRuleRequest, CompileRuleResult, compile_rule
 from .config import settings
 from .context.salesforce import lookup_counterparty
@@ -222,3 +227,18 @@ def post_cluster_rejections(request: ClusterRejectionsRequest) -> ClusterRejecti
         len(request.rejections),
     )
     return cluster_rejections(request)
+
+
+@app.post(
+    "/compact-matter",
+    response_model=CompactMatterResult,
+    dependencies=[Depends(require_token)],
+)
+def post_compact_matter(request: CompactMatterRequest) -> CompactMatterResult:
+    logger.info(
+        "compact_matter matter=%s stages=%d sources=%d",
+        request.matter_id,
+        len(request.stages),
+        len(request.sources),
+    )
+    return compact_matter(request)

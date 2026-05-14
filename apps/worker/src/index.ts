@@ -25,6 +25,10 @@ import { runSlaCheck } from './handlers/sla-check.js';
 import { runDailyDigest } from './handlers/daily-digest.js';
 import { runPortfolioAnalysis } from './handlers/analyze-portfolio.js';
 import { runMineRejections } from './handlers/mine-rejections.js';
+import {
+  enqueueClosedMatterCompaction,
+  handleCompactMatterJob,
+} from './handlers/compact-matter.js';
 import { isPermanentJobError } from './utils.js';
 
 const db = getDb();
@@ -108,6 +112,9 @@ async function dispatch(job: Job) {
     case 'take_snapshot':
       await handleTakeSnapshotJob(db, job);
       break;
+    case 'compact_matter':
+      await handleCompactMatterJob(db, job);
+      break;
     default:
       throw new Error(`unknown job kind: ${job.kind}`);
   }
@@ -189,6 +196,24 @@ cron.schedule(
       console.log(`portfolio analysis: ${generated} new insights generated`);
     } catch (err) {
       console.error('portfolio analysis failed:', err);
+    }
+  },
+  { timezone: env.DIGEST_TIMEZONE },
+);
+
+// M2 — Daily enqueue compact-matter jobs for newly-closed matters
+// without summaries. The compact handler is idempotent on
+// source_version_hash, so re-enqueuing a matter that didn't change
+// is a no-op LLM-cost-wise. Runs at 06:00 so summaries are ready by
+// the time the daily digest fires.
+cron.schedule(
+  '0 6 * * *',
+  async () => {
+    try {
+      const enqueued = await enqueueClosedMatterCompaction(db);
+      if (enqueued > 0) console.log(`compact-matter: enqueued ${enqueued} jobs`);
+    } catch (err) {
+      console.error('compact-matter enqueue failed:', err);
     }
   },
   { timezone: env.DIGEST_TIMEZONE },

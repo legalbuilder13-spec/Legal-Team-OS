@@ -26,6 +26,11 @@ interface SimilarMatterRow {
 // prior matters by request-text similarity (tsvector for now; will switch to
 // pgvector once A1 populates embeddings) and writes the top matches into
 // matters.context.similar_matters as an InsightCard.
+//
+// M2 follow-up: when this path switches to pgvector, prefer
+// matter_summaries.summary_embedding over matters.embedding via COALESCE
+// (same pattern as tool_history.ts). Summary embeddings reflect resolved
+// outcome, not just intake text — strictly stronger retrieval signal.
 export async function handleContextFetchSimilarMattersJob(db: Db, job: Job) {
   const payload = job.payload as unknown as ContextFetchPayload;
   const matter = await db.query.matters.findFirst({
