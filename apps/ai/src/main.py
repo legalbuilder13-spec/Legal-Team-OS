@@ -13,6 +13,11 @@ from .analysis_schemas import (
 )
 from .analyze_clause import AnalyzeClauseRequest, AnalyzeClauseResult, analyze_clause
 from .case_law_research import CaseLawRequest, CaseLawResult, research_case_law
+from .cluster_rejections import (
+    ClusterRejectionsRequest,
+    ClusterRejectionsResult,
+    cluster_rejections,
+)
 from .compile_rule import CompileRuleRequest, CompileRuleResult, compile_rule
 from .config import settings
 from .context.salesforce import lookup_counterparty
@@ -203,3 +208,17 @@ def post_deconstruct(request: DeconstructRequest) -> DeconstructResult:
         request.prior.case_law_summary is not None,
     )
     return deconstruct_and_draft(request)
+
+
+@app.post(
+    "/cluster-rejections",
+    response_model=ClusterRejectionsResult,
+    dependencies=[Depends(require_token)],
+)
+def post_cluster_rejections(request: ClusterRejectionsRequest) -> ClusterRejectionsResult:
+    logger.info(
+        "cluster_rejections org=%s rejections=%d",
+        request.organization_id or "default",
+        len(request.rejections),
+    )
+    return cluster_rejections(request)

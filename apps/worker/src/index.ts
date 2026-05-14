@@ -24,6 +24,7 @@ import { closeSnapshotBrowser } from './integrations/playwright_snapshot.js';
 import { runSlaCheck } from './handlers/sla-check.js';
 import { runDailyDigest } from './handlers/daily-digest.js';
 import { runPortfolioAnalysis } from './handlers/analyze-portfolio.js';
+import { runMineRejections } from './handlers/mine-rejections.js';
 import { isPermanentJobError } from './utils.js';
 
 const db = getDb();
@@ -188,6 +189,27 @@ cron.schedule(
       console.log(`portfolio analysis: ${generated} new insights generated`);
     } catch (err) {
       console.error('portfolio analysis failed:', err);
+    }
+  },
+  { timezone: env.DIGEST_TIMEZONE },
+);
+
+// M1 — Weekly rejection-reason mining. Clusters lawyer rejection
+// reasons from audit_log and writes proposals to rejection_clusters
+// for admin review in /admin/rejection-themes. Sunday 09:00 so admins
+// see fresh clusters at the start of the work week. No-ops when there
+// are fewer than 2 rejections in the lookback window.
+cron.schedule(
+  '0 9 * * 0',
+  async () => {
+    try {
+      const result = await runMineRejections(db, { lookbackDays: 7 });
+      console.log(
+        `rejection mining: ${result.rejectionCount} rejections → ${result.clusterCount} clusters` +
+          (result.skipped ? ` (skipped: ${result.skipped})` : ''),
+      );
+    } catch (err) {
+      console.error('rejection mining failed:', err);
     }
   },
   { timezone: env.DIGEST_TIMEZONE },

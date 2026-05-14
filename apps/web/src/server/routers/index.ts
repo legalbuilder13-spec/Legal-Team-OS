@@ -15,6 +15,7 @@ import { analysisRouter } from './analysis';
 import { toolsRouter } from './tools';
 import { domainConfigRouter } from './domain-config';
 import { analysisMetricsRouter } from './analysis-metrics';
+import { rejectionThemesRouter } from './rejection-themes';
 
 export const appRouter = router({
   matters: mattersRouter,
@@ -33,6 +34,7 @@ export const appRouter = router({
   tools: toolsRouter,
   domainConfig: domainConfigRouter,
   analysisMetrics: analysisMetricsRouter,
+  rejectionThemes: rejectionThemesRouter,
 });
 
 export type AppRouter = typeof appRouter;

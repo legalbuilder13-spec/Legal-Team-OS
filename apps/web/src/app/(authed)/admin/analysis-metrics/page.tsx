@@ -54,6 +54,7 @@ function Num({ value }: { value: number | null | undefined }) {
 export default function AnalysisMetricsPage() {
   const [days, setDays] = useState(7);
   const { data, isLoading } = trpc.analysisMetrics.summary.useQuery({ lookbackDays: days });
+  const { data: rejectionSummary } = trpc.rejectionThemes.summary.useQuery();
 
   return (
     <div className="max-w-5xl space-y-5">
@@ -82,6 +83,33 @@ export default function AnalysisMetricsPage() {
           ))}
         </div>
       </header>
+
+      {rejectionSummary && (rejectionSummary.pendingCount > 0 || rejectionSummary.actionedLast30d > 0) && (
+        <a
+          href="/admin/rejection-themes"
+          className="block border rounded-lg p-3 hover:bg-ink-50 dark:hover:bg-ink-800 transition-colors"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm">
+              <span className="font-medium">Rejection themes:</span>{' '}
+              <span className="text-amber-700 dark:text-amber-300">
+                <Num value={rejectionSummary.pendingCount} /> pending
+              </span>
+              {rejectionSummary.actionedLast30d > 0 && (
+                <span className="text-emerald-700 dark:text-emerald-300 ml-2">
+                  · <Num value={rejectionSummary.actionedLast30d} /> actioned in last 30d
+                </span>
+              )}
+              {rejectionSummary.latestRun?.error && (
+                <span className="text-red-700 dark:text-red-300 ml-2">
+                  · last run errored
+                </span>
+              )}
+            </div>
+            <span className="text-xs text-ink-500 dark:text-ink-400">Review →</span>
+          </div>
+        </a>
+      )}
 
       {isLoading || !data ? (
         <div className="text-ink-500 dark:text-ink-400">Loading…</div>
