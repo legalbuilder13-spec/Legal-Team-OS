@@ -14,9 +14,9 @@
 --   3. p50_duration_ms    — median end-to-end pipeline time. Should be < 60s.
 --   4. stage_failure_rate — % of stage rows that failed. Want < 5%.
 --
--- The override-rate gate (< 15% on matched verdicts) requires a
--- separate signal — the override mutations from the lawyer toolbar
--- aren't audit-logged yet. Track manually from matter_notes for now.
+-- The override-rate gate (< 15% on matched verdicts) is computed from
+-- the analysis.stage_accepted / stage_rejected / stage_escalated audit
+-- events that PR10 introduced. See query 6 below.
 
 \echo '=== Shadow-mode launch metrics ==='
 \echo ''
@@ -85,3 +85,38 @@ FROM matter_analysis_sources
 WHERE created_at > now() - interval '7 days'
 GROUP BY verification_status
 ORDER BY rows DESC;
+
+\echo ''
+\echo '6. Override rate by stage (want < 15% rejected+escalated on matched verdicts):'
+-- PR10 audit events: analysis.stage_accepted, stage_rejected, stage_escalated.
+-- Override = lawyer explicitly rejected or escalated a stage the auto-pipeline
+-- produced. Counted per-stage so each tool's relevance is measured separately.
+SELECT
+  (details->>'stageName') AS stage_name,
+  COUNT(*) FILTER (WHERE action IN (
+    'analysis.stage_accepted',
+    'analysis.stage_rejected',
+    'analysis.stage_escalated'
+  )) AS decided,
+  COUNT(*) FILTER (WHERE action = 'analysis.stage_accepted')  AS accepted,
+  COUNT(*) FILTER (WHERE action = 'analysis.stage_rejected')  AS rejected,
+  COUNT(*) FILTER (WHERE action = 'analysis.stage_escalated') AS escalated,
+  ROUND(
+    100.0 * COUNT(*) FILTER (WHERE action IN (
+      'analysis.stage_rejected', 'analysis.stage_escalated'
+    ))
+    / NULLIF(COUNT(*) FILTER (WHERE action IN (
+      'analysis.stage_accepted', 'analysis.stage_rejected', 'analysis.stage_escalated'
+    )), 0),
+    1
+  ) AS override_pct
+FROM audit_log
+WHERE created_at > now() - interval '7 days'
+  AND action IN (
+    'analysis.stage_accepted',
+    'analysis.stage_rejected',
+    'analysis.stage_escalated'
+  )
+  AND (details->>'stageName') IS NOT NULL
+GROUP BY (details->>'stageName')
+ORDER BY decided DESC;
