@@ -32,6 +32,11 @@ from .deconstruct_draft import (
     deconstruct_and_draft,
 )
 from .enrich_counterparty import EnrichRequest, EnrichResult, enrich_counterparty
+from .extract_terminology_diffs import (
+    ExtractDiffsRequest,
+    ExtractDiffsResult,
+    extract_terminology_diffs,
+)
 from .guidance_grader import grade_guidance
 from .parse_document import ParseRequest, ParseResult, parse_document
 from .schemas import ContextCard, ContextRequest, TriageRequest, TriageResult
@@ -242,3 +247,17 @@ def post_compact_matter(request: CompactMatterRequest) -> CompactMatterResult:
         len(request.sources),
     )
     return compact_matter(request)
+
+
+@app.post(
+    "/extract-terminology-diffs",
+    response_model=ExtractDiffsResult,
+    dependencies=[Depends(require_token)],
+)
+def post_extract_terminology_diffs(request: ExtractDiffsRequest) -> ExtractDiffsResult:
+    logger.info(
+        "extract_terminology_diffs org=%s revisions=%d",
+        request.organization_id or "default",
+        len(request.revisions),
+    )
+    return extract_terminology_diffs(request)

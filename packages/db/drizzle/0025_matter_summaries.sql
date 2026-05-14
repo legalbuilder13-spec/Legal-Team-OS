@@ -9,6 +9,8 @@
 -- Tier: episodic memory consolidation. Hermes-equivalent: /compress
 -- session summary, but immutable + auditable.
 
+ALTER TYPE "job_kind" ADD VALUE IF NOT EXISTS 'compact_matter';
+
 CREATE TABLE "matter_summaries" (
   "matter_id" uuid PRIMARY KEY REFERENCES "matters"("id") ON DELETE CASCADE,
   "summary_md" text NOT NULL,

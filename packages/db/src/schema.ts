@@ -93,6 +93,7 @@ export const jobKind = pgEnum('job_kind', [
   'run_case_law',
   'run_deconstruct',
   'take_snapshot',
+  'compact_matter',
 ]);
 
 export const insightKind = pgEnum('insight_kind', [
@@ -244,6 +245,16 @@ export const playbookCanonTier = pgEnum('playbook_canon_tier', [
   'draft',
   'org',
   'industry',
+]);
+
+// M5 — Dialectic org-config proposal status. A weekly cron mines
+// lawyer revisions (matter_analysis_stages.lawyer_revised_output) and
+// proposes terminology / verb / jurisdiction patches; admins accept
+// or dismiss in /admin/domain-config.
+export const domainConfigProposalStatus = pgEnum('domain_config_proposal_status', [
+  'pending',
+  'accepted',
+  'dismissed',
 ]);
 
 // M1 — Rejection-reason mining. A weekly worker cron clusters lawyer
@@ -994,6 +1005,10 @@ export const matterAnalysisStages = pgTable(
     lawyerDecidedByUserId: uuid('lawyer_decided_by_user_id').references(() => users.id, {
       onDelete: 'set null',
     }),
+    // M5 — lawyer's revised stage output when the "revise → accept"
+    // affordance is used. Free-form jsonb; mining cron expects a
+    // {text: string} shape but stores anything the UI sends.
+    lawyerRevisedOutput: jsonb('lawyer_revised_output').$type<Record<string, unknown>>(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({
@@ -1220,6 +1235,50 @@ export const matterSummariesRelations = relations(matterSummaries, ({ one }) => 
   }),
 }));
 
+// M5 — domain_config_proposals. One row per LLM-or-rule-mined
+// proposed patch to organizations.domainConfig. The /admin/domain-config
+// admin page renders pending rows as a queue. Accepting a proposal
+// validates the patched config against DomainConfigSchema and writes
+// it to organizations.domain_config.
+export const domainConfigProposals = pgTable(
+  'domain_config_proposals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'cascade',
+    }),
+    patchPath: text('patch_path').notNull(),
+    patchValue: jsonb('patch_value').notNull(),
+    rationale: text('rationale').notNull(),
+    evidenceCount: integer('evidence_count').notNull().default(1),
+    evidenceStageIds: jsonb('evidence_stage_ids').$type<string[]>().notNull().default([]),
+    status: domainConfigProposalStatus('status').notNull().default('pending'),
+    actionedByUserId: uuid('actioned_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    actionedAt: timestamp('actioned_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    orgStatusIdx: index('domain_config_proposals_org_status_idx').on(
+      t.organizationId,
+      t.status,
+      t.createdAt,
+    ),
+  }),
+);
+
+export const domainConfigProposalsRelations = relations(domainConfigProposals, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [domainConfigProposals.organizationId],
+    references: [organizations.id],
+  }),
+  actionedBy: one(users, {
+    fields: [domainConfigProposals.actionedByUserId],
+    references: [users.id],
+  }),
+}));
+
 export const matterAnalysisSourcesRelations = relations(matterAnalysisSources, ({ one }) => ({
   stage: one(matterAnalysisStages, {
     fields: [matterAnalysisSources.stageId],
@@ -1313,3 +1372,6 @@ export type NewRejectionCluster = typeof rejectionClusters.$inferInsert;
 
 export type MatterSummary = typeof matterSummaries.$inferSelect;
 export type NewMatterSummary = typeof matterSummaries.$inferInsert;
+
+export type DomainConfigProposal = typeof domainConfigProposals.$inferSelect;
+export type NewDomainConfigProposal = typeof domainConfigProposals.$inferInsert;

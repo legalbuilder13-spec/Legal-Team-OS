@@ -30,6 +30,7 @@ import {
   handleCompactMatterJob,
 } from './handlers/compact-matter.js';
 import { runPromotePlaybooks } from './handlers/promote-playbooks.js';
+import { runMineRevisions } from './handlers/mine-revisions.js';
 import { isPermanentJobError } from './utils.js';
 
 const db = getDb();
@@ -236,6 +237,27 @@ cron.schedule(
       }
     } catch (err) {
       console.error('promote-playbooks failed:', err);
+    }
+  },
+  { timezone: env.DIGEST_TIMEZONE },
+);
+
+// M5 — Weekly mining of lawyer revisions into domain_config patches.
+// Reads lawyer_revised_output rows from the last 30d, diffs vs.
+// original, calls the AI service to extract terminology / verb /
+// jurisdiction patterns. Sunday 10:00 in DIGEST_TIMEZONE so the
+// proposals land just after the M1 rejection-themes batch.
+cron.schedule(
+  '0 10 * * 0',
+  async () => {
+    try {
+      const result = await runMineRevisions(db, { lookbackDays: 30 });
+      console.log(
+        `mine-revisions: ${result.revisionCount} revisions → ${result.proposalCount} proposals` +
+          (result.skipped ? ` (skipped: ${result.skipped})` : ''),
+      );
+    } catch (err) {
+      console.error('mine-revisions failed:', err);
     }
   },
   { timezone: env.DIGEST_TIMEZONE },

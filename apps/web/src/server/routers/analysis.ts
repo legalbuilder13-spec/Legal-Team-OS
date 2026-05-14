@@ -22,6 +22,15 @@ const StageDecisionInput = z.object({
   stageId: z.string().uuid(),
   decision: z.enum(['accepted', 'rejected', 'escalated']),
   reason: z.string().max(2000).optional(),
+  // M5 — optional revised stage output. When the lawyer uses the
+  // "revise → accept" affordance with a textarea, the revision is
+  // captured here so the M5 mining cron can extract terminology /
+  // verb / jurisdiction patterns from the diff.
+  revisedOutput: z
+    .object({
+      text: z.string().min(1).max(20_000),
+    })
+    .optional(),
 });
 
 export const analysisRouter = router({
@@ -91,6 +100,12 @@ export const analysisRouter = router({
           lawyerDecisionReason: input.reason ?? null,
           lawyerDecidedAt: new Date(),
           lawyerDecidedByUserId: ctx.user.id,
+          // M5 — preserve the revision if supplied. Don't clear on
+          // accept-without-revision; an earlier reject's reason
+          // history stays informative.
+          ...(input.revisedOutput
+            ? { lawyerRevisedOutput: input.revisedOutput as Record<string, unknown> }
+            : {}),
         })
         .where(eq(matterAnalysisStages.id, input.stageId));
 
