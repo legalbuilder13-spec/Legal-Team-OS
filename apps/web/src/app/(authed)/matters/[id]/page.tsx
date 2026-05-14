@@ -10,6 +10,7 @@ import { SaveToNotionButton } from './SaveToNotionButton';
 import { SaveToDriveButton } from './SaveToDriveButton';
 import { EscalationsCard } from './EscalationsCard';
 import { ContextCardGrid } from './ContextCardGrid';
+import { DocumentsCard } from './DocumentsCard';
 
 function TriageConfidence({ metadata }: { metadata: Record<string, unknown> }) {
   const practiceConf = metadata.practiceAreaConfidence;
@@ -190,6 +191,8 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
 
         <aside className={chatOpen ? 'col-span-3 space-y-4' : 'space-y-4'}>
           <EscalationsCard matterId={matter.id} />
+
+          <DocumentsCard matterId={matter.id} />
 
           <PlaybooksCard matterId={matter.id} />
 

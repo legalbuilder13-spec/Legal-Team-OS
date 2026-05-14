@@ -78,6 +78,7 @@ export const jobKind = pgEnum('job_kind', [
   'context_fetch_notion',
   'context_fetch_slack',
   'context_fetch_drive',
+  'parse_document',
   'sla_check',
   'daily_digest',
   'slack_notify',
@@ -120,6 +121,13 @@ export const escalationSeverity = pgEnum('escalation_severity', [
   'medium',
   'high',
   'critical',
+]);
+
+export const documentParseStatus = pgEnum('document_parse_status', [
+  'pending',
+  'parsing',
+  'parsed',
+  'failed',
 ]);
 
 export const users = pgTable(
@@ -506,6 +514,57 @@ export const matterDraftVersions = pgTable(
   },
   (t) => ({
     draftIdx: index('matter_draft_versions_draft_idx').on(t.draftId, t.versionNumber),
+  }),
+);
+
+export const matterDocuments = pgTable(
+  'matter_documents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    matterId: uuid('matter_id')
+      .notNull()
+      .references(() => matters.id, { onDelete: 'cascade' }),
+    uploadedById: uuid('uploaded_by_id').references(() => users.id, { onDelete: 'set null' }),
+    filename: text('filename').notNull(),
+    mimeType: text('mime_type').notNull(),
+    sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
+    content: bytea('content').notNull(),
+    parseStatus: documentParseStatus('parse_status').notNull().default('pending'),
+    parseError: text('parse_error'),
+    parserVersion: text('parser_version'),
+    clauseCount: integer('clause_count'),
+    pageCount: integer('page_count'),
+    charCount: integer('char_count'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    parsedAt: timestamp('parsed_at', { withTimezone: true }),
+  },
+  (t) => ({
+    matterIdx: index('matter_documents_matter_idx').on(t.matterId, t.createdAt),
+    statusIdx: index('matter_documents_status_idx').on(t.parseStatus),
+  }),
+);
+
+export const matterDocumentClauses = pgTable(
+  'matter_document_clauses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => matterDocuments.id, { onDelete: 'cascade' }),
+    ordinal: integer('ordinal').notNull(),
+    headingPath: text('heading_path'),
+    clauseText: text('clause_text').notNull(),
+    charStart: integer('char_start').notNull(),
+    charEnd: integer('char_end').notNull(),
+    pageNumber: integer('page_number'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    docOrdinalUq: uniqueIndex('matter_document_clauses_doc_ordinal_uq').on(
+      t.documentId,
+      t.ordinal,
+    ),
+    docIdx: index('matter_document_clauses_document_idx').on(t.documentId, t.ordinal),
   }),
 );
 

@@ -8,6 +8,7 @@ import { notionRouter } from './notion';
 import { driveRouter } from './drive';
 import { escalationsRouter } from './escalations';
 import { draftsRouter } from './drafts';
+import { documentsRouter } from './documents';
 
 export const appRouter = router({
   matters: mattersRouter,
@@ -19,6 +20,7 @@ export const appRouter = router({
   drive: driveRouter,
   escalations: escalationsRouter,
   drafts: draftsRouter,
+  documents: documentsRouter,
 });
 
 export type AppRouter = typeof appRouter;
