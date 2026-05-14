@@ -8,6 +8,7 @@ import {
   playbooks,
   playbookVersions,
   playbookSuggestions,
+  playbookPositions,
   knowledgeArticles,
   systemInsights,
   jobs,
@@ -587,5 +588,94 @@ export const adminRouter = router({
       });
 
       return { merged: true, mattersReassigned: moved.length };
+    }),
+
+  listPlaybookPositions: adminProcedure
+    .input(z.object({ playbookId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db
+        .select({
+          id: playbookPositions.id,
+          topic: playbookPositions.topic,
+          trigger: playbookPositions.trigger,
+          standardPosition: playbookPositions.standardPosition,
+          acceptableRange: playbookPositions.acceptableRange,
+          flaggedConditions: playbookPositions.flaggedConditions,
+          suggestedRedline: playbookPositions.suggestedRedline,
+          citation: playbookPositions.citation,
+          isActive: playbookPositions.isActive,
+          createdAt: playbookPositions.createdAt,
+          updatedAt: playbookPositions.updatedAt,
+        })
+        .from(playbookPositions)
+        .where(eq(playbookPositions.playbookId, input.playbookId))
+        .orderBy(asc(playbookPositions.topic));
+    }),
+
+  upsertPlaybookPosition: adminProcedure
+    .input(
+      z.object({
+        id: z.string().uuid().optional(),
+        playbookId: z.string().uuid(),
+        topic: z.string().min(1).max(120),
+        trigger: z.string().min(1),
+        standardPosition: z.string().min(1),
+        acceptableRange: z.string().optional(),
+        flaggedConditions: z.string().optional(),
+        suggestedRedline: z.string().optional(),
+        citation: z.string().optional(),
+        isActive: z.boolean().default(true),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const data = {
+        playbookId: input.playbookId,
+        topic: input.topic,
+        trigger: input.trigger,
+        standardPosition: input.standardPosition,
+        acceptableRange: input.acceptableRange,
+        flaggedConditions: input.flaggedConditions,
+        suggestedRedline: input.suggestedRedline,
+        citation: input.citation,
+        isActive: input.isActive,
+        updatedAt: new Date(),
+      };
+      let result;
+      if (input.id) {
+        const [updated] = await ctx.db
+          .update(playbookPositions)
+          .set(data)
+          .where(eq(playbookPositions.id, input.id))
+          .returning();
+        result = updated;
+      } else {
+        const [created] = await ctx.db
+          .insert(playbookPositions)
+          .values({ ...data, createdById: ctx.user.id })
+          .returning();
+        result = created;
+      }
+      await ctx.db.insert(auditLog).values({
+        actorId: ctx.user.id,
+        action: 'playbook_position.upserted',
+        details: { playbookId: input.playbookId, topic: input.topic, id: result?.id },
+      });
+      return result;
+    }),
+
+  deletePlaybookPosition: adminProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.query.playbookPositions.findFirst({
+        where: eq(playbookPositions.id, input.id),
+      });
+      if (!existing) return { deleted: false };
+      await ctx.db.delete(playbookPositions).where(eq(playbookPositions.id, input.id));
+      await ctx.db.insert(auditLog).values({
+        actorId: ctx.user.id,
+        action: 'playbook_position.deleted',
+        details: { playbookId: existing.playbookId, topic: existing.topic, id: input.id },
+      });
+      return { deleted: true };
     }),
 });
