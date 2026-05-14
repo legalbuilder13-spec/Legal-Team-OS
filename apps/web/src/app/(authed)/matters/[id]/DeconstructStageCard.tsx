@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { StageDecisionBar } from './StageDecisionBar';
 
 // PRD §6.1 / §12. Deconstruction + Draft Memo output card. Shows the
 // IRAC memo prominently, then the deconstruction tree as a collapsible
@@ -80,6 +81,11 @@ interface Props {
   output: DeconstructOutput;
   status: string;
   durationMs: number;
+  stageId: string;
+  matterId: string;
+  lawyerDecision: 'pending' | 'accepted' | 'rejected' | 'escalated';
+  lawyerDecidedAt?: string | null;
+  lawyerDecisionReason?: string | null;
 }
 
 function ConfidenceBand({ band }: { band: IRACMemo['confidence_band'] }) {
@@ -243,7 +249,16 @@ function flattenForRender(nodes: TreeNode[]): TreeNode[] {
   return out;
 }
 
-export function DeconstructStageCard({ output, status, durationMs }: Props) {
+export function DeconstructStageCard({
+  output,
+  status,
+  durationMs,
+  stageId,
+  matterId,
+  lawyerDecision,
+  lawyerDecidedAt,
+  lawyerDecisionReason,
+}: Props) {
   const flat = useMemo(() => flattenForRender(buildTree(output.nodes)), [output.nodes]);
 
   if (status === 'failed') {
@@ -489,6 +504,14 @@ export function DeconstructStageCard({ output, status, durationMs }: Props) {
       <div className="text-[10px] font-mono text-ink-400 dark:text-ink-500 text-right">
         {output.memo.word_count} words
       </div>
+
+      <StageDecisionBar
+        stageId={stageId}
+        currentDecision={lawyerDecision}
+        decidedAtIso={lawyerDecidedAt ?? null}
+        decisionReason={lawyerDecisionReason ?? null}
+        matterId={matterId}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { StageDecisionBar } from './StageDecisionBar';
 
 // PRD §6.1 / §8. Dedicated rendering for a 'statutory' stage row from
 // the run-statutory tool. Shows the operative provisions with verbatim
@@ -65,6 +66,11 @@ interface Props {
   output: StatutoryOutput;
   status: string;
   durationMs: number;
+  stageId: string;
+  matterId: string;
+  lawyerDecision: 'pending' | 'accepted' | 'rejected' | 'escalated';
+  lawyerDecidedAt?: string | null;
+  lawyerDecisionReason?: string | null;
 }
 
 function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
@@ -83,7 +89,16 @@ function Section({ title, children, defaultOpen = true }: { title: string; child
   );
 }
 
-export function StatutoryStageCard({ output, status, durationMs }: Props) {
+export function StatutoryStageCard({
+  output,
+  status,
+  durationMs,
+  stageId,
+  matterId,
+  lawyerDecision,
+  lawyerDecidedAt,
+  lawyerDecisionReason,
+}: Props) {
   const verified = output.verification?.passed ?? false;
   const failures = output.verification?.failures ?? [];
 
@@ -268,6 +283,14 @@ export function StatutoryStageCard({ output, status, durationMs }: Props) {
           </div>
         </div>
       )}
+
+      <StageDecisionBar
+        stageId={stageId}
+        currentDecision={lawyerDecision}
+        decidedAtIso={lawyerDecidedAt ?? null}
+        decisionReason={lawyerDecisionReason ?? null}
+        matterId={matterId}
+      />
     </div>
   );
 }
