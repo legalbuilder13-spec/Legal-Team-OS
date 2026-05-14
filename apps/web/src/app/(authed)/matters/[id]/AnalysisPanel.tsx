@@ -5,6 +5,7 @@ import { LawyerToolbar } from './LawyerToolbar';
 import { StageTraceDrawer } from './StageTraceDrawer';
 import { StatutoryStageCard } from './StatutoryStageCard';
 import { CaseLawStageCard } from './CaseLawStageCard';
+import { DeconstructStageCard } from './DeconstructStageCard';
 
 // PRD §6.1 — the matter detail page's Analysis panel. Two sections:
 // the auto-pipeline output (always present once analysis runs), and the
@@ -105,6 +106,7 @@ export function AnalysisPanel({ matterId }: Props) {
   const guidanceStage = stages.find((s) => s.stageName === 'guidance');
   const statutoryStages = stages.filter((s) => s.stageName === 'statutory');
   const caseLawStages = stages.filter((s) => s.stageName === 'case_law');
+  const deconstructStages = stages.filter((s) => s.stageName === 'deconstruct');
 
   const preMerits = preMeritsStage?.outputJson as PreMeritsOutput | undefined;
   const guidance = guidanceStage?.outputJson as GuidanceOutput | undefined;
@@ -246,6 +248,15 @@ export function AnalysisPanel({ matterId }: Props) {
           status={s.status}
           durationMs={s.durationMs}
           output={s.outputJson as unknown as Parameters<typeof CaseLawStageCard>[0]['output']}
+        />
+      ))}
+
+      {deconstructStages.map((s) => (
+        <DeconstructStageCard
+          key={s.id}
+          status={s.status}
+          durationMs={s.durationMs}
+          output={s.outputJson as unknown as Parameters<typeof DeconstructStageCard>[0]['output']}
         />
       ))}
 
