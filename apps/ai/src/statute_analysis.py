@@ -23,9 +23,9 @@ Hard rules the prompt enforces:
 
 import json
 import logging
+from typing import Literal
 
 from pydantic import BaseModel, Field
-from typing import Literal
 
 from .config import settings
 from .llm.client import get_client
