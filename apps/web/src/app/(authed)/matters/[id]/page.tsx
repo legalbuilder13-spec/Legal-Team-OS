@@ -9,24 +9,7 @@ import { PlaybooksCard } from './PlaybooksCard';
 import { SaveToNotionButton } from './SaveToNotionButton';
 import { SaveToDriveButton } from './SaveToDriveButton';
 import { EscalationsCard } from './EscalationsCard';
-
-interface SalesforceContext {
-  source: 'salesforce';
-  fetched_at: string;
-  data: {
-    configured?: boolean;
-    name?: string | null;
-    domain?: string | null;
-    records?: Array<{
-      Id: string;
-      Name: string;
-      Website?: string | null;
-      Industry?: string | null;
-      AnnualRevenue?: number | null;
-      Owner?: { Name?: string } | null;
-    }>;
-  };
-}
+import { ContextCardGrid } from './ContextCardGrid';
 
 function TriageConfidence({ metadata }: { metadata: Record<string, unknown> }) {
   const practiceConf = metadata.practiceAreaConfidence;
@@ -53,69 +36,6 @@ function TriageConfidence({ metadata }: { metadata: Record<string, unknown> }) {
       <span className="opacity-70">area</span> {pct(practiceConf)} ·{' '}
       <span className="opacity-70">priority</span> {pct(priorityConf)}
       {needsReview && <span className="ml-2 font-semibold">· review</span>}
-    </div>
-  );
-}
-
-function SalesforceContextCard({ ctx }: { ctx: SalesforceContext }) {
-  const records = ctx.data.records ?? [];
-  if (ctx.data.configured === false) {
-    return (
-      <div className="bg-white dark:bg-ink-900 border rounded-lg p-4 text-sm">
-        <h2 className="font-medium mb-1">Salesforce</h2>
-        <p className="text-xs text-ink-500 dark:text-ink-400">
-          Not configured. Add credentials to the AI service to enable counterparty lookups.
-        </p>
-      </div>
-    );
-  }
-  return (
-    <div className="bg-white dark:bg-ink-900 border rounded-lg p-4 text-sm">
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="font-medium">Salesforce</h2>
-        <span className="text-xs text-ink-400 dark:text-ink-500">
-          {new Date(ctx.fetched_at).toLocaleString()}
-        </span>
-      </div>
-      {records.length === 0 ? (
-        <p className="text-xs text-ink-500 dark:text-ink-400">
-          No accounts matched {ctx.data.name ?? ctx.data.domain ?? 'this counterparty'}.
-        </p>
-      ) : (
-        <ul className="space-y-3">
-          {records.map((r) => (
-            <li key={r.Id} className="border-t border-ink-100 dark:border-ink-800 pt-2 first:border-t-0 first:pt-0">
-              <div className="font-medium">{r.Name}</div>
-              <dl className="text-xs text-ink-600 dark:text-ink-400 space-y-0.5 mt-1">
-                {r.Website && (
-                  <div className="flex justify-between gap-3">
-                    <dt>Website</dt>
-                    <dd className="truncate">{r.Website}</dd>
-                  </div>
-                )}
-                {r.Industry && (
-                  <div className="flex justify-between gap-3">
-                    <dt>Industry</dt>
-                    <dd>{r.Industry}</dd>
-                  </div>
-                )}
-                {r.AnnualRevenue != null && (
-                  <div className="flex justify-between gap-3">
-                    <dt>Revenue</dt>
-                    <dd>${r.AnnualRevenue.toLocaleString()}</dd>
-                  </div>
-                )}
-                {r.Owner?.Name && (
-                  <div className="flex justify-between gap-3">
-                    <dt>SF Owner</dt>
-                    <dd>{r.Owner.Name}</dd>
-                  </div>
-                )}
-              </dl>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }
@@ -295,12 +215,10 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
             </dl>
           </div>
 
-          {(() => {
-            const sf = (matter.context as Record<string, unknown> | null)?.salesforce as
-              | SalesforceContext
-              | undefined;
-            return sf ? <SalesforceContextCard ctx={sf} /> : null;
-          })()}
+          <ContextCardGrid
+            context={matter.context as Record<string, unknown> | null}
+            hide={['similar_matters', 'counterparty_memory']}
+          />
 
           {counterparty &&
             (() => {
