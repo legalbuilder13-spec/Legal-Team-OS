@@ -149,13 +149,32 @@ export const GUIDANCE_MATCH_THRESHOLDS = {
 // PRD §7.6/§7.7/§12. Defined here so the web -> worker contract is stable
 // even though the tool implementations land in later phases.
 
-export const StatutoryToolInvocationSchema = z.object({
-  matterId: z.string().uuid(),
-  jurisdiction: z.string().min(1),
-  candidateStatutes: z.array(z.string()).default([]),
-  invokedByUserId: z.string().uuid(),
-});
+// PR7 — multi-jurisdiction. `jurisdictions` is the canonical input;
+// `jurisdiction` (singular) is kept as a back-compat alias for clients
+// that haven't been updated yet. Web router normalizes to the array.
+export const StatutoryToolInvocationSchema = z
+  .object({
+    matterId: z.string().uuid(),
+    jurisdictions: z.array(z.string().min(1)).min(1).optional(),
+    jurisdiction: z.string().min(1).optional(),
+    candidateStatutes: z.array(z.string()).default([]),
+    invokedByUserId: z.string().uuid(),
+  })
+  .refine(
+    (v) => Boolean(v.jurisdictions?.length || v.jurisdiction),
+    'Must supply either jurisdictions[] or jurisdiction',
+  );
 export type StatutoryToolInvocation = z.infer<typeof StatutoryToolInvocationSchema>;
+
+// Helper used by both web and worker to normalize legacy single-
+// jurisdiction calls to the array form.
+export function normalizeJurisdictions(
+  input: { jurisdictions?: string[]; jurisdiction?: string },
+): string[] {
+  if (input.jurisdictions && input.jurisdictions.length > 0) return input.jurisdictions;
+  if (input.jurisdiction) return [input.jurisdiction];
+  return [];
+}
 
 export const CaseLawToolInvocationSchema = z.object({
   matterId: z.string().uuid(),

@@ -44,11 +44,26 @@ interface IRACMemo {
   word_count: number;
 }
 
+interface MultiJurisdictionHarmonization {
+  agreement_summary: string;
+  divergences: Array<{
+    issue: string;
+    by_jurisdiction: Record<string, string>;
+    materiality: 'dispositive' | 'shifts-cost' | 'minor';
+  }>;
+  jurisdiction_specific_carveouts: Array<{
+    jurisdiction: string;
+    carveout: string;
+    citation?: string;
+  }>;
+}
+
 interface DeconstructOutput {
   nodes: DeconstructionNode[];
   memo: IRACMemo;
   inventory_categories_addressed: string[];
   inventory_items_pruned: string[];
+  multi_jurisdiction_harmonization?: MultiJurisdictionHarmonization | null;
   verify_flags: string[];
   verification?: {
     threshold_ordering_failures: string[];
@@ -328,6 +343,83 @@ export function DeconstructStageCard({ output, status, durationMs }: Props) {
       <div className="text-[11px] text-ink-500 dark:text-ink-400">
         <span className="font-medium">Confidence basis:</span> {output.memo.confidence_basis}
       </div>
+
+      {output.multi_jurisdiction_harmonization && (
+        <div className="border-t pt-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <h4 className="text-xs font-medium text-ink-700 dark:text-ink-300">
+              Multi-jurisdiction harmonization
+            </h4>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-brand-200 dark:border-brand-800 bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300">
+              PRD §19.5
+            </span>
+          </div>
+          <p className="text-xs text-ink-800 dark:text-ink-200">
+            {output.multi_jurisdiction_harmonization.agreement_summary}
+          </p>
+          {output.multi_jurisdiction_harmonization.divergences.length > 0 && (
+            <div>
+              <div className="text-[10px] font-medium uppercase text-amber-700 dark:text-amber-300 mb-1">
+                Divergences ({output.multi_jurisdiction_harmonization.divergences.length})
+              </div>
+              <ul className="space-y-1.5">
+                {output.multi_jurisdiction_harmonization.divergences.map((d, i) => {
+                  const matTone =
+                    d.materiality === 'dispositive'
+                      ? 'border-red-300 dark:border-red-800 text-red-700 dark:text-red-300'
+                      : d.materiality === 'shifts-cost'
+                        ? 'border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300'
+                        : 'border-ink-200 dark:border-ink-700 text-ink-500 dark:text-ink-400';
+                  return (
+                    <li key={i} className="text-xs border-l-2 border-amber-500 pl-2 py-0.5">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="font-medium text-ink-700 dark:text-ink-300">{d.issue}</span>
+                        <span
+                          className={`text-[10px] font-mono uppercase px-1 py-0.5 rounded border ${matTone}`}
+                        >
+                          {d.materiality}
+                        </span>
+                      </div>
+                      <ul className="mt-1 ml-3 space-y-0.5">
+                        {Object.entries(d.by_jurisdiction).map(([j, h]) => (
+                          <li key={j} className="text-[11px] text-ink-600 dark:text-ink-400">
+                            <span className="font-mono text-brand-700 dark:text-brand-300">
+                              [{j}]
+                            </span>{' '}
+                            {h}
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+          {output.multi_jurisdiction_harmonization.jurisdiction_specific_carveouts.length > 0 && (
+            <div>
+              <div className="text-[10px] font-medium uppercase text-ink-600 dark:text-ink-400 mb-1">
+                Jurisdiction-specific carve-outs
+              </div>
+              <ul className="space-y-0.5">
+                {output.multi_jurisdiction_harmonization.jurisdiction_specific_carveouts.map(
+                  (c, i) => (
+                    <li key={i} className="text-xs">
+                      <span className="font-mono text-brand-700 dark:text-brand-300">
+                        [{c.jurisdiction}]
+                      </span>{' '}
+                      <span className="text-ink-700 dark:text-ink-300">{c.carveout}</span>
+                      {c.citation && (
+                        <span className="ml-1 text-ink-400 dark:text-ink-500">— {c.citation}</span>
+                      )}
+                    </li>
+                  ),
+                )}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Deconstruction tree — collapsible nested view. */}
       <details className="border-t pt-2">

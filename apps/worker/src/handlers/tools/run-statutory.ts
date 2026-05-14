@@ -221,6 +221,9 @@ export async function handleRunStatutoryJob(db: Db, job: Job) {
 
     const output = {
       ...analysis,
+      // PR7 — surface the jurisdiction on every stage row so the
+      // deconstruct tool + UI can group + label by jurisdiction.
+      jurisdiction: payload.jurisdiction,
       verification: {
         passed: verificationFailures.length === 0,
         failures: verificationFailures,

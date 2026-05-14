@@ -123,9 +123,16 @@ export function LawyerToolbar({ matterId, defaultJurisdiction }: Props) {
           .split(/[\n,]/)
           .map((s) => s.trim())
           .filter(Boolean);
+        // PR7 — split the jurisdiction input into a list. Comma or
+        // newline separated; a single jurisdiction lands as a one-
+        // element array. Empty falls back to 'unspecified'.
+        const jurisdictionsList = jurisdiction
+          .split(/[\n,]/)
+          .map((s) => s.trim())
+          .filter(Boolean);
         await invokeStatutory.mutateAsync({
           matterId,
-          jurisdiction: jurisdiction || 'unspecified',
+          jurisdictions: jurisdictionsList.length > 0 ? jurisdictionsList : ['unspecified'],
           candidateStatutes: list,
         });
       } else if (openDialog === 'case_law') {
@@ -171,14 +178,24 @@ export function LawyerToolbar({ matterId, defaultJurisdiction }: Props) {
               <div className="space-y-3">
                 <label className="block">
                   <span className="text-xs font-medium text-ink-600 dark:text-ink-400">
-                    Jurisdiction
+                    Jurisdiction{openDialog === 'statutory' ? '(s)' : ''}
                   </span>
                   <input
                     value={jurisdiction}
                     onChange={(e) => setJurisdiction(e.target.value)}
-                    placeholder="e.g. federal, California, NY"
+                    placeholder={
+                      openDialog === 'statutory'
+                        ? 'e.g. federal, California, New York — comma-separated for multi-jurisdiction'
+                        : 'e.g. federal, California, NY'
+                    }
                     className="mt-1 w-full border rounded px-2 py-1.5 text-sm"
                   />
+                  {openDialog === 'statutory' && (
+                    <span className="mt-1 block text-[11px] text-ink-500 dark:text-ink-400">
+                      Multiple jurisdictions fan out in parallel; the deconstruct tool harmonizes
+                      the results.
+                    </span>
+                  )}
                 </label>
                 <label className="block">
                   <span className="text-xs font-medium text-ink-600 dark:text-ink-400">
