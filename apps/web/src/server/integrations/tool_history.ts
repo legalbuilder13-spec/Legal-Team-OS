@@ -140,10 +140,16 @@ export async function getHistoricalToolHints(
   // tool.*_complete as a fallback acceptance proxy when no explicit
   // lawyer decision was recorded (e.g., for matters created before
   // PR10 shipped).
+  // Compare matter_id as text against a text[] parameter. The
+  // `db.execute(sql\`...\`)` raw path doesn't carry the schema-driven
+  // type hints the query builder uses, so postgres-js infers a JS
+  // string[] as a `record` and `record::uuid[]` blows up with
+  // `cannot cast type record to uuid[]`. Casting matter_id to text
+  // and the param to text[] sidesteps the inference entirely.
   const events = await db.execute(sql`
     SELECT matter_id::text AS matter_id, action, details
     FROM audit_log
-    WHERE matter_id = ANY(${similarIds}::uuid[])
+    WHERE matter_id::text = ANY(${similarIds}::text[])
       AND action IN (
         'tool.invoked',
         'tool.invoke_blocked',

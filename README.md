@@ -39,6 +39,10 @@ The bot is defined by `apps/bot/slack-app-manifest.yaml`. To install:
 
 The bot listens for the `/legal` slash command, app mentions, and thread replies on messages it can see (channels it's been invited to and any DMs).
 
+## Notion integration
+
+`NOTION_API_KEY` (internal integration token) must be set on **both** the `web` and `worker` Railway services — `web` uses it for the "Save to Notion" button and chat tools, `worker` uses it for the `context_fetch_notion` enrichment job that pulls related Notion pages onto each new matter. If it's only set on `web`, the worker silently logs `context_fetch_notion: NOTION_API_KEY not set, skipping` on every matter and you get no Notion context. `NOTION_DEFAULT_PARENT_PAGE_ID` is web-only (the page new "Save to Notion" exports land under).
+
 ## Local development
 
 ```bash
