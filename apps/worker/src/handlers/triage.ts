@@ -458,4 +458,13 @@ export async function handleTriageJob(db: Db, job: Job) {
       counterparty_domain: domain,
     },
   });
+
+  // PRD §7.1 — pre-review analysis pipeline. Enqueued unconditionally;
+  // the analyze handler is feature-gated by ANALYSIS_PIPELINE_ENABLED so
+  // flag-off deployments no-op the job rather than skip insertion.
+  await db.insert(jobs).values({
+    kind: 'analyze',
+    matterId: matter.id,
+    payload: { matter_id: matter.id },
+  });
 }
