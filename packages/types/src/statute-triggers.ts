@@ -96,7 +96,17 @@ export function detectStatuteKeywords(text: string): string[] {
 const CASE_CITATION =
   /\b[A-Z][A-Za-z.]+(?:\s+[A-Z][A-Za-z.]+)*\s+v\.\s+[A-Z][A-Za-z.]+(?:\s+[A-Z][A-Za-z.]+)*(?:,\s*\d+\s+[A-Z][A-Za-z.0-9]+\s+\d+)?/g;
 
+// Bluebook signal words that frequently sit immediately before a case
+// name in prose ("See Smith v. Jones", "Cf. Brown v. Board"). The
+// citation regex greedily captures consecutive capitalized words, so
+// these leak into the match; strip them off so the hint surfaces just
+// the case name.
+const CITATION_SIGNAL_PREFIX =
+  /^(See(?:\salso)?|Cf\.?|Compare|Accord|But\ssee|But\scf\.?|E\.g\.?)\s+/i;
+
 export function extractCaseCitations(text: string): string[] {
-  const matches = Array.from(text.matchAll(CASE_CITATION), (m) => m[0]);
+  const matches = Array.from(text.matchAll(CASE_CITATION), (m) =>
+    m[0].replace(CITATION_SIGNAL_PREFIX, ''),
+  );
   return Array.from(new Set(matches));
 }
