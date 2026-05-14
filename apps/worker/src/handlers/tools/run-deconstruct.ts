@@ -15,6 +15,7 @@ import {
 } from '@legal/types';
 import { env } from '../../env.js';
 import { hashContent } from '../analyze/sources.js';
+import { loadOrgConfigForUser, domainConfigForSkill } from '../../integrations/org_config.js';
 
 // PRD §12 + §7. Deconstruction + Draft Memo tool (lawyer-invoked).
 // Synthesizes prior stage outputs into a deconstruction tree + IRAC
@@ -237,6 +238,7 @@ export async function handleRunDeconstructJob(db: Db, job: Job) {
       ? Array.from(new Set(statutorySummaries.map((s) => s.jurisdiction)))
       : ['unspecified'];
 
+    const orgConfig = await loadOrgConfigForUser(db, payload.invoked_by_user_id);
     const skillReq = {
       matter_id: matter.id,
       request_text: matter.requestText,
@@ -257,6 +259,8 @@ export async function handleRunDeconstructJob(db: Db, job: Job) {
         statutory_summaries: statutorySummaries,
         case_law_summary: caseLawSummary,
       },
+      // PR12 §15 — domain config blended into the skill's prompt.
+      domain_config: domainConfigForSkill(orgConfig),
     };
 
     const res = await fetch(`${env.AI_SERVICE_URL}/deconstruct`, {
