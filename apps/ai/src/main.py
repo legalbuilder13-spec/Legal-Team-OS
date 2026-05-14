@@ -16,6 +16,7 @@ from .compile_rule import CompileRuleRequest, CompileRuleResult, compile_rule
 from .config import settings
 from .context.salesforce import lookup_counterparty
 from .enrich_counterparty import EnrichRequest, EnrichResult, enrich_counterparty
+from .case_law_research import CaseLawRequest, CaseLawResult, research_case_law
 from .guidance_grader import grade_guidance
 from .parse_document import ParseRequest, ParseResult, parse_document
 from .schemas import ContextCard, ContextRequest, TriageRequest, TriageResult
@@ -166,3 +167,18 @@ def post_statute_analysis(request: StatuteAnalysisRequest) -> StatuteAnalysisRes
         len(request.sources),
     )
     return analyze_statute(request)
+
+
+@app.post(
+    "/case-law-research",
+    response_model=CaseLawResult,
+    dependencies=[Depends(require_token)],
+)
+def post_case_law_research(request: CaseLawRequest) -> CaseLawResult:
+    logger.info(
+        "case_law_research matter_id=%s jurisdiction=%s candidates=%d",
+        request.matter_id,
+        request.jurisdiction,
+        len(request.candidates),
+    )
+    return research_case_law(request)
