@@ -75,6 +75,13 @@
       "when": 1747872000000,
       "tag": "0010_drive_context",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1747958400000,
+      "tag": "0011_user_integrations",
+      "breakpoints": true
     }
   ]
 }

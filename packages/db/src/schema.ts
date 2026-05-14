@@ -498,6 +498,30 @@ export const matterDraftVersions = pgTable(
   }),
 );
 
+export const userIntegrations = pgTable(
+  'user_integrations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    provider: text('provider').notNull(),
+    accessTokenEncrypted: bytea('access_token_encrypted').notNull(),
+    refreshTokenEncrypted: bytea('refresh_token_encrypted'),
+    scope: text('scope'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    externalUserId: text('external_user_id'),
+    externalUserEmail: text('external_user_email'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    userProviderUq: uniqueIndex('user_integrations_user_provider_uq').on(t.userId, t.provider),
+    userIdx: index('user_integrations_user_idx').on(t.userId),
+    expiresIdx: index('user_integrations_expires_idx').on(t.expiresAt),
+  }),
+);
+
 export const contextCache = pgTable(
   'context_cache',
   {

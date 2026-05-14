@@ -90,6 +90,10 @@ export async function handleContextFetchNotionJob(db: Db, job: Job) {
     primary,
     summary,
     drilldownUrl,
+    permissionsContext: {
+      scope: 'workspace:integration',
+      acquiredAt: new Date().toISOString(),
+    },
     raw: {
       query,
       hits: hits.slice(0, 5),

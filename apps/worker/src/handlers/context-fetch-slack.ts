@@ -123,6 +123,10 @@ export async function handleContextFetchSlackJob(db: Db, job: Job) {
     primary,
     summary,
     drilldownUrl,
+    permissionsContext: {
+      scope: 'workspace:bot',
+      acquiredAt: new Date().toISOString(),
+    },
     raw: {
       query,
       total: result.total,
