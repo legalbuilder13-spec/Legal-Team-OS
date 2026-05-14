@@ -154,7 +154,7 @@ export const toolsRouter = router({
             payload: {
               matter_id: input.matterId,
               jurisdiction,
-              candidate_statutes: input.candidateStatutes,
+              subject_matter: input.subjectMatter,
               invoked_by_user_id: ctx.user.id,
             },
           })
@@ -169,7 +169,7 @@ export const toolsRouter = router({
           tool: 'statutory',
           jurisdictions,
           jobIds: insertedJobIds,
-          candidate_statutes: input.candidateStatutes,
+          subject_matter: input.subjectMatter ?? null,
         },
       });
       return { jobIds: insertedJobIds, jurisdictions };
@@ -202,7 +202,7 @@ export const toolsRouter = router({
           payload: {
             matter_id: input.matterId,
             jurisdiction: input.jurisdiction,
-            candidate_doctrines: input.candidateDoctrines,
+            subject_matter: input.subjectMatter,
             anchor_opinion_id: input.anchorOpinionId,
             invoked_by_user_id: ctx.user.id,
           },

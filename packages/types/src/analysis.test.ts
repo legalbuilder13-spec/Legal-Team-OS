@@ -115,7 +115,6 @@ describe('normalizeJurisdictions', () => {
 describe('StatutoryToolInvocationSchema', () => {
   const base = {
     matterId: '00000000-0000-0000-0000-000000000000',
-    candidateStatutes: [],
     invokedByUserId: '00000000-0000-0000-0000-000000000001',
   };
 
@@ -141,7 +140,6 @@ describe('CaseLawToolInvocationSchema', () => {
     const ok = CaseLawToolInvocationSchema.safeParse({
       matterId: '00000000-0000-0000-0000-000000000000',
       jurisdiction: 'federal',
-      candidateDoctrines: [],
       anchorOpinionId: '12345',
       invokedByUserId: '00000000-0000-0000-0000-000000000001',
     });
@@ -152,7 +150,16 @@ describe('CaseLawToolInvocationSchema', () => {
     const ok = CaseLawToolInvocationSchema.safeParse({
       matterId: '00000000-0000-0000-0000-000000000000',
       jurisdiction: 'federal',
-      candidateDoctrines: [],
+      invokedByUserId: '00000000-0000-0000-0000-000000000001',
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  it('accepts an optional subject matter', () => {
+    const ok = CaseLawToolInvocationSchema.safeParse({
+      matterId: '00000000-0000-0000-0000-000000000000',
+      jurisdiction: 'federal',
+      subjectMatter: 'equitable tolling under the FLSA',
       invokedByUserId: '00000000-0000-0000-0000-000000000001',
     });
     expect(ok.success).toBe(true);

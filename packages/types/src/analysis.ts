@@ -156,7 +156,11 @@ export const StatutoryToolInvocationBaseSchema = z.object({
   matterId: z.string().uuid(),
   jurisdictions: z.array(z.string().min(1)).min(1).optional(),
   jurisdiction: z.string().min(1).optional(),
-  candidateStatutes: z.array(z.string()).default([]),
+  // Free-text "what should the tool focus on" — e.g. "data breach
+  // notification timing" or "wage garnishment exemptions". Optional;
+  // when empty, the worker auto-extracts citations from the matter text
+  // and runs the methodology on whatever it finds.
+  subjectMatter: z.string().optional(),
   invokedByUserId: z.string().uuid(),
 });
 const jurisdictionRefine = [
@@ -183,7 +187,11 @@ export function normalizeJurisdictions(
 export const CaseLawToolInvocationSchema = z.object({
   matterId: z.string().uuid(),
   jurisdiction: z.string().min(1),
-  candidateDoctrines: z.array(z.string()).default([]),
+  // Free-text "what should the tool focus on" — e.g. "equitable
+  // tolling under the FLSA" or "first-sale doctrine in software".
+  // Optional; when empty, the worker builds the search query from
+  // the matter title + summary alone.
+  subjectMatter: z.string().optional(),
   // Optional anchor case for the 3rd retrieval strategy (citator
   // traversal — PRD §11.2). Lawyer supplies a CourtListener opinion
   // id when they have a known good anchor; the worker walks the

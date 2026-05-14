@@ -7,7 +7,7 @@ import {
   type Db,
   type Job,
 } from '@legal/db';
-import { PIPELINE_VERSION, type AnalysisConfidence } from '@legal/types';
+import { PIPELINE_VERSION, type AnalysisConfidence, extractStatuteCitations } from '@legal/types';
 import { env } from '../../env.js';
 import { fetchByJurisdiction, type FetchResult } from '../../integrations/research_sources.js';
 import { recordSource, hashContent } from '../analyze/sources.js';
@@ -21,8 +21,10 @@ import { loadOrgConfigForUser, domainConfigForSkill } from '../../integrations/o
 interface RunStatutoryPayload {
   matter_id: string;
   jurisdiction: string;
-  candidate_statutes: string[];
-  candidate_urls?: string[];
+  // Optional free-text focus from the lawyer. When supplied, the
+  // worker prepends it to the request_text the skill sees and also
+  // scans it for citations alongside the matter text.
+  subject_matter?: string;
   invoked_by_user_id: string;
 }
 
@@ -97,14 +99,21 @@ export async function handleRunStatutoryJob(db: Db, job: Job) {
   const startedAt = Date.now();
 
   try {
-    // ----- 1. Fetch each candidate statute from a primary source -----
+    // ----- 1. Discover candidate citations -----
+    // Auto-extract from matter request text + subject_matter focus.
+    // The lawyer no longer enters citations by hand; the worker finds
+    // them. If none are detected, the skill still runs on the matter
+    // text alone (it returns a LOW-confidence stub when sources=[]).
+
+    const scanText = [matter.requestText, payload.subject_matter ?? '']
+      .filter(Boolean)
+      .join('\n');
+    const detected = extractStatuteCitations(scanText);
+    const candidateStatutes = Array.from(new Set(detected.map((m) => m.raw)));
 
     const fetchResults: FetchResult[] = [];
-    const urls = payload.candidate_urls ?? [];
-    for (let i = 0; i < payload.candidate_statutes.length; i++) {
-      const cite = payload.candidate_statutes[i]!;
-      const urlHint = urls[i];
-      const result = await fetchByJurisdiction(cite, payload.jurisdiction, urlHint);
+    for (const cite of candidateStatutes) {
+      const result = await fetchByJurisdiction(cite, payload.jurisdiction);
       fetchResults.push(result);
 
       // Write a source row regardless of fetch outcome. Failed fetches
@@ -124,29 +133,18 @@ export async function handleRunStatutoryJob(db: Db, job: Job) {
     }
 
     const okFetches = fetchResults.filter((r) => r.ok);
-    if (okFetches.length === 0) {
-      await db
-        .update(matterAnalysisStages)
-        .set({
-          status: 'failed',
-          outputJson: {
-            error: 'No primary source could be fetched',
-            attempts: fetchResults.map((r) => ({ citation: r.citation, error: r.error })),
-          } as Record<string, unknown>,
-          confidence: 'LOW',
-          durationMs: Date.now() - startedAt,
-          auditNotes: 'all fetches failed',
-        })
-        .where(eq(matterAnalysisStages.id, stageId));
-      return;
-    }
 
     // ----- 2. Call the statute-analysis skill -----
 
     const orgConfig = await loadOrgConfigForUser(db, payload.invoked_by_user_id);
+    // Prepend subject-matter focus to the request text so the skill
+    // sees it as context (no schema change to the AI service required).
+    const requestTextForSkill = payload.subject_matter
+      ? `Subject-matter focus from lawyer: ${payload.subject_matter}\n\n${matter.requestText}`
+      : matter.requestText;
     const skillReq = {
       matter_id: matter.id,
-      request_text: matter.requestText,
+      request_text: requestTextForSkill,
       jurisdiction: payload.jurisdiction,
       practice_area: matter.practiceArea ?? 'other',
       sources: okFetches.map((r) => ({
@@ -160,7 +158,7 @@ export async function handleRunStatutoryJob(db: Db, job: Job) {
         raw_text: r.rawText.slice(0, 60_000),
         hash: r.hash,
       })),
-      focus_citations: payload.candidate_statutes,
+      focus_citations: candidateStatutes,
       // PR12 §15 — domain config blended into the skill's prompt.
       domain_config: domainConfigForSkill(orgConfig),
     };
@@ -228,6 +226,16 @@ export async function handleRunStatutoryJob(db: Db, job: Job) {
       // PR7 — surface the jurisdiction on every stage row so the
       // deconstruct tool + UI can group + label by jurisdiction.
       jurisdiction: payload.jurisdiction,
+      subject_matter: payload.subject_matter ?? null,
+      discovery: {
+        detected_citations: candidateStatutes,
+        fetch_attempts: fetchResults.map((r) => ({
+          citation: r.citation,
+          ok: r.ok,
+          error: r.error ?? null,
+        })),
+        sources_fetched: okFetches.length,
+      },
       verification: {
         passed: verificationFailures.length === 0,
         failures: verificationFailures,
@@ -244,10 +252,18 @@ export async function handleRunStatutoryJob(db: Db, job: Job) {
         durationMs: Date.now() - startedAt,
         // Item 8 — capture skill request for eval-corpus replay.
         skillInputJson: skillReq as unknown as Record<string, unknown>,
-        auditNotes:
-          verificationFailures.length > 0
-            ? `verification: ${verificationFailures.length} quote(s) not traced to source`
-            : null,
+        auditNotes: (() => {
+          const notes: string[] = [];
+          if (candidateStatutes.length === 0) {
+            notes.push('no citations detected in matter text');
+          } else if (okFetches.length === 0) {
+            notes.push(`all ${fetchResults.length} fetch(es) failed`);
+          }
+          if (verificationFailures.length > 0) {
+            notes.push(`verification: ${verificationFailures.length} quote(s) not traced to source`);
+          }
+          return notes.length > 0 ? notes.join(' | ') : null;
+        })(),
       })
       .where(eq(matterAnalysisStages.id, stageId));
 

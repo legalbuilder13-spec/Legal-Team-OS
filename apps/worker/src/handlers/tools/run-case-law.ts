@@ -30,7 +30,9 @@ import { loadOrgConfigForUser, domainConfigForSkill } from '../../integrations/o
 interface RunCaseLawPayload {
   matter_id: string;
   jurisdiction: string;
-  candidate_doctrines: string[];
+  // Optional free-text focus from the lawyer; folded into the search
+  // query alongside matter title + summary.
+  subject_matter?: string;
   anchor_opinion_id?: string;
   invoked_by_user_id: string;
 }
@@ -148,12 +150,14 @@ export async function handleRunCaseLawJob(db: Db, job: Job) {
 
     const negativeStrategies: Array<'full_text' | 'jurisdiction_filter' | 'citator_traversal'> = [];
 
-    // Build query terms from matter title + summary + doctrines.
+    // Build query terms from matter title + summary + subject-matter
+    // focus (free-text from the lawyer, optional).
     const queryTokens = [
       matter.title,
       matter.summary ?? '',
-      ...payload.candidate_doctrines,
+      payload.subject_matter ?? '',
     ]
+      .filter(Boolean)
       .join(' ')
       .replace(/\s+/g, ' ')
       .trim();
@@ -282,12 +286,18 @@ export async function handleRunCaseLawJob(db: Db, job: Job) {
     // ----- 3. Call the case-law-research skill -----
 
     const orgConfig = await loadOrgConfigForUser(db, payload.invoked_by_user_id);
+    const requestTextForSkill = payload.subject_matter
+      ? `Subject-matter focus from lawyer: ${payload.subject_matter}\n\n${matter.requestText}`
+      : matter.requestText;
     const skillReq = {
       matter_id: matter.id,
-      request_text: matter.requestText,
+      request_text: requestTextForSkill,
       jurisdiction: payload.jurisdiction,
       practice_area: matter.practiceArea ?? 'other',
-      candidate_doctrines: payload.candidate_doctrines,
+      // Back-compat with the AI service — still send the field, now
+      // derived from the lawyer's subject-matter input. Empty array
+      // when no focus was supplied.
+      candidate_doctrines: payload.subject_matter ? [payload.subject_matter] : [],
       candidates: dedupedCandidates,
       // PR12 §15 — domain config blended into the skill's prompt.
       domain_config: domainConfigForSkill(orgConfig),
