@@ -5,13 +5,13 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 
-from .analyze_clause import AnalyzeClauseRequest, AnalyzeClauseResult, analyze_clause
 from .analysis_schemas import (
     GuidanceGraderRequest,
     GuidanceGraderResult,
     ThresholdSpotterRequest,
     ThresholdSpotterResult,
 )
+from .analyze_clause import AnalyzeClauseRequest, AnalyzeClauseResult, analyze_clause
 from .compile_rule import CompileRuleRequest, CompileRuleResult, compile_rule
 from .config import settings
 from .context.salesforce import lookup_counterparty

@@ -174,8 +174,8 @@ def grade_guidance(request: GuidanceGraderRequest) -> GuidanceGraderResult:
 
     # Hardcoded gating — verdict is decided in code, not by the model.
     # PRD §7.5 thresholds; tunable per organization in domain config.
-    MATCH_THRESHOLD = 0.8
-    RELATED_THRESHOLD = 0.5
+    match_threshold = 0.8
+    related_threshold = 0.5
 
     top_index: int | None = None
     top_score = -1.0
@@ -189,12 +189,12 @@ def grade_guidance(request: GuidanceGraderRequest) -> GuidanceGraderResult:
     else:
         top = grades[next(i for i, g in enumerate(grades) if g.candidate_index == top_index)]
         if (
-            top.on_point_score >= MATCH_THRESHOLD
+            top.on_point_score >= match_threshold
             and top.jurisdiction_match
             and not top.age_concern
         ):
             verdict = "matched"
-        elif top.on_point_score >= RELATED_THRESHOLD:
+        elif top.on_point_score >= related_threshold:
             verdict = "related_only"
         else:
             verdict = "no_hit"
