@@ -12,11 +12,11 @@ from .analysis_schemas import (
     ThresholdSpotterResult,
 )
 from .analyze_clause import AnalyzeClauseRequest, AnalyzeClauseResult, analyze_clause
+from .case_law_research import CaseLawRequest, CaseLawResult, research_case_law
 from .compile_rule import CompileRuleRequest, CompileRuleResult, compile_rule
 from .config import settings
 from .context.salesforce import lookup_counterparty
 from .enrich_counterparty import EnrichRequest, EnrichResult, enrich_counterparty
-from .case_law_research import CaseLawRequest, CaseLawResult, research_case_law
 from .guidance_grader import grade_guidance
 from .parse_document import ParseRequest, ParseResult, parse_document
 from .schemas import ContextCard, ContextRequest, TriageRequest, TriageResult
