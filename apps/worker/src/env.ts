@@ -13,6 +13,8 @@ const Env = z.object({
   OPENAI_API_KEY: z.string().optional(),
   VOYAGE_API_KEY: z.string().optional(),
   NOTION_API_KEY: z.string().optional(),
+  GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  GOOGLE_DRIVE_DEFAULT_FOLDER_ID: z.string().optional(),
 });
 
 export const env = Env.parse(process.env);

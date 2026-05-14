@@ -9,6 +9,7 @@ import { handleContextFetchSalesforceJob } from './handlers/context-fetch-salesf
 import { handleContextFetchSimilarMattersJob } from './handlers/context-fetch-similar-matters.js';
 import { handleContextFetchNotionJob } from './handlers/context-fetch-notion.js';
 import { handleContextFetchSlackJob } from './handlers/context-fetch-slack.js';
+import { handleContextFetchDriveJob } from './handlers/context-fetch-drive.js';
 import { handleGenerateEmbeddingJob } from './handlers/generate-embedding.js';
 import { handleEnrichCounterpartyMemoryJob } from './handlers/enrich-counterparty-memory.js';
 import { runSlaCheck } from './handlers/sla-check.js';
@@ -60,6 +61,9 @@ async function dispatch(job: Job) {
       break;
     case 'context_fetch_slack':
       await handleContextFetchSlackJob(db, job);
+      break;
+    case 'context_fetch_drive':
+      await handleContextFetchDriveJob(db, job);
       break;
     case 'generate_embedding':
       await handleGenerateEmbeddingJob(db, job);
