@@ -11,6 +11,7 @@ import {
   type Job,
 } from '@legal/db';
 import { env } from '../env.js';
+import { evaluateCondition, type CompiledRule } from '../rule-evaluator.js';
 
 interface AnalyzeClausePayload {
   clause_id: string;
@@ -62,7 +63,7 @@ export async function handleAnalyzeClauseJob(db: Db, job: Job) {
   });
   if (!matter) throw new Error(`matter ${payload.matter_id} not found`);
 
-  const positions = matter.practiceArea
+  const allPositions = matter.practiceArea
     ? await db
         .select({
           id: playbookPositions.id,
@@ -73,6 +74,7 @@ export async function handleAnalyzeClauseJob(db: Db, job: Job) {
           flaggedConditions: playbookPositions.flaggedConditions,
           suggestedRedline: playbookPositions.suggestedRedline,
           citation: playbookPositions.citation,
+          compiledTrigger: playbookPositions.compiledTrigger,
         })
         .from(playbookPositions)
         .innerJoin(playbooks, eq(playbookPositions.playbookId, playbooks.id))
@@ -84,6 +86,26 @@ export async function handleAnalyzeClauseJob(db: Db, job: Job) {
           ),
         )
     : [];
+
+  // G4 pre-filter: if a position has a compiled trigger, evaluate it
+  // against the clause text + heading_path. If it doesn't match, skip
+  // the position before the LLM call — sharpens focus + saves tokens.
+  // Positions without a compiled trigger pass through unchanged.
+  const clauseCtx = {
+    clause: {
+      text: clause.clauseText,
+      heading_path: clause.headingPath ?? '',
+    },
+  };
+  const positions = allPositions.filter((p) => {
+    const compiled = p.compiledTrigger as Record<string, unknown> | null;
+    if (!compiled || !('when' in compiled)) return true; // not compiled → keep
+    const rule = compiled as unknown as CompiledRule;
+    if (rule.fallback_llm) return true; // compiler said LLM needed → keep
+    const result = evaluateCondition(rule.when, clauseCtx);
+    if (result.needs_llm) return true; // condition itself defers to LLM
+    return result.matched;
+  });
 
   const matterContext = [
     matter.title,

@@ -18,6 +18,7 @@ import {
 } from '@legal/db';
 import { PracticeAreaSchema } from '@legal/types';
 import { adminProcedure, router } from '../trpc.js';
+import { env } from '@/env';
 
 const RoleSchema = z.enum(['attorney', 'legal_ops', 'admin', 'requester']);
 
@@ -656,6 +657,64 @@ export const adminRouter = router({
           .returning();
         result = created;
       }
+
+      // G4: compile the trigger NL into DSL for the analyze-clause
+      // pre-filter. Best-effort — failures don't block the save (the
+      // clause analyzer falls back to LLM-only matching). Sync call
+      // adds ~1-3s to the save; tolerable for position authoring rate.
+      if (result?.id && (input.trigger || input.flaggedConditions)) {
+        try {
+          const compileBody =
+            `${input.trigger}` +
+            (input.flaggedConditions ? `\n\nFlagged conditions: ${input.flaggedConditions}` : '');
+          const compileRes = await fetch(`${env.AI_SERVICE_URL}/compile-rule`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              ...(env.AI_SERVICE_TOKEN
+                ? { authorization: `Bearer ${env.AI_SERVICE_TOKEN}` }
+                : {}),
+            },
+            body: JSON.stringify({
+              rule_id: result.id,
+              kind: 'playbook_trigger',
+              natural_text: compileBody,
+              scope: { topic: input.topic },
+            }),
+          });
+          if (compileRes.ok) {
+            const compiled = (await compileRes.json()) as {
+              compiled: Record<string, unknown>;
+              compiler_version: string;
+            };
+            await ctx.db
+              .update(playbookPositions)
+              .set({
+                compiledTrigger: compiled.compiled,
+                compilerVersion: compiled.compiler_version,
+                compiledAt: new Date(),
+                compileError: null,
+              })
+              .where(eq(playbookPositions.id, result.id));
+          } else {
+            const body = await compileRes.text();
+            await ctx.db
+              .update(playbookPositions)
+              .set({
+                compileError: `${compileRes.status} ${body.slice(0, 300)}`,
+                compiledAt: new Date(),
+              })
+              .where(eq(playbookPositions.id, result.id));
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          await ctx.db
+            .update(playbookPositions)
+            .set({ compileError: message.slice(0, 500), compiledAt: new Date() })
+            .where(eq(playbookPositions.id, result.id));
+        }
+      }
+
       await ctx.db.insert(auditLog).values({
         actorId: ctx.user.id,
         action: 'playbook_position.upserted',
