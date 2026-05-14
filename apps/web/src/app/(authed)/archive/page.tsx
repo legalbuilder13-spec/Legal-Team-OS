@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { PracticeAreaSchema } from '@legal/types';
+import { formatPracticeArea } from '@/lib/format';
 
 const PRACTICE_AREAS = PracticeAreaSchema.options;
 
@@ -57,7 +58,7 @@ export default function ArchivePage() {
             <option value="">All</option>
             {PRACTICE_AREAS.map((a) => (
               <option key={a} value={a}>
-                {a}
+                {formatPracticeArea(a)}
               </option>
             ))}
           </select>
@@ -98,8 +99,8 @@ export default function ArchivePage() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {area && (
-                      <span className="text-xs bg-ink-100 dark:bg-ink-800 px-1.5 py-0.5 rounded capitalize">
-                        {String(area)}
+                      <span className="text-xs bg-ink-100 dark:bg-ink-800 px-1.5 py-0.5 rounded">
+                        {formatPracticeArea(String(area))}
                       </span>
                     )}
                     {pri && (

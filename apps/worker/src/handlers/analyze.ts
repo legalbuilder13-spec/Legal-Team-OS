@@ -166,7 +166,7 @@ export async function handleAnalyzeJob(db: Db, job: Job) {
       matched && 'headlineAnswer' in stage1.output ? stage1.output.headlineAnswer : null;
     const summary = headlineAnswer
       ? `Matched playbook · ${headlineAnswer.citation}\n${headlineAnswer.summary}`
-      : `Escalated for legal review · ${escalationReason ?? 'no on-point guidance'}`;
+      : `Needs lawyer review · ${escalationReason ?? 'no on-point guidance'}`;
     const highSeverityCount = stage0.highSeverityRaised.length;
     const flagsLine = highSeverityCount > 0
       ? `*Pre-merits flags:* ${highSeverityCount} high-severity (${stage0.highSeverityRaised.join(', ')})`

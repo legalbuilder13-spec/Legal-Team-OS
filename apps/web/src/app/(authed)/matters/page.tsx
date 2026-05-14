@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { trpc } from '@/lib/trpc';
+import { formatPracticeArea } from '@/lib/format';
 
 const STATUS_LABELS: Record<string, string> = {
   open: 'Open',
@@ -61,7 +62,7 @@ export default function MattersPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-2">{m.title}</td>
-                  <td className="px-4 py-2 capitalize">{m.practiceArea ?? '—'}</td>
+                  <td className="px-4 py-2">{formatPracticeArea(m.practiceArea)}</td>
                   <td className="px-4 py-2">{STATUS_LABELS[m.status] ?? m.status}</td>
                   <td className="px-4 py-2">
                     {m.priority ? (

@@ -59,7 +59,7 @@ function StatusPill({
     status === 'matched'
       ? 'Matched playbook'
       : status === 'escalated'
-        ? 'Escalated for legal review'
+        ? 'Needs lawyer review'
         : status === 'failed'
           ? 'Analysis failed'
           : status === 'running'

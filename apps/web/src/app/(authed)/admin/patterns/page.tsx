@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { PracticeAreaSchema, type PracticeArea } from '@legal/types';
+import { formatPracticeArea } from '@/lib/format';
 
 const PRACTICE_AREAS = PracticeAreaSchema.options;
 
@@ -122,7 +123,7 @@ export default function ExecutionPatternsAdminPage() {
             return (
               <section key={area}>
                 <h2 className="text-xs uppercase tracking-wider text-ink-500 dark:text-ink-400 mb-1.5 font-medium">
-                  {area}
+                  {formatPracticeArea(area)}
                 </h2>
                 <ul className="space-y-1.5">
                   {list.map((p) => (
@@ -221,7 +222,7 @@ function PatternEditor({
           >
             {PRACTICE_AREAS.map((a) => (
               <option key={a} value={a}>
-                {a}
+                {formatPracticeArea(a)}
               </option>
             ))}
           </select>

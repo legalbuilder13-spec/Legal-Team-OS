@@ -38,7 +38,16 @@ async function upsertUserByEmail(
 async function upsertRoutingRule(
   db: ReturnType<typeof getDb>,
   values: {
-    practiceArea: 'commercial' | 'employment' | 'privacy' | 'litigation' | 'corporate';
+    practiceArea:
+      | 'commercial'
+      | 'employment'
+      | 'privacy'
+      | 'litigation'
+      | 'corporate'
+      | 'regulatory'
+      | 'ip'
+      | 'real_estate'
+      | 'other';
     defaultAssigneeId: string;
     slaHours: number;
   },
@@ -107,6 +116,24 @@ async function main() {
   await upsertRoutingRule(db, {
     practiceArea: 'privacy',
     defaultAssigneeId: privacy.id,
+    slaHours: 24,
+  });
+  // G3 — IP / Regulatory / Litigation route to the closest-fit existing
+  // attorney so triage always lands a default assignee. The GC can
+  // reassign in the routing-rules admin without a migration.
+  await upsertRoutingRule(db, {
+    practiceArea: 'ip',
+    defaultAssigneeId: commercial.id,
+    slaHours: 48,
+  });
+  await upsertRoutingRule(db, {
+    practiceArea: 'regulatory',
+    defaultAssigneeId: privacy.id,
+    slaHours: 24,
+  });
+  await upsertRoutingRule(db, {
+    practiceArea: 'litigation',
+    defaultAssigneeId: admin.id,
     slaHours: 24,
   });
 

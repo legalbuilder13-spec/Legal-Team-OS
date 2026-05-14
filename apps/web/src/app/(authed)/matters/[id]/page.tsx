@@ -12,6 +12,7 @@ import { EscalationsCard } from './EscalationsCard';
 import { ContextCardGrid } from './ContextCardGrid';
 import { DocumentsCard } from './DocumentsCard';
 import { AnalysisPanel } from './AnalysisPanel';
+import { formatPracticeArea } from '@/lib/format';
 
 function TriageConfidence({ metadata }: { metadata: Record<string, unknown> }) {
   const practiceConf = metadata.practiceAreaConfidence;
@@ -99,8 +100,8 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
               <span className="px-2 py-0.5 rounded bg-ink-100 dark:bg-ink-800 text-xs">{matter.priority}</span>
             )}
             {matter.practiceArea && (
-              <span className="px-2 py-0.5 rounded bg-ink-100 dark:bg-ink-800 text-xs capitalize">
-                {matter.practiceArea}
+              <span className="px-2 py-0.5 rounded bg-ink-100 dark:bg-ink-800 text-xs">
+                {formatPracticeArea(matter.practiceArea)}
               </span>
             )}
             <SaveToNotionButton matterId={matter.id} />
@@ -270,9 +271,9 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
                       {profile.practiceAreas.map((p) => (
                         <span
                           key={p.area}
-                          className="text-xs bg-ink-100 dark:bg-ink-800 px-1.5 py-0.5 rounded capitalize"
+                          className="text-xs bg-ink-100 dark:bg-ink-800 px-1.5 py-0.5 rounded"
                         >
-                          {p.area} ({p.count})
+                          {formatPracticeArea(p.area)} ({p.count})
                         </span>
                       ))}
                     </div>
@@ -311,8 +312,8 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
                     </a>
                     <div className="flex items-center gap-2 mt-0.5">
                       {sm.practice_area && (
-                        <span className="text-xs bg-ink-100 dark:bg-ink-800 px-1.5 py-0.5 rounded capitalize">
-                          {sm.practice_area}
+                        <span className="text-xs bg-ink-100 dark:bg-ink-800 px-1.5 py-0.5 rounded">
+                          {formatPracticeArea(sm.practice_area)}
                         </span>
                       )}
                       {sm.priority && (

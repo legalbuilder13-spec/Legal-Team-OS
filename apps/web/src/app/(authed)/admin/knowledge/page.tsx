@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { PracticeAreaSchema } from '@legal/types';
+import { formatPracticeArea } from '@/lib/format';
 
 const PRACTICE_AREAS = PracticeAreaSchema.options;
 
@@ -71,7 +72,7 @@ export default function KnowledgeAdminPage() {
               >
                 {PRACTICE_AREAS.map((a) => (
                   <option key={a} value={a}>
-                    {a}
+                    {formatPracticeArea(a)}
                   </option>
                 ))}
               </select>
@@ -168,8 +169,8 @@ export default function KnowledgeAdminPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span className="font-medium text-sm">{art.title}</span>
-                  <span className="text-xs bg-ink-100 dark:bg-ink-800 px-1.5 py-0.5 rounded capitalize">
-                    {art.practiceArea}
+                  <span className="text-xs bg-ink-100 dark:bg-ink-800 px-1.5 py-0.5 rounded">
+                    {formatPracticeArea(art.practiceArea)}
                   </span>
                   {!art.isActive && (
                     <span className="text-xs bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400 px-1.5 py-0.5 rounded">
