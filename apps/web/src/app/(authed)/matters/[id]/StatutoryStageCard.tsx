@@ -286,6 +286,8 @@ export function StatutoryStageCard({
 
       <StageDecisionBar
         stageId={stageId}
+        stageName="statutory"
+        workerConfidence={output.worker_confidence}
         currentDecision={lawyerDecision}
         decidedAtIso={lawyerDecidedAt ?? null}
         decisionReason={lawyerDecisionReason ?? null}

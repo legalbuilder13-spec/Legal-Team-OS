@@ -188,6 +188,17 @@ export function StageTraceDrawer({
           </div>
           <StageDecisionBar
             stageId={stageId}
+            stageName={
+              stageName as
+                | 'pre_merits'
+                | 'guidance'
+                | 'statutory'
+                | 'case_law'
+                | 'deconstruct'
+            }
+            workerConfidence={
+              confidence as 'HIGH' | 'MEDIUM' | 'LOW' | 'SPLIT' | 'N_A'
+            }
             currentDecision={lawyerDecision}
             decidedAtIso={lawyerDecidedAt ?? null}
             decisionReason={lawyerDecisionReason ?? null}
