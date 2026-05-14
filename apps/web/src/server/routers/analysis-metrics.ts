@@ -11,38 +11,38 @@ const WindowInput = z.object({
   lookbackDays: z.number().int().min(1).max(90).default(7),
 });
 
-interface MatchedRateRow {
+export interface MatchedRateRow {
   practice_area: string | null;
   analyzed: number;
   matched: number;
   matched_pct: number | null;
 }
 
-interface ConfidenceRow {
+export interface ConfidenceRow {
   total: number;
   low: number;
   low_pct: number | null;
 }
 
-interface LatencyRow {
+export interface LatencyRow {
   samples: number;
   p50_seconds: number | null;
   p95_seconds: number | null;
 }
 
-interface StageFailureRow {
+export interface StageFailureRow {
   stage_name: string;
   total: number;
   failed: number;
   failure_pct: number | null;
 }
 
-interface VerificationRow {
+export interface VerificationRow {
   verification_status: string;
   count: number;
 }
 
-interface OverrideRow {
+export interface OverrideRow {
   stage_name: string;
   decided: number;
   accepted: number;
