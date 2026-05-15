@@ -91,7 +91,13 @@ export const analysisRouter = router({
       const analysis = await ctx.db.query.matterAnalyses.findFirst({
         where: eq(matterAnalyses.id, stage.analysisId),
       });
-      const matterId = analysis?.matterId;
+      if (!analysis) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Parent analysis not found for this stage.',
+        });
+      }
+      const matterId = analysis.matterId;
 
       await ctx.db
         .update(matterAnalysisStages)
@@ -112,7 +118,7 @@ export const analysisRouter = router({
       await ctx.db.insert(auditLog).values({
         actorId: ctx.user.id,
         actorKind: 'user',
-        matterId: matterId ?? null,
+        matterId,
         action: `analysis.stage_${input.decision}`,
         details: {
           stageId: input.stageId,

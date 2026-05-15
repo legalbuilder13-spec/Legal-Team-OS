@@ -66,6 +66,7 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
   });
   const generateInitial = trpc.drafts.generateInitial.useMutation();
   const suggestEdits = trpc.drafts.suggestEdits.useMutation();
+  const sendToSlack = trpc.drafts.sendToSlack.useMutation();
 
   const [title, setTitle] = useState('Draft');
   const [body, setBody] = useState('');
@@ -75,6 +76,7 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
   const [pendingBody, setPendingBody] = useState<string | null>(null);
   const [showDiff, setShowDiff] = useState(false);
   const [compareVersionId, setCompareVersionId] = useState<string | null>(null);
+  const [sentAt, setSentAt] = useState<Date | null>(null);
 
   useEffect(() => {
     if (existingDraft) {
@@ -118,8 +120,54 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
           >
             {save.isPending ? 'Saving…' : dirty ? 'Save' : 'Saved'}
           </button>
+          <button
+            disabled={
+              sendToSlack.isPending ||
+              !existingDraft ||
+              !existingDraft.body.trim() ||
+              dirty ||
+              !matter.slackChannelId
+            }
+            onClick={() => {
+              const requester = matter.requester?.name ?? 'the requester';
+              const note =
+                prompt(
+                  `Send draft v${existingDraft?.version} to ${requester} in the original Slack thread?\n\nOptional cover note (leave blank for none):`,
+                  '',
+                );
+              if (note === null) return; // user cancelled
+              sendToSlack.mutate(
+                { matterId: id, note: note.trim() || undefined },
+                {
+                  onSuccess: () => setSentAt(new Date()),
+                },
+              );
+            }}
+            title={
+              !matter.slackChannelId
+                ? 'Matter has no Slack channel — nothing to reply to'
+                : dirty
+                  ? 'Save your changes first'
+                  : !existingDraft?.body.trim()
+                    ? 'Draft is empty'
+                    : 'Post this draft back to the requester in Slack'
+            }
+            className="text-sm border rounded px-3 py-1.5 hover:bg-ink-50 dark:hover:bg-ink-800 disabled:opacity-50"
+          >
+            {sendToSlack.isPending ? 'Sending…' : 'Send to requester'}
+          </button>
         </div>
       </header>
+      {sentAt && (
+        <div className="mb-3 rounded border border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
+          Draft queued for delivery to Slack at {sentAt.toLocaleTimeString()}.
+        </div>
+      )}
+      {sendToSlack.error && (
+        <div className="mb-3 rounded border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+          {sendToSlack.error.message}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <input

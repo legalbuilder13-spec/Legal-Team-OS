@@ -9,6 +9,8 @@ import {
   counterparties,
   matterEvents,
   auditLog,
+  jobs,
+  users,
 } from '@legal/db';
 import { staffProcedure, router } from '../trpc.js';
 import { getAnthropic, getAnthropicModel } from '../integrations/anthropic.js';
@@ -171,6 +173,90 @@ export const draftsRouter = router({
         .join('\n')
         .trim();
       return { body, playbookTitle: pb?.title ?? null };
+    }),
+
+  // Manual handoff: ship the current saved draft back to the requester in
+  // the original Slack thread. Deliberately manual (not on status=closed)
+  // so working notes don't accidentally get sent.
+  sendToSlack: staffProcedure
+    .input(
+      z.object({
+        matterId: z.string().uuid(),
+        note: z.string().max(2000).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const draft = await ctx.db.query.matterDrafts.findFirst({
+        where: eq(matterDrafts.matterId, input.matterId),
+      });
+      if (!draft || !draft.body.trim()) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'No draft to send.' });
+      }
+
+      const matter = await ctx.db.query.matters.findFirst({
+        where: eq(matters.id, input.matterId),
+      });
+      if (!matter) throw new TRPCError({ code: 'NOT_FOUND', message: 'Matter not found.' });
+      if (!matter.slackChannelId) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Matter has no Slack channel — cannot send to requester.',
+        });
+      }
+
+      const requester = matter.requesterId
+        ? await ctx.db.query.users.findFirst({ where: eq(users.id, matter.requesterId) })
+        : null;
+      const mention =
+        requester?.slackUserId ? `<@${requester.slackUserId}> ` : '';
+
+      const header = [
+        `${mention}Update from legal on *${matter.shortId} — ${matter.title}* (sent by ${ctx.user.name}):`,
+        input.note ? `\n_${input.note.trim()}_` : '',
+        '',
+        `*${draft.title}* _(v${draft.version})_`,
+        '',
+      ].join('\n');
+
+      // Slack chat.postMessage caps at 40k chars. Trim aggressively and
+      // tell the requester to open the matter for the full text.
+      const MAX_BODY = 30_000;
+      const truncated = draft.body.length > MAX_BODY;
+      const bodyText = truncated
+        ? `${draft.body.slice(0, MAX_BODY)}\n\n…(truncated — open the matter for the full draft)`
+        : draft.body;
+
+      const text = `${header}${bodyText}`;
+
+      await ctx.db.insert(jobs).values({
+        kind: 'slack_notify',
+        matterId: matter.id,
+        payload: {
+          matter_id: matter.id,
+          text,
+        },
+      });
+
+      await ctx.db.insert(matterEvents).values({
+        matterId: matter.id,
+        actorId: ctx.user.id,
+        kind: 'draft.sent_to_slack',
+        payload: { draftId: draft.id, version: draft.version, truncated },
+      });
+      await ctx.db.insert(auditLog).values({
+        actorId: ctx.user.id,
+        matterId: matter.id,
+        action: 'draft.sent_to_slack',
+        details: {
+          draftId: draft.id,
+          version: draft.version,
+          channel: matter.slackChannelId,
+          threadTs: matter.slackThreadTs,
+          truncated,
+        },
+      });
+
+      return { queued: true, truncated, version: draft.version };
     }),
 
   suggestEdits: staffProcedure

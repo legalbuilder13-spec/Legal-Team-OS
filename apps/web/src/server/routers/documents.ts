@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { and, asc, desc, eq } from 'drizzle-orm';
+import { TRPCError } from '@trpc/server';
 import {
+  matters,
   matterDocuments,
   matterDocumentClauses,
   clauseAnalyses,
@@ -42,6 +44,12 @@ export const documentsRouter = router({
       if (content.length > MAX_BYTES) {
         throw new Error(`File too large: ${content.length} bytes (limit ${MAX_BYTES})`);
       }
+
+      const matter = await ctx.db.query.matters.findFirst({
+        where: eq(matters.id, input.matterId),
+        columns: { id: true },
+      });
+      if (!matter) throw new TRPCError({ code: 'NOT_FOUND', message: 'matter not found' });
 
       const [created] = await ctx.db
         .insert(matterDocuments)

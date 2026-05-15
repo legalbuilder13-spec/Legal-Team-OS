@@ -5,7 +5,7 @@ import { escalations, matters, users, auditLog, matterEvents } from '@legal/db';
 import { protectedProcedure, staffProcedure, router } from '../trpc.js';
 
 const SeveritySchema = z.enum(['low', 'medium', 'high', 'critical']);
-const StatusSchema = z.enum(['open', 'acknowledged', 'resolved']);
+const StatusSchema = z.enum(['open', 'resolved']);
 
 export const escalationsRouter = router({
   list: protectedProcedure
@@ -69,6 +69,12 @@ export const escalationsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const matter = await ctx.db.query.matters.findFirst({
+        where: eq(matters.id, input.matterId),
+        columns: { id: true },
+      });
+      if (!matter) throw new TRPCError({ code: 'NOT_FOUND', message: 'matter not found' });
+
       const [created] = await ctx.db
         .insert(escalations)
         .values({
@@ -97,37 +103,6 @@ export const escalationsRouter = router({
       return created;
     }),
 
-  acknowledge: staffProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(async ({ ctx, input }) => {
-      const existing = await ctx.db.query.escalations.findFirst({
-        where: eq(escalations.id, input.id),
-      });
-      if (!existing) throw new TRPCError({ code: 'NOT_FOUND' });
-      const [updated] = await ctx.db
-        .update(escalations)
-        .set({
-          status: 'acknowledged',
-          acknowledgedById: ctx.user.id,
-          acknowledgedAt: new Date(),
-        })
-        .where(eq(escalations.id, input.id))
-        .returning();
-      await ctx.db.insert(matterEvents).values({
-        matterId: existing.matterId,
-        actorId: ctx.user.id,
-        kind: 'escalation.acknowledged',
-        payload: { escalationId: input.id },
-      });
-      await ctx.db.insert(auditLog).values({
-        actorId: ctx.user.id,
-        matterId: existing.matterId,
-        action: 'escalation.acknowledged',
-        details: { escalationId: input.id },
-      });
-      return updated;
-    }),
-
   resolve: staffProcedure
     .input(
       z.object({
@@ -140,6 +115,8 @@ export const escalationsRouter = router({
         where: eq(escalations.id, input.id),
       });
       if (!existing) throw new TRPCError({ code: 'NOT_FOUND' });
+      // Idempotent: already resolved → return without overwriting actor/time/note.
+      if (existing.status === 'resolved') return existing;
       const [updated] = await ctx.db
         .update(escalations)
         .set({

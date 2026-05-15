@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 
-const STATUS_OPTIONS = ['open', 'acknowledged', 'resolved'] as const;
+const STATUS_OPTIONS = ['open', 'resolved'] as const;
 type Status = (typeof STATUS_OPTIONS)[number];
 
 const SEVERITY_COLOR: Record<string, string> = {
@@ -19,7 +19,6 @@ export default function EscalationsPage() {
   const [mineOnly, setMineOnly] = useState(false);
 
   const { data = [], isLoading, refetch } = trpc.escalations.list.useQuery({ status, mineOnly });
-  const ack = trpc.escalations.acknowledge.useMutation({ onSuccess: () => refetch() });
   const resolve = trpc.escalations.resolve.useMutation({ onSuccess: () => refetch() });
 
   return (
@@ -81,14 +80,6 @@ export default function EscalationsPage() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-1 shrink-0">
-                  {e.status === 'open' && (
-                    <button
-                      onClick={() => ack.mutate({ id: e.id })}
-                      className="text-xs border rounded px-2 py-1 hover:bg-ink-50 dark:hover:bg-ink-800"
-                    >
-                      Acknowledge
-                    </button>
-                  )}
                   {e.status !== 'resolved' && (
                     <button
                       onClick={() => {

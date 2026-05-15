@@ -27,8 +27,8 @@ const KIND_LABEL: Record<string, string> = {
   'note.added': 'note added',
   'draft.created': 'draft started',
   'draft.updated': 'draft updated',
+  'draft.sent_to_slack': 'draft sent to Slack',
   'escalation.created': 'escalated',
-  'escalation.acknowledged': 'escalation ack',
   'escalation.resolved': 'escalation resolved',
   'notion.saved': 'saved to Notion',
   'drive.saved': 'saved to Drive',
@@ -51,12 +51,11 @@ export default function DashboardPage() {
   const { user } = useUser();
   const { data: mine, isLoading } = trpc.dashboard.mine.useQuery();
   const { data: chart = [] } = trpc.dashboard.myActivityChart.useQuery();
-  const { data: escalations = [], refetch: refetchEsc } = trpc.escalations.list.useQuery({
+  const { data: escalations = [] } = trpc.escalations.list.useQuery({
     status: 'open',
     mineOnly: true,
     limit: 5,
   });
-  const ackEsc = trpc.escalations.acknowledge.useMutation({ onSuccess: () => refetchEsc() });
 
   const { data: insights = [], refetch: refetchInsights } = trpc.admin.listInsights.useQuery({
     status: 'active',
@@ -335,14 +334,6 @@ export default function DashboardPage() {
                     <div className="text-xs font-medium mt-1 text-ink-900 dark:text-ink-100">
                       {e.title}
                     </div>
-                    {e.status === 'open' && (
-                      <button
-                        onClick={() => ackEsc.mutate({ id: e.id })}
-                        className="text-[10px] text-ink-500 dark:text-ink-400 hover:text-brand-600 dark:hover:text-brand-400 mt-1.5"
-                      >
-                        Acknowledge
-                      </button>
-                    )}
                   </li>
                 ))}
               </ul>

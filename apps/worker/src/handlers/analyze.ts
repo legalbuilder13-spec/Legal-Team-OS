@@ -145,6 +145,7 @@ export async function handleAnalyzeJob(db: Db, job: Job) {
           ...seniorTriggers.map((t) => `- [${t.severity}] ${t.label} (${t.id})`),
         ].join('\n'),
         createdByKind: 'system',
+        createdById: null,
         triggerRule: 'senior_review_trigger',
         evidence: { triggers: seniorTriggers.map((t) => ({ id: t.id, severity: t.severity })) },
       });

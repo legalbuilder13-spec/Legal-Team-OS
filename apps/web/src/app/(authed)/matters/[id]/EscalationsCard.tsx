@@ -22,7 +22,6 @@ export function EscalationsCard({ matterId }: { matterId: string }) {
       setBody('');
     },
   });
-  const ack = trpc.escalations.acknowledge.useMutation({ onSuccess: () => refetch() });
   const resolve = trpc.escalations.resolve.useMutation({ onSuccess: () => refetch() });
 
   const [composing, setComposing] = useState(false);
@@ -113,14 +112,6 @@ export function EscalationsCard({ matterId }: { matterId: string }) {
             <div className="font-medium text-xs mt-0.5">{e.title}</div>
             <p className="text-xs text-ink-700 dark:text-ink-300 whitespace-pre-wrap mt-0.5">{e.body}</p>
             <div className="flex gap-2 mt-1">
-              {e.status === 'open' && (
-                <button
-                  onClick={() => ack.mutate({ id: e.id })}
-                  className="text-xs text-ink-600 dark:text-ink-400 hover:underline"
-                >
-                  Ack
-                </button>
-              )}
               <button
                 onClick={() => {
                   const note = prompt('Resolution note (optional)') ?? undefined;

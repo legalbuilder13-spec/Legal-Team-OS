@@ -8,7 +8,7 @@
 //     tsx ../../scripts/build-eval-corpus.ts --out eval/v1/
 //
 // Usage (local output + upload to s3://${SNAPSHOTS_BUCKET}/${prefix}/):
-//   DATABASE_URL=... SNAPSHOTS_BUCKET=cbh-snapshots \
+//   DATABASE_URL=... SNAPSHOTS_BUCKET=my-snapshots \
 //   SNAPSHOTS_S3_ENDPOINT=... SNAPSHOTS_S3_REGION=... \
 //   SNAPSHOTS_S3_ACCESS_KEY_ID=... SNAPSHOTS_S3_SECRET_ACCESS_KEY=... \
 //     pnpm --filter @legal/worker exec \
