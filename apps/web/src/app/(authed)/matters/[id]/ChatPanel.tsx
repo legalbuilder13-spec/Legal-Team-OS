@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { trpc } from '@/lib/trpc';
+import { PracticeAreaSchema, type PracticeArea } from '@legal/types';
 
 interface Message {
   id: string;
@@ -22,6 +23,9 @@ interface ToolEvent {
 export function ChatPanel({ matterId }: { matterId: string }) {
   const utils = trpc.useUtils();
   const { data: history = [], refetch } = trpc.chat.list.useQuery({ matterId });
+  const { data: promotedIds = [] } = trpc.chat.promotedChatMessageIds.useQuery({ matterId });
+  const promotedSet = useMemo(() => new Set(promotedIds), [promotedIds]);
+  const matter = trpc.matters.get.useQuery({ id: matterId }).data;
   const clear = trpc.chat.clear.useMutation({ onSuccess: () => refetch() });
 
   const [input, setInput] = useState('');
@@ -141,9 +145,30 @@ export function ChatPanel({ matterId }: { matterId: string }) {
           </div>
         )}
 
-        {visible.map((m) => (
-          <MessageBubble key={m.id} message={m as Message} />
-        ))}
+        {visible.map((m, idx) => {
+          // Pre-fill the KB modal with the user's preceding question +
+          // this assistant message, so the lawyer doesn't have to retype.
+          const precedingUser = (() => {
+            for (let j = idx - 1; j >= 0; j -= 1) {
+              const candidate = visible[j];
+              if (candidate?.role === 'user') return candidate.content;
+            }
+            return null;
+          })();
+          return (
+            <MessageBubble
+              key={m.id}
+              message={m as Message}
+              matterId={matterId}
+              precedingUserMessage={precedingUser}
+              defaultPracticeArea={(matter?.practiceArea as PracticeArea) ?? 'commercial'}
+              alreadyPromoted={promotedSet.has(m.id)}
+              onPromoted={() => {
+                void utils.chat.promotedChatMessageIds.invalidate({ matterId });
+              }}
+            />
+          );
+        })}
 
         {(streamingText || activeTools.length > 0) && (
           <div className="border-l-2 border-brand-500 pl-3">
@@ -194,7 +219,23 @@ export function ChatPanel({ matterId }: { matterId: string }) {
   );
 }
 
-function MessageBubble({ message }: { message: Message }) {
+interface BubbleProps {
+  message: Message;
+  matterId: string;
+  precedingUserMessage: string | null;
+  defaultPracticeArea: PracticeArea;
+  alreadyPromoted: boolean;
+  onPromoted: () => void;
+}
+
+function MessageBubble({
+  message,
+  matterId,
+  precedingUserMessage,
+  defaultPracticeArea,
+  alreadyPromoted,
+  onPromoted,
+}: BubbleProps) {
   if (message.role === 'user') {
     return (
       <div className="bg-brand-50 border border-brand-100 rounded px-3 py-2 whitespace-pre-wrap">
@@ -213,6 +254,157 @@ function MessageBubble({ message }: { message: Message }) {
       )}
       {message.content && (
         <div className="whitespace-pre-wrap text-ink-800 dark:text-ink-200">{message.content}</div>
+      )}
+      {message.content && message.content.length > 100 && (
+        <PromoteToKbButton
+          matterId={matterId}
+          chatMessageId={message.id}
+          defaultTitle={
+            precedingUserMessage
+              ? precedingUserMessage.slice(0, 100)
+              : 'Knowledge from copilot chat'
+          }
+          defaultBody={message.content}
+          defaultPracticeArea={defaultPracticeArea}
+          alreadyPromoted={alreadyPromoted}
+          onPromoted={onPromoted}
+        />
+      )}
+    </div>
+  );
+}
+
+interface PromoteProps {
+  matterId: string;
+  chatMessageId: string;
+  defaultTitle: string;
+  defaultBody: string;
+  defaultPracticeArea: PracticeArea;
+  alreadyPromoted: boolean;
+  onPromoted: () => void;
+}
+
+function PromoteToKbButton({
+  matterId,
+  chatMessageId,
+  defaultTitle,
+  defaultBody,
+  defaultPracticeArea,
+  alreadyPromoted,
+  onPromoted,
+}: PromoteProps) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState(defaultTitle);
+  const [body, setBody] = useState(defaultBody);
+  const [practiceArea, setPracticeArea] = useState<PracticeArea>(defaultPracticeArea);
+  const [tags, setTags] = useState('');
+
+  const promote = trpc.chat.promoteToKnowledge.useMutation({
+    onSuccess: () => {
+      setOpen(false);
+      onPromoted();
+    },
+  });
+
+  if (alreadyPromoted) {
+    return (
+      <div className="mt-2 text-[11px] text-emerald-700 dark:text-emerald-300">
+        ✓ Already saved as a Knowledge article (review at /admin/knowledge)
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2">
+      {!open ? (
+        <button
+          type="button"
+          onClick={() => {
+            setTitle(defaultTitle);
+            setBody(defaultBody);
+            setPracticeArea(defaultPracticeArea);
+            setTags('');
+            setOpen(true);
+          }}
+          className="text-[11px] text-ink-500 dark:text-ink-400 hover:underline"
+          title="Save this answer as a Knowledge article so the next lawyer with the same question doesn't re-ask"
+        >
+          + Save as Knowledge
+        </button>
+      ) : (
+        <div className="border rounded p-2 space-y-2 bg-ink-50 dark:bg-ink-900/40">
+          <div className="text-[11px] text-ink-600 dark:text-ink-400">
+            Saves as a draft Knowledge article (inactive — admin reviews
+            before activating). Cross-linked to this matter as
+            "derived_from".
+          </div>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Title"
+            className="w-full border rounded px-2 py-1 text-xs"
+            maxLength={120}
+          />
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={6}
+            className="w-full border rounded px-2 py-1 text-xs font-mono"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={practiceArea}
+              onChange={(e) => setPracticeArea(e.target.value as PracticeArea)}
+              className="border rounded px-2 py-1 text-xs"
+            >
+              {PracticeAreaSchema.options.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+            <input
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="Tags (comma-separated)"
+              className="border rounded px-2 py-1 text-xs"
+            />
+          </div>
+          {promote.error && (
+            <div className="text-[11px] text-red-600 dark:text-red-400">
+              {promote.error.message}
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="text-[11px] px-2 py-1 border rounded hover:bg-white dark:hover:bg-ink-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={promote.isPending || title.trim().length < 3 || body.trim().length < 50}
+              onClick={() =>
+                promote.mutate({
+                  matterId,
+                  chatMessageId,
+                  title: title.trim(),
+                  body: body.trim(),
+                  practiceArea,
+                  tags: tags
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean),
+                })
+              }
+              className="text-[11px] px-2 py-1 border rounded bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {promote.isPending ? 'Saving…' : 'Save as Knowledge'}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
