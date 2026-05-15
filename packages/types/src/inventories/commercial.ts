@@ -74,6 +74,13 @@ export const COMMERCIAL_INVENTORY: InventoryItem[] = [
       standardOfProof: 'preponderance',
       defaultPosture: 'trial',
       appellateStandardOfReview: 'de_novo',
+      pjiAnchor: {
+        source: 'CACI',
+        section: 'CACI 2520 (Express Indemnity Agreement)',
+        operativeLanguage:
+          'A party who has entered into an express agreement to indemnify another for losses or damages must do so according to the terms of the agreement.',
+        url: 'https://www.courts.ca.gov/partners/juryinstructions.htm',
+      },
     },
   },
   {
@@ -87,6 +94,13 @@ export const COMMERCIAL_INVENTORY: InventoryItem[] = [
       standardOfProof: 'preponderance',
       defaultPosture: 'trial',
       appellateStandardOfReview: 'de_novo',
+      pjiAnchor: {
+        source: 'CACI',
+        section: 'CACI 1230 (Express Warranty—Essential Factual Elements)',
+        operativeLanguage:
+          'To recover for a breach of express warranty, plaintiff must prove (1) defendant made a representation about the quality or characteristics of the goods, (2) plaintiff relied on that representation, (3) the goods did not perform as represented, and (4) plaintiff was harmed as a result.',
+        url: 'https://www.courts.ca.gov/partners/juryinstructions.htm',
+      },
     },
   },
   {
@@ -140,6 +154,13 @@ export const COMMERCIAL_INVENTORY: InventoryItem[] = [
       standardOfProof: 'clear_and_convincing',
       defaultPosture: 'trial',
       appellateStandardOfReview: 'clear_error',
+      pjiAnchor: {
+        source: 'CACI',
+        section: 'CACI 332 (Affirmative Defense—Mutual Mistake)',
+        operativeLanguage:
+          'A contract may be rescinded when both parties were mistaken about a material fact at the time the contract was made and the mistake affected the basis of the bargain.',
+        url: 'https://www.courts.ca.gov/partners/juryinstructions.htm',
+      },
     },
   },
   {

@@ -55,6 +55,27 @@ export type InventoryNodeType =
   | 'classification'
   | 'procedural';
 
+// PR-7 — pattern jury instruction anchors. The single most undervalued
+// training corpus per how-lawyers-think Part VI §6.2. Anchors are
+// optional and never required for non-litigation nodes.
+export type PJISource =
+  | 'CACI'                    // California Civil — free, courts.ca.gov
+  | 'NY_PJI'                  // New York Pattern Jury Instructions — Thomson Reuters
+  | 'IPI'                     // Illinois Pattern Instructions — IICLE
+  | 'NINTH_CIR_PATTERN'       // 9th Circuit Manual of Model Civil JI — free
+  | 'FED_PATTERN_CRIM'        // Federal pattern criminal instructions
+  | 'OTHER';
+
+export interface PJIAnchor {
+  source: PJISource;
+  section: string;
+  // Verbatim operative language from the PJI. The deconstruct skill
+  // renders this as the rule statement for the node. Anchoring the
+  // analysis in what a judge would actually read to the jury.
+  operativeLanguage: string;
+  url?: string;
+}
+
 export interface InventoryItemAnnotations {
   nodeType?: InventoryNodeType;
   burdenOfProduction?: BurdenAllocation;
@@ -66,6 +87,9 @@ export interface InventoryItemAnnotations {
   // proponent of the issue bears the burden). Default true when burdens
   // are unspecified.
   schafferDefault?: boolean;
+  // PR-7 — pattern jury instruction anchor, when this node maps to a
+  // litigated claim with a PJI in some jurisdiction.
+  pjiAnchor?: PJIAnchor;
 }
 
 export interface InventoryItem {

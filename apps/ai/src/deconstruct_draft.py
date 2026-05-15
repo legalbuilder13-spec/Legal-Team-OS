@@ -37,6 +37,14 @@ logger = logging.getLogger(__name__)
 # ----- Request: prior stage context the worker assembles -----
 
 
+class PJIAnchor(BaseModel):
+    # PR-7 — pattern jury instruction anchor.
+    source: str
+    section: str
+    operative_language: str
+    url: str | None = None
+
+
 class InventoryAnnotations(BaseModel):
     # PR-B — operational annotations from packages/types inventories.
     node_type: str | None = None
@@ -46,6 +54,8 @@ class InventoryAnnotations(BaseModel):
     default_posture: str | None = None
     appellate_standard_of_review: str | None = None
     schaffer_default: bool | None = None
+    # PR-7 — PJI anchor for the operative language at trial.
+    pji_anchor: PJIAnchor | None = None
 
 
 class InventoryItemInput(BaseModel):
@@ -332,6 +342,11 @@ def build_user_prompt(req: DeconstructRequest) -> str:
                 ann_parts.append(f"review={a.appellate_standard_of_review}")
             if ann_parts:
                 parts.append(f"    annotations: {', '.join(ann_parts)}")
+            if a.pji_anchor:
+                pji = a.pji_anchor
+                parts.append(
+                    f"    PJI {pji.source} {pji.section}: \"{pji.operative_language}\""
+                )
     parts.append(domain_config_block(req.domain_config))
     parts.append(render_context_block(req.context))
     return "\n".join(parts)

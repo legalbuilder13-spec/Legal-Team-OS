@@ -262,6 +262,14 @@ export async function handleRunDeconstructJob(db: Db, job: Job) {
               appellate_standard_of_review:
                 i.annotations.appellateStandardOfReview ?? null,
               schaffer_default: i.annotations.schafferDefault ?? null,
+              pji_anchor: i.annotations.pjiAnchor
+                ? {
+                    source: i.annotations.pjiAnchor.source,
+                    section: i.annotations.pjiAnchor.section,
+                    operative_language: i.annotations.pjiAnchor.operativeLanguage,
+                    url: i.annotations.pjiAnchor.url ?? null,
+                  }
+                : null,
             }
           : null,
       })),
