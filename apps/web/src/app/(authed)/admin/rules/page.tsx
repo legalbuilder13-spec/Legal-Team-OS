@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { EntityLinksPanel } from '@/components/EntityLinksPanel';
+import { TaxonomyGuide } from '@/components/TaxonomyGuide';
+import { DuplicateCheck } from '@/components/DuplicateCheck';
 
 const KINDS = [
   { value: 'sla' as const, label: 'SLA targets' },
@@ -277,6 +279,8 @@ function RuleEditor({
       }}
       className="space-y-3 rounded border border-ink-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-4 mb-4"
     >
+      {!form.id && <TaxonomyGuide currentKind="rule" />}
+      <DuplicateCheck title={form.name} currentKind="rule" disabled={!!form.id} />
       <label className="text-xs block">
         <div className="text-ink-500 dark:text-ink-400 mb-1">Name</div>
         <input

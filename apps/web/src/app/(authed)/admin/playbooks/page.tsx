@@ -5,6 +5,8 @@ import { trpc } from '@/lib/trpc';
 import { PracticeAreaSchema } from '@legal/types';
 import { PlaybookPositionsPanel } from './PlaybookPositionsPanel';
 import { EntityLinksPanel } from '@/components/EntityLinksPanel';
+import { TaxonomyGuide } from '@/components/TaxonomyGuide';
+import { DuplicateCheck } from '@/components/DuplicateCheck';
 import { formatPracticeArea } from '@/lib/format';
 
 const PRACTICE_AREAS = PracticeAreaSchema.options;
@@ -63,6 +65,12 @@ export default function PlaybooksAdminPage() {
       {editing && (
         <div className="bg-white dark:bg-ink-900 border rounded-lg p-6 mb-6 space-y-4">
           <h2 className="font-medium">{editing.id ? 'Edit playbook' : 'New playbook'}</h2>
+          {!editing.id && <TaxonomyGuide currentKind="playbook" />}
+          <DuplicateCheck
+            title={editing.title}
+            currentKind="playbook"
+            disabled={!!editing.id}
+          />
 
           <div className="grid grid-cols-2 gap-4">
             <div>

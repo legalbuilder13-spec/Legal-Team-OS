@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { PracticeAreaSchema, type PracticeArea } from '@legal/types';
 import { EntityLinksPanel } from '@/components/EntityLinksPanel';
+import { TaxonomyGuide } from '@/components/TaxonomyGuide';
+import { DuplicateCheck } from '@/components/DuplicateCheck';
 
 const PRACTICE_AREAS = PracticeAreaSchema.options;
 
@@ -202,6 +204,8 @@ function TemplateEditor({
       }}
       className="space-y-3 rounded border border-ink-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-4"
     >
+      {!form.id && <TaxonomyGuide currentKind="template" />}
+      <DuplicateCheck title={form.name} currentKind="template" disabled={!!form.id} />
       <div className="grid grid-cols-3 gap-3">
         <label className="text-xs">
           <div className="text-ink-500 dark:text-ink-400 mb-1">Practice area</div>

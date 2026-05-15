@@ -5,6 +5,8 @@ import { trpc } from '@/lib/trpc';
 import { PracticeAreaSchema } from '@legal/types';
 import { formatPracticeArea } from '@/lib/format';
 import { EntityLinksPanel } from '@/components/EntityLinksPanel';
+import { TaxonomyGuide } from '@/components/TaxonomyGuide';
+import { DuplicateCheck } from '@/components/DuplicateCheck';
 
 const PRACTICE_AREAS = PracticeAreaSchema.options;
 
@@ -58,6 +60,12 @@ export default function KnowledgeAdminPage() {
       {editing && (
         <div className="bg-white dark:bg-ink-900 border rounded-lg p-6 mb-6 space-y-4">
           <h2 className="font-medium">{editing.id ? 'Edit article' : 'New article'}</h2>
+          {!editing.id && <TaxonomyGuide currentKind="knowledge_article" />}
+          <DuplicateCheck
+            title={editing.title}
+            currentKind="knowledge_article"
+            disabled={!!editing.id}
+          />
 
           <div className="grid grid-cols-2 gap-4">
             <div>
