@@ -97,6 +97,7 @@ export const jobKind = pgEnum('job_kind', [
   'mine_playbook_edits',
   'apply_playbook_edit_to_notion',
   'embed_content',
+  'extract_template_clauses',
 ]);
 
 export const insightKind = pgEnum('insight_kind', [
@@ -1516,3 +1517,97 @@ export type EntityLink = typeof entityLinks.$inferSelect;
 export type NewEntityLink = typeof entityLinks.$inferInsert;
 export type EntityLinkKind = (typeof entityLinkKind.enumValues)[number];
 export type EntityLinkRelationship = (typeof entityLinkRelationship.enumValues)[number];
+
+// PR #6 — Reusable clause library. Templates compose from clauses
+// instead of carrying monolithic body text. See migration 0035.
+export const clauseStatus = pgEnum('clause_status', ['draft', 'approved', 'archived']);
+
+export const clauses = pgTable(
+  'clauses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    practiceArea: practiceArea('practice_area').notNull(),
+    name: text('name').notNull(),
+    body: text('body').notNull(),
+    jurisdictions: text('jurisdictions').array().notNull().default([]),
+    isCanonical: boolean('is_canonical').notNull().default(false),
+    status: clauseStatus('status').notNull().default('draft'),
+    supersedesId: uuid('supersedes_id'),
+    sourceTemplateId: uuid('source_template_id'),
+    embedding: vector(1024)('embedding'),
+    embeddingUpdatedAt: timestamp('embedding_updated_at', { withTimezone: true }),
+    contentHash: text('content_hash'),
+    ownerId: uuid('owner_id').references(() => users.id, { onDelete: 'set null' }),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    practiceAreaIdx: index('clauses_practice_area_idx').on(t.practiceArea, t.status),
+  }),
+);
+
+export const templateClauses = pgTable(
+  'template_clauses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    templateId: uuid('template_id')
+      .notNull()
+      .references(() => templates.id, { onDelete: 'cascade' }),
+    clauseId: uuid('clause_id')
+      .notNull()
+      .references(() => clauses.id, { onDelete: 'restrict' }),
+    position: integer('position').notNull(),
+    overrideText: text('override_text'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    uniqueIdx: uniqueIndex('template_clauses_unique_idx').on(
+      t.templateId,
+      t.clauseId,
+      t.position,
+    ),
+    templateIdx: index('template_clauses_template_idx').on(t.templateId, t.position),
+  }),
+);
+
+export const clauseExtractionStatus = pgEnum('clause_extraction_status', [
+  'pending',
+  'accepted',
+  'dismissed',
+]);
+
+export const clauseExtractions = pgTable(
+  'clause_extractions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sourceTemplateId: uuid('source_template_id')
+      .notNull()
+      .references(() => templates.id, { onDelete: 'cascade' }),
+    proposedName: text('proposed_name').notNull(),
+    proposedBody: text('proposed_body').notNull(),
+    proposedJurisdictions: text('proposed_jurisdictions').array().notNull().default([]),
+    proposedPosition: integer('proposed_position').notNull(),
+    rationale: text('rationale'),
+    status: clauseExtractionStatus('status').notNull().default('pending'),
+    approvedClauseId: uuid('approved_clause_id').references(() => clauses.id, {
+      onDelete: 'set null',
+    }),
+    actionedById: uuid('actioned_by_id').references(() => users.id, { onDelete: 'set null' }),
+    actionedAt: timestamp('actioned_at', { withTimezone: true }),
+    extractionRunId: uuid('extraction_run_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    statusIdx: index('clause_extractions_status_idx').on(t.status, t.createdAt),
+    templateIdx: index('clause_extractions_template_idx').on(
+      t.sourceTemplateId,
+      t.extractionRunId,
+    ),
+  }),
+);
+
+export type Clause = typeof clauses.$inferSelect;
+export type NewClause = typeof clauses.$inferInsert;
+export type TemplateClause = typeof templateClauses.$inferSelect;
+export type ClauseExtraction = typeof clauseExtractions.$inferSelect;
