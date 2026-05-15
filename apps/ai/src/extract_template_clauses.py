@@ -57,8 +57,8 @@ Each proposed clause must be:
 For each clause:
 - name: short canonical name in title case, e.g. "Governing Law", "Mutual Indemnification", "Term and Termination"
 - body: the EXACT text from the template (no paraphrase)
-- suggested_jurisdictions: array of jurisdiction codes (e.g. ["US", "CA", "NY"]) if the clause is jurisdiction-specific. \
-  Use ["*"] or [] for clauses that apply universally.
+- suggested_jurisdictions: array of jurisdiction codes (e.g. ["US", "CA", "NY"]) if the \
+  clause is jurisdiction-specific. Use ["*"] or [] for clauses that apply universally.
 - rationale: 1 sentence explaining why this clause is reusable
 
 Strict rules:
