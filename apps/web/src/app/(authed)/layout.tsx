@@ -17,6 +17,7 @@ import {
   Activity,
   Files,
   Workflow,
+  ListChecks,
 } from 'lucide-react';
 import { getDb, users, escalations } from '@legal/db';
 import { ThemeToggle } from '@/components/theme';
@@ -64,6 +65,7 @@ export default async function AuthedLayout({ children }: { children: React.React
             badge={openEscalations > 0 ? openEscalations : undefined}
           />
           <NavLink href="/archive" label="Archive" icon={Archive} />
+          <NavLink href="/analysis-steps" label="Analysis Steps" icon={ListChecks} />
 
           {isAdmin && (
             <>

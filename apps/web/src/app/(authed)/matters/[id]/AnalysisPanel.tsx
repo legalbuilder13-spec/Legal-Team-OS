@@ -6,6 +6,7 @@ import { StageTraceDrawer } from './StageTraceDrawer';
 import { StatutoryStageCard } from './StatutoryStageCard';
 import { CaseLawStageCard } from './CaseLawStageCard';
 import { DeconstructStageCard } from './DeconstructStageCard';
+import { PlainEnglishTrace } from './PlainEnglishTrace';
 
 // PRD §6.1 — the matter detail page's Analysis panel. Two sections:
 // the auto-pipeline output (always present once analysis runs), and the
@@ -286,6 +287,10 @@ export function AnalysisPanel({ matterId }: Props) {
           output={s.outputJson as unknown as Parameters<typeof DeconstructStageCard>[0]['output']}
         />
       ))}
+
+      <div className="border-t pt-3">
+        <PlainEnglishTrace matterId={matterId} />
+      </div>
 
       <div className="border-t pt-3 space-y-1.5">
         <div className="text-xs font-medium text-ink-600 dark:text-ink-400">Stage trace</div>
