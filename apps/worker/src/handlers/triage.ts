@@ -9,7 +9,6 @@ import {
   users,
   playbooks,
   knowledgeArticles,
-  escalations,
   rules,
   type Job,
 } from '@legal/db';
@@ -386,34 +385,12 @@ export async function handleTriageJob(db: Db, job: Job) {
     },
   });
 
-  if (triage.requires_human_review) {
-    const lowConf = Math.min(
-      triage.practice_area_confidence,
-      triage.priority_confidence,
-    );
-    const severity: 'high' | 'medium' = lowConf < 0.5 ? 'high' : 'medium';
-    await db.insert(escalations).values({
-      matterId: matter.id,
-      kind: 'low_confidence_triage',
-      severity,
-      title: `Low-confidence triage for ${matter.shortId}`,
-      body: [
-        triage.review_reason ?? 'The triage model self-flagged this matter for human review.',
-        '',
-        `Practice area: ${triage.practice_area} (confidence ${(triage.practice_area_confidence * 100).toFixed(0)}%)`,
-        `Priority: ${triage.priority} (confidence ${(triage.priority_confidence * 100).toFixed(0)}%)`,
-        '',
-        `Reasoning: ${triage.reasoning}`,
-      ].join('\n'),
-      createdByKind: 'system',
-      triggerRule: 'triage_low_confidence',
-      evidence: {
-        practiceAreaConfidence: triage.practice_area_confidence,
-        priorityConfidence: triage.priority_confidence,
-        reviewReason: triage.review_reason,
-      },
-    });
-  }
+  // Low-confidence triage no longer creates an escalation row. The matter
+  // is already assigned to a lawyer by routing rules — duplicating that
+  // into the escalations queue was just noise. The triage flag is still
+  // surfaced on the matter page as a banner via triageMetadata
+  // (requiresHumanReview / reviewReason). Escalations are now reserved
+  // for SLA breaches, senior-review triggers, and manual flags.
 
   const assignee = resolvedAssigneeId
     ? await db.query.users.findFirst({ where: eq(users.id, resolvedAssigneeId) })

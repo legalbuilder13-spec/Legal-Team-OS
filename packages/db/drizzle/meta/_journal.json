@@ -225,6 +225,13 @@
       "when": 1778799600000,
       "tag": "0031_m7_followups",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1778803200000,
+      "tag": "0032_collapse_escalation_status",
+      "breakpoints": true
     }
   ]
 }

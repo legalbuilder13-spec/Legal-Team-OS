@@ -123,7 +123,6 @@ export const userRole = pgEnum('user_role', ['attorney', 'legal_ops', 'admin', '
 
 export const escalationStatus = pgEnum('escalation_status', [
   'open',
-  'acknowledged',
   'resolved',
 ]);
 
@@ -678,8 +677,6 @@ export const escalations = pgTable(
     status: escalationStatus('status').notNull().default('open'),
     createdByKind: text('created_by_kind').notNull().default('system'),
     createdById: uuid('created_by_id').references(() => users.id),
-    acknowledgedById: uuid('acknowledged_by_id').references(() => users.id),
-    acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
     resolvedById: uuid('resolved_by_id').references(() => users.id),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
     resolutionNote: text('resolution_note'),

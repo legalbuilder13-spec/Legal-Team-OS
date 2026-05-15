@@ -10,7 +10,7 @@ import { SaveToNotionButton } from './SaveToNotionButton';
 import { SaveToDriveButton } from './SaveToDriveButton';
 import { EscalationsCard } from './EscalationsCard';
 import { ContextCardGrid } from './ContextCardGrid';
-import { DocumentsCard } from './DocumentsCard';
+// import { DocumentsCard } from './DocumentsCard'; // TODO(v2): re-enable
 import { AnalysisPanel } from './AnalysisPanel';
 import { formatPracticeArea } from '@/lib/format';
 
@@ -69,6 +69,8 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
   const setStatus = trpc.matters.setStatus.useMutation({ onSuccess: () => refetch() });
   const [note, setNote] = useState('');
   const [chatOpen, setChatOpen] = useState(true);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [reasoningOpen, setReasoningOpen] = useState(false);
 
   if (isLoading || !matter) return <div className="text-ink-500 dark:text-ink-400">Loading…</div>;
 
@@ -122,6 +124,25 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
         </button>
       </header>
 
+      {(() => {
+        const meta = matter.triageMetadata as Record<string, unknown> | null;
+        if (meta?.requiresHumanReview !== true) return null;
+        const reason = typeof meta.reviewReason === 'string' ? meta.reviewReason : null;
+        return (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40 px-4 py-3 text-sm">
+            <div className="font-medium text-amber-800 dark:text-amber-200">
+              Triage flagged this matter for human review
+            </div>
+            {reason && (
+              <p className="text-amber-700 dark:text-amber-300 mt-1">{reason}</p>
+            )}
+            <p className="text-xs text-amber-700/80 dark:text-amber-300/80 mt-1">
+              The triage model was not confident in its practice-area or priority pick. Expand AI Reasoning for details.
+            </p>
+          </div>
+        );
+      })()}
+
       <div className={chatOpen ? 'grid grid-cols-12 gap-6' : 'grid grid-cols-3 gap-6'}>
         <section className={chatOpen ? 'col-span-6 space-y-6' : 'col-span-2 space-y-6'}>
           <div className="bg-white dark:bg-ink-900 border rounded-lg p-4">
@@ -133,22 +154,45 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
 
           {matter.summary && (
             <div className="bg-white dark:bg-ink-900 border rounded-lg p-4">
-              <h2 className="font-medium mb-2">AI Summary</h2>
-              <p className="text-sm text-ink-800 dark:text-ink-200">{matter.summary}</p>
+              <button
+                type="button"
+                onClick={() => setSummaryOpen((o) => !o)}
+                className="w-full flex items-center justify-between text-left font-medium"
+                aria-expanded={summaryOpen}
+              >
+                <span>AI Summary</span>
+                <span className="text-ink-400 text-xs">{summaryOpen ? '▾' : '▸'}</span>
+              </button>
+              {summaryOpen && (
+                <p className="text-sm text-ink-800 dark:text-ink-200 mt-2">{matter.summary}</p>
+              )}
             </div>
           )}
 
-          {Boolean((matter.triageMetadata as Record<string, unknown> | null)?.reasoning) && (
-            <div className="bg-white dark:bg-ink-900 border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="font-medium">AI Reasoning</h2>
-                <TriageConfidence metadata={matter.triageMetadata as Record<string, unknown>} />
+          {(() => {
+            const meta = matter.triageMetadata as Record<string, unknown> | null;
+            const reasoning = meta?.reasoning;
+            if (typeof reasoning !== 'string' || !reasoning.trim()) return null;
+            return (
+              <div className="bg-white dark:bg-ink-900 border rounded-lg p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReasoningOpen((o) => !o)}
+                    className="flex-1 flex items-center justify-between text-left font-medium"
+                    aria-expanded={reasoningOpen}
+                  >
+                    <span>AI Reasoning</span>
+                    <span className="text-ink-400 text-xs">{reasoningOpen ? '▾' : '▸'}</span>
+                  </button>
+                  <TriageConfidence metadata={meta as Record<string, unknown>} />
+                </div>
+                {reasoningOpen && (
+                  <p className="text-sm text-ink-600 dark:text-ink-400 italic mt-2">{reasoning}</p>
+                )}
               </div>
-              <p className="text-sm text-ink-600 dark:text-ink-400 italic">
-                {String((matter.triageMetadata as Record<string, unknown>).reasoning)}
-              </p>
-            </div>
-          )}
+            );
+          })()}
 
           <div className="bg-white dark:bg-ink-900 border rounded-lg p-4">
             <h2 className="font-medium mb-2">Notes</h2>
@@ -196,7 +240,10 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
         <aside className={chatOpen ? 'col-span-3 space-y-4' : 'space-y-4'}>
           <EscalationsCard matterId={matter.id} />
 
-          <DocumentsCard matterId={matter.id} />
+          {/* TODO(v2): Re-enable DocumentsCard once .docx/.pdf clause parsing
+              has a downstream consumer (clause-vs-playbook analysis surface).
+              Hidden from the matter UI for v1. */}
+          {/* <DocumentsCard matterId={matter.id} /> */}
 
           <PlaybooksCard matterId={matter.id} />
 
