@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { PracticeAreaSchema, type PracticeArea } from '@legal/types';
 import { formatPracticeArea } from '@/lib/format';
+import { EntityLinksPanel } from '@/components/EntityLinksPanel';
 
 const PRACTICE_AREAS = PracticeAreaSchema.options;
 
@@ -57,6 +58,7 @@ export default function ExecutionPatternsAdminPage() {
     },
   });
   const [editing, setEditing] = useState<PatternForm | null>(null);
+  const [linksFor, setLinksFor] = useState<string | null>(null);
 
   return (
     <div className="max-w-5xl">
@@ -156,27 +158,46 @@ export default function ExecutionPatternsAdminPage() {
                             </div>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setEditing({
-                              id: p.id,
-                              practiceArea: p.practiceArea,
-                              matterType: p.matterType ?? '',
-                              inputType: p.inputType,
-                              outputFormat: p.outputFormat,
-                              name: p.name,
-                              description: p.description ?? '',
-                              promptTemplate: p.promptTemplate,
-                              isDefault: p.isDefault,
-                              isActive: p.isActive,
-                            })
-                          }
-                          className="text-xs text-brand-600 hover:underline"
-                        >
-                          Edit
-                        </button>
+                        <div className="flex gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setLinksFor(linksFor === p.id ? null : p.id)}
+                            className="text-xs text-ink-600 dark:text-ink-400 hover:underline"
+                          >
+                            {linksFor === p.id ? 'Hide links' : 'Links'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditing({
+                                id: p.id,
+                                practiceArea: p.practiceArea,
+                                matterType: p.matterType ?? '',
+                                inputType: p.inputType,
+                                outputFormat: p.outputFormat,
+                                name: p.name,
+                                description: p.description ?? '',
+                                promptTemplate: p.promptTemplate,
+                                isDefault: p.isDefault,
+                                isActive: p.isActive,
+                              })
+                            }
+                            className="text-xs text-brand-600 hover:underline"
+                          >
+                            Edit
+                          </button>
+                        </div>
                       </div>
+                      {linksFor === p.id && (
+                        <div className="mt-2">
+                          <EntityLinksPanel
+                            entityType="execution_pattern"
+                            entityId={p.id}
+                            entityTitle={p.name}
+                            defaultOpen
+                          />
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>

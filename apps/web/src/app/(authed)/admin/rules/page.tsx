@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
+import { EntityLinksPanel } from '@/components/EntityLinksPanel';
 
 const KINDS = [
   { value: 'sla' as const, label: 'SLA targets' },
@@ -59,6 +60,7 @@ export default function RulesAdminPage() {
   });
   const [editing, setEditing] = useState<Form | null>(null);
   const [showCompiledFor, setShowCompiledFor] = useState<string | null>(null);
+  const [linksFor, setLinksFor] = useState<string | null>(null);
 
   return (
     <div className="max-w-5xl">
@@ -212,6 +214,13 @@ export default function RulesAdminPage() {
                   )}
                   <button
                     type="button"
+                    onClick={() => setLinksFor(linksFor === r.id ? null : r.id)}
+                    className="text-xs text-ink-600 dark:text-ink-400 hover:underline"
+                  >
+                    {linksFor === r.id ? 'Hide links' : 'Links'}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() =>
                       setEditing({
                         id: r.id,
@@ -227,6 +236,16 @@ export default function RulesAdminPage() {
                   </button>
                 </div>
               </div>
+              {linksFor === r.id && (
+                <div className="mt-2">
+                  <EntityLinksPanel
+                    entityType="rule"
+                    entityId={r.id}
+                    entityTitle={r.name}
+                    defaultOpen
+                  />
+                </div>
+              )}
             </li>
           ))}
         </ul>

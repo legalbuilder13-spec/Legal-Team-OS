@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { PracticeAreaSchema } from '@legal/types';
 import { PlaybookPositionsPanel } from './PlaybookPositionsPanel';
+import { EntityLinksPanel } from '@/components/EntityLinksPanel';
 import { formatPracticeArea } from '@/lib/format';
 
 const PRACTICE_AREAS = PracticeAreaSchema.options;
@@ -31,6 +32,7 @@ export default function PlaybooksAdminPage() {
   const [editing, setEditing] = useState<PlaybookForm | null>(null);
   const [historyFor, setHistoryFor] = useState<string | null>(null);
   const [positionsFor, setPositionsFor] = useState<string | null>(null);
+  const [linksFor, setLinksFor] = useState<string | null>(null);
   const { data: versions = [] } = trpc.admin.listPlaybookVersions.useQuery(
     { playbookId: historyFor ?? '' },
     { enabled: !!historyFor },
@@ -179,6 +181,12 @@ export default function PlaybooksAdminPage() {
                           {positionsFor === pb.id ? 'Hide positions' : 'Positions'}
                         </button>
                         <button
+                          onClick={() => setLinksFor(linksFor === pb.id ? null : pb.id)}
+                          className="text-xs text-ink-600 dark:text-ink-400 hover:underline"
+                        >
+                          {linksFor === pb.id ? 'Hide links' : 'Links'}
+                        </button>
+                        <button
                           onClick={() => setHistoryFor(historyFor === pb.id ? null : pb.id)}
                           className="text-xs text-ink-600 dark:text-ink-400 hover:underline"
                         >
@@ -210,6 +218,16 @@ export default function PlaybooksAdminPage() {
                     </div>
                     {positionsFor === pb.id && (
                       <PlaybookPositionsPanel playbookId={pb.id} />
+                    )}
+                    {linksFor === pb.id && (
+                      <div className="mt-2">
+                        <EntityLinksPanel
+                          entityType="playbook"
+                          entityId={pb.id}
+                          entityTitle={pb.title}
+                          defaultOpen
+                        />
+                      </div>
                     )}
                     {historyFor === pb.id && (
                       <div className="bg-ink-50 dark:bg-ink-900 border border-t-0 rounded-b-lg p-3 -mt-1">
