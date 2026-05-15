@@ -37,11 +37,27 @@ logger = logging.getLogger(__name__)
 # ----- Request: prior stage context the worker assembles -----
 
 
+class InventoryAnnotations(BaseModel):
+    # PR-B — operational annotations from packages/types inventories.
+    node_type: str | None = None
+    burden_of_production: str | None = None
+    burden_of_persuasion: str | None = None
+    standard_of_proof: str | None = None
+    default_posture: str | None = None
+    appellate_standard_of_review: str | None = None
+    schaffer_default: bool | None = None
+
+
 class InventoryItemInput(BaseModel):
     id: str
     category: str
     label: str
     description: str
+    # PR-B — optional annotations; defaults to None when the inventory
+    # hasn't been annotated for this practice area yet. The skill
+    # renders these into each leaf and applies Schaffer-default reasoning
+    # when burdens are unspecified.
+    annotations: InventoryAnnotations | None = None
 
 
 class PriorStageContext(BaseModel):
@@ -299,6 +315,23 @@ def build_user_prompt(req: DeconstructRequest) -> str:
     parts.append(f"--- Practice-area inventory ({len(req.inventory_items)} candidate issues) ---")
     for item in req.inventory_items:
         parts.append(f"- [{item.category}/{item.id}] {item.label}: {item.description[:160]}")
+        if item.annotations:
+            a = item.annotations
+            ann_parts: list[str] = []
+            if a.node_type:
+                ann_parts.append(f"type={a.node_type}")
+            if a.burden_of_persuasion:
+                ann_parts.append(f"burden_persuasion={a.burden_of_persuasion}")
+            if a.burden_of_production:
+                ann_parts.append(f"burden_production={a.burden_of_production}")
+            if a.standard_of_proof:
+                ann_parts.append(f"std={a.standard_of_proof}")
+            if a.default_posture:
+                ann_parts.append(f"posture={a.default_posture}")
+            if a.appellate_standard_of_review:
+                ann_parts.append(f"review={a.appellate_standard_of_review}")
+            if ann_parts:
+                parts.append(f"    annotations: {', '.join(ann_parts)}")
     parts.append(domain_config_block(req.domain_config))
     parts.append(render_context_block(req.context))
     return "\n".join(parts)

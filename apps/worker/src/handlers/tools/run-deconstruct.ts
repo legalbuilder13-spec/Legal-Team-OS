@@ -251,6 +251,19 @@ export async function handleRunDeconstructJob(db: Db, job: Job) {
         category: i.category,
         label: i.label,
         description: i.description,
+        // PR-B — pass through burden/posture annotations when present.
+        annotations: i.annotations
+          ? {
+              node_type: i.annotations.nodeType ?? null,
+              burden_of_production: i.annotations.burdenOfProduction ?? null,
+              burden_of_persuasion: i.annotations.burdenOfPersuasion ?? null,
+              standard_of_proof: i.annotations.standardOfProof ?? null,
+              default_posture: i.annotations.defaultPosture ?? null,
+              appellate_standard_of_review:
+                i.annotations.appellateStandardOfReview ?? null,
+              schaffer_default: i.annotations.schafferDefault ?? null,
+            }
+          : null,
       })),
       prior: {
         pre_merits_flags: preMeritsFlags,
