@@ -32,7 +32,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from .config import settings
+from .analysis_schemas import FrameFlipProposal, PipelineContext
 from .domain_config import DomainConfig, domain_config_block
+from .pipeline_context import DEPTH_AND_FRAME_SYSTEM_ADDENDUM, render_context_block
 from .llm.client import get_client
 
 logger = logging.getLogger(__name__)
@@ -72,6 +74,8 @@ class CaseLawRequest(BaseModel):
     candidate_doctrines: list[str] = []
     candidates: list[CaseCandidate]
     # PR12 §15 — organization domain config blended into the prompt.
+    # PR-A — pipeline context (research_depth + carried doctrinal_frame).
+    context: PipelineContext = PipelineContext()
     # Worker loads from organizations.domain_config_json; absent for
     # unauthenticated calls or orgs that haven't customized.
     domain_config: DomainConfig | None = None
@@ -131,6 +135,8 @@ class CaseLawResult(BaseModel):
     negative_result_strategies: list[
         Literal["full_text", "jurisdiction_filter", "citator_traversal"]
     ] = Field(default_factory=list)
+    # PR-A — optional frame flip when authority undermines carried frame.
+    frame_flip_proposal: FrameFlipProposal | None = None
 
 
 # ----- Prompt -----
@@ -185,7 +191,7 @@ or holdings you couldn't confirm from the snippet.
 
 ## Negative results
 If a retrieval strategy turned up no useful candidates, add it to `negative_result_strategies`. PRD §14.1 requires \
-three independent negative strategies before declaring "no authority on point.\""""
+three independent negative strategies before declaring "no authority on point.\"""" + DEPTH_AND_FRAME_SYSTEM_ADDENDUM
 
 
 TOOL = {
@@ -224,6 +230,7 @@ def build_user_prompt(req: CaseLawRequest) -> str:
         snippet = c.snippet[:1200]
         parts.append(f"  snippet: {snippet}")
     parts.append(domain_config_block(req.domain_config))
+    parts.append(render_context_block(req.context))
     return "\n".join(parts)
 
 

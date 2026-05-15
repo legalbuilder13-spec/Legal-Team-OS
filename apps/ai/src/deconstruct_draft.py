@@ -25,9 +25,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from .analysis_schemas import FrameFlipProposal, PipelineContext
 from .config import settings
 from .domain_config import DomainConfig, domain_config_block
 from .llm.client import get_client
+from .pipeline_context import DEPTH_AND_FRAME_SYSTEM_ADDENDUM, render_context_block
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +74,8 @@ class DeconstructRequest(BaseModel):
     prior: PriorStageContext
     # PR12 §15 — organization domain config blended into the prompt.
     domain_config: DomainConfig | None = None
+    # PR-A — pipeline context (research_depth + carried doctrinal_frame).
+    context: PipelineContext = PipelineContext()
 
 
 # ----- Response: tree nodes + memo -----
@@ -142,6 +146,9 @@ class DeconstructResult(BaseModel):
     # jurisdiction. Single-jurisdiction matters return None.
     multi_jurisdiction_harmonization: JurisdictionHarmonization | None = None
     verify_flags: list[str] = Field(default_factory=list, max_length=3)
+    # PR-A — optional frame flip when synthesis turns up authority
+    # inconsistent with the carried doctrinal frame.
+    frame_flip_proposal: FrameFlipProposal | None = None
 
 
 # ----- Prompt -----
@@ -214,7 +221,7 @@ jurisdiction's summary that drives the divergence.
 - `jurisdiction_specific_carveouts[]`: list jurisdiction-specific exemptions, carve-outs, or unique \
 requirements that don't appear in the other jurisdictions.
 When only one summary is present, return `multi_jurisdiction_harmonization=null` and treat the analysis as \
-single-jurisdiction."""
+single-jurisdiction.""" + DEPTH_AND_FRAME_SYSTEM_ADDENDUM
 
 
 TOOL = {
@@ -293,6 +300,7 @@ def build_user_prompt(req: DeconstructRequest) -> str:
     for item in req.inventory_items:
         parts.append(f"- [{item.category}/{item.id}] {item.label}: {item.description[:160]}")
     parts.append(domain_config_block(req.domain_config))
+    parts.append(render_context_block(req.context))
     return "\n".join(parts)
 
 

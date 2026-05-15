@@ -15,6 +15,7 @@ import json
 import logging
 
 from .analysis_schemas import (
+    FrameFlipProposal,
     ThresholdFinding,
     ThresholdSpotterRequest,
     ThresholdSpotterResult,
@@ -22,6 +23,11 @@ from .analysis_schemas import (
 from .config import settings
 from .domain_config import domain_config_block
 from .llm.client import get_client
+from .pipeline_context import (
+    DEPTH_AND_FRAME_SYSTEM_ADDENDUM,
+    FRAME_FLIP_PROPOSAL_SCHEMA,
+    render_context_block,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +53,7 @@ You do NOT:
 - Cite statutes or cases (none are in your context).
 - Speculate about facts not in the request.
 
-Return findings for every item in the checklist. If the checklist is empty, return an empty findings array."""
+Return findings for every item in the checklist. If the checklist is empty, return an empty findings array.""" + DEPTH_AND_FRAME_SYSTEM_ADDENDUM
 
 TOOL = {
     "name": "submit_findings",
@@ -75,6 +81,8 @@ TOOL = {
                     ],
                 },
             },
+            # PR-A — opt-in. Model emits when carried frame is wrong.
+            "frame_flip_proposal": FRAME_FLIP_PROPOSAL_SCHEMA,
         },
         "required": ["findings"],
     },
@@ -99,6 +107,8 @@ def build_user_prompt(request: ThresholdSpotterRequest) -> str:
     # PR12 §15 — domain config block. Empty string when org has no
     # custom rules, so we can append unconditionally.
     parts.append(domain_config_block(request.domain_config))
+    # PR-A — pipeline context (research_depth + carried doctrinal_frame).
+    parts.append(render_context_block(request.context))
     return "\n".join(parts)
 
 
@@ -144,6 +154,8 @@ def spot_thresholds(request: ThresholdSpotterRequest) -> ThresholdSpotterResult:
         payload = json.loads(payload)
 
     findings = [ThresholdFinding(**f) for f in payload["findings"]]
+    flip_payload = payload.get("frame_flip_proposal")
+    frame_flip = FrameFlipProposal(**flip_payload) if flip_payload else None
 
     # The model may omit items if it considers the checklist long. We
     # backfill any missing items with a "cant_tell, confidence 0" sentinel
@@ -172,4 +184,5 @@ def spot_thresholds(request: ThresholdSpotterRequest) -> ThresholdSpotterResult:
         practice_area=request.practice_area,
         checklist_version=request.checklist_version,
         findings=findings,
+        frame_flip_proposal=frame_flip,
     )

@@ -11,6 +11,42 @@ from pydantic import BaseModel, Field
 
 from .domain_config import DomainConfig
 
+# ----- PR-A — research depth + doctrinal-frame state -----
+
+ResearchDepth = Literal["quick_take", "client_advice", "filing_grade", "bet_the_company"]
+StageLabel = Literal["intake", "stage_0", "stage_1", "stage_2a", "stage_2b", "stage_3"]
+
+
+class AlternativeRegime(BaseModel):
+    regime: str
+    prior: float = Field(ge=0.0, le=1.0)
+
+
+class DoctrinalFrameState(BaseModel):
+    primary_regime: str
+    alternative_regimes: list[AlternativeRegime] = []
+    last_updated_by_stage: StageLabel
+    flip_count: int = Field(ge=0, default=0)
+
+
+class FrameFlipProposal(BaseModel):
+    from_frame: str | None = None
+    to_frame: str
+    evidence_quote: str
+    evidence_citation: str | None = None
+    rationale: str
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class PipelineContext(BaseModel):
+    """Carried on every skill request; skills may emit a frame flip on the response."""
+
+    research_depth: ResearchDepth = "client_advice"
+    doctrinal_frame: DoctrinalFrameState | None = None
+
+
+# ----- Stage 0 — threshold spotter -----
+
 # ----- Stage 0 — threshold spotter -----
 
 
@@ -30,6 +66,8 @@ class ThresholdSpotterRequest(BaseModel):
     # PR12 §15 — per-organization domain config. Optional + defaults
     # to empty; the prompt renderer no-ops when there's no content.
     domain_config: DomainConfig | None = None
+    # PR-A — pipeline context: research_depth + carried doctrinal_frame.
+    context: PipelineContext = PipelineContext()
 
 
 class ThresholdFinding(BaseModel):
@@ -45,6 +83,9 @@ class ThresholdSpotterResult(BaseModel):
     practice_area: str
     checklist_version: str
     findings: list[ThresholdFinding]
+    # PR-A — opt-in proposal that the carried doctrinal_frame is wrong.
+    # Worker writes to matter_frame_flips when present.
+    frame_flip_proposal: FrameFlipProposal | None = None
 
 
 # ----- Stage 1 — guidance relevance grader -----
@@ -67,6 +108,8 @@ class GuidanceGraderRequest(BaseModel):
     request_text: str
     practice_area: str
     candidates: list[GuidanceCandidate]
+    # PR-A — pipeline context.
+    context: PipelineContext = PipelineContext()
 
 
 class GuidanceGrade(BaseModel):
@@ -92,3 +135,4 @@ class GuidanceGraderResult(BaseModel):
     top_match_index: int | None = None
     headline_answer: GuidanceHeadline | None = None
     notes_for_lawyer: str | None = None
+    frame_flip_proposal: FrameFlipProposal | None = None

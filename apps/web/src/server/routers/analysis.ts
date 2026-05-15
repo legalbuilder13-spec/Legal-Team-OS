@@ -5,11 +5,12 @@ import {
   matterAnalyses,
   matterAnalysisStages,
   matterAnalysisSources,
+  matterFrameFlips,
   auditLog,
   matters,
   playbooks,
 } from '@legal/db';
-import { PracticeAreaSchema } from '@legal/types';
+import { PracticeAreaSchema, ResearchDepthSchema } from '@legal/types';
 import { staffProcedure, router } from '../trpc.js';
 import { createNotionPage } from '../integrations/notion.js';
 
@@ -53,7 +54,116 @@ export const analysisRouter = router({
         .where(eq(matterAnalysisStages.analysisId, analysis.id))
         .orderBy(matterAnalysisStages.createdAt);
 
-      return { analysis, stages };
+      // PR-A — also return any pending or resolved frame-flip proposals
+      // so the UI banner has the latest state without a second roundtrip.
+      const frameFlips = await ctx.db
+        .select()
+        .from(matterFrameFlips)
+        .where(eq(matterFrameFlips.matterAnalysisId, analysis.id))
+        .orderBy(desc(matterFrameFlips.createdAt));
+
+      return { analysis, stages, frameFlips };
+    }),
+
+  // PR-A — depth selector. Lawyer escalates depth on the same matter
+  // (typically from client_advice -> filing_grade or bet_the_company
+  // when stakes increase). Re-running the pipeline at the new depth
+  // is the caller's responsibility; this mutation only persists.
+  setDepth: staffProcedure
+    .input(
+      z.object({
+        analysisId: z.string().uuid(),
+        depth: ResearchDepthSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [row] = await ctx.db
+        .update(matterAnalyses)
+        .set({ researchDepth: input.depth })
+        .where(eq(matterAnalyses.id, input.analysisId))
+        .returning({ id: matterAnalyses.id, depth: matterAnalyses.researchDepth });
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'analysis not found' });
+      await ctx.db.insert(auditLog).values({
+        actorKind: 'user',
+        actorId: ctx.user.id,
+        action: 'analysis.depth_changed',
+        details: { analysisId: input.analysisId, depth: input.depth },
+      });
+      return row;
+    }),
+
+  // PR-A — frame-flip decision endpoints. Accept rewrites the
+  // matter_analyses.doctrinal_frame; reject leaves the frame intact.
+  decideFrameFlip: staffProcedure
+    .input(
+      z.object({
+        flipId: z.string().uuid(),
+        decision: z.enum(['accepted', 'rejected']),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [flip] = await ctx.db
+        .select()
+        .from(matterFrameFlips)
+        .where(eq(matterFrameFlips.id, input.flipId))
+        .limit(1);
+      if (!flip) throw new TRPCError({ code: 'NOT_FOUND', message: 'frame flip not found' });
+
+      await ctx.db
+        .update(matterFrameFlips)
+        .set({
+          lawyerDecision: input.decision,
+          lawyerDecidedAt: new Date(),
+          lawyerDecidedByUserId: ctx.user.id,
+        })
+        .where(eq(matterFrameFlips.id, input.flipId));
+
+      if (input.decision === 'accepted') {
+        // Rewrite the carried frame. The new primary_regime is to_frame;
+        // the prior primary_regime becomes an alternative with prior=0.3.
+        const [analysis] = await ctx.db
+          .select()
+          .from(matterAnalyses)
+          .where(eq(matterAnalyses.id, flip.matterAnalysisId))
+          .limit(1);
+        if (analysis) {
+          const prior = analysis.doctrinalFrame as {
+            primary_regime: string;
+            alternative_regimes: Array<{ regime: string; prior: number }>;
+            last_updated_by_stage: string;
+            flip_count: number;
+          } | null;
+          const nextFrame = {
+            primary_regime: flip.toFrame,
+            alternative_regimes: [
+              ...(prior?.primary_regime
+                ? [{ regime: prior.primary_regime, prior: 0.3 }]
+                : []),
+              ...(prior?.alternative_regimes ?? []),
+            ],
+            last_updated_by_stage: flip.proposedByStage,
+            flip_count: (prior?.flip_count ?? 0) + 1,
+          };
+          await ctx.db
+            .update(matterAnalyses)
+            .set({ doctrinalFrame: nextFrame })
+            .where(eq(matterAnalyses.id, flip.matterAnalysisId));
+        }
+      }
+
+      await ctx.db.insert(auditLog).values({
+        actorKind: 'user',
+        actorId: ctx.user.id,
+        action: `analysis.frame_flip_${input.decision}`,
+        details: {
+          flipId: input.flipId,
+          fromFrame: flip.fromFrame,
+          toFrame: flip.toFrame,
+          proposedByStage: flip.proposedByStage,
+        },
+      });
+
+      return { ok: true };
     }),
 
   stageSources: staffProcedure

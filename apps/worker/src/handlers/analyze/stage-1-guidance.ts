@@ -15,6 +15,12 @@ import {
 import { env } from '../../env.js';
 import { searchNotion, fetchNotionPageExcerpt } from '../../integrations/notion.js';
 import { hashContent, recordSource } from './sources.js';
+import {
+  loadPipelineContext,
+  persistFrameFlipProposal,
+  type FrameFlipProposal,
+  type PipelineContextEnvelope,
+} from './frame-flip.js';
 
 // PRD §7.5 / §7.3 — Stage 1 playbook / guidance check.
 // Hardcoded: topical query construction, Notion retrieval, candidate
@@ -35,6 +41,7 @@ interface GuidanceGraderRequest {
     excerpt: string;
     retrieved_at: string;
   }>;
+  context: PipelineContextEnvelope;
 }
 
 interface GuidanceGraderResult {
@@ -56,6 +63,7 @@ interface GuidanceGraderResult {
     source_url: string | null;
   } | null;
   notes_for_lawyer: string | null;
+  frame_flip_proposal?: FrameFlipProposal | null;
 }
 
 export interface Stage1Result {
@@ -240,6 +248,7 @@ export async function runStage1(
       });
     }
 
+    const context = await loadPipelineContext(db, analysisId);
     const skillRequest: GuidanceGraderRequest = {
       matter_id: matter.id,
       request_text: matter.requestText,
@@ -252,6 +261,7 @@ export async function runStage1(
         excerpt: c.excerpt,
         retrieved_at: c.retrievedAt,
       })),
+      context,
     };
 
     const res = await fetch(`${env.AI_SERVICE_URL}/guidance-grader`, {
@@ -266,6 +276,7 @@ export async function runStage1(
       throw new Error(`guidance-grader ${res.status}: ${await res.text()}`);
     }
     const raw = (await res.json()) as GuidanceGraderResult;
+    await persistFrameFlipProposal(db, analysisId, 'stage_1', raw.frame_flip_proposal);
 
     const grades = raw.grades.map((g) => ({
       candidate: candidates[g.candidate_index]!,

@@ -10,6 +10,12 @@ import {
 import { env } from '../../env.js';
 import { hashContent } from './sources.js';
 import { loadOrgConfigForUser, domainConfigForSkill } from '../../integrations/org_config.js';
+import {
+  loadPipelineContext,
+  persistFrameFlipProposal,
+  type FrameFlipProposal,
+  type PipelineContextEnvelope,
+} from './frame-flip.js';
 
 // PRD §7.5 — Stage 0 pre-merits threshold checklist.
 // Hardcoded: per-practice-area checklist load + verdict computation +
@@ -30,6 +36,8 @@ interface ThresholdSpotterRequest {
   // (terminology rules, high-scrutiny jurisdictions, etc.). Empty
   // object when no org config is set; the skill no-ops the block.
   domain_config?: Record<string, unknown>;
+  // PR-A — pipeline context (research_depth + carried doctrinal_frame).
+  context: PipelineContextEnvelope;
 }
 
 interface ThresholdSpotterResult {
@@ -43,6 +51,7 @@ interface ThresholdSpotterResult {
     evidence_quote: string;
     one_line_justification: string;
   }>;
+  frame_flip_proposal?: FrameFlipProposal | null;
 }
 
 export interface StageResult {
@@ -62,6 +71,7 @@ export async function runStage0(
   const checklist = getThresholdChecklist(practiceArea);
 
   const orgConfig = await loadOrgConfigForUser(db, matter.requesterId);
+  const context = await loadPipelineContext(db, analysisId);
   const skillRequest: ThresholdSpotterRequest = {
     matter_id: matter.id,
     practice_area: practiceArea,
@@ -74,6 +84,7 @@ export async function runStage0(
       doc_anchor: i.docAnchor,
     })),
     domain_config: domainConfigForSkill(orgConfig),
+    context,
   };
   const inputHash = hashContent(JSON.stringify(skillRequest));
 
@@ -134,6 +145,7 @@ export async function runStage0(
       throw new Error(`threshold-spotter ${res.status}: ${await res.text()}`);
     }
     const raw = (await res.json()) as ThresholdSpotterResult;
+    await persistFrameFlipProposal(db, analysisId, 'stage_0', raw.frame_flip_proposal);
 
     // Look up severity per id from the checklist (the skill returns id +
     // status but not severity — severity is a hardcoded property).

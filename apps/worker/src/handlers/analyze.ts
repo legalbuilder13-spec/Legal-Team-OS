@@ -24,6 +24,40 @@ import { runStage1 } from './analyze/stage-1-guidance.js';
 
 interface AnalyzePayload {
   matter_id: string;
+  // PR-A — optional override of the default research_depth. When
+  // omitted, the matter inherits the user's depth preference (currently
+  // 'client_advice' globally). Pipeline-grade work and bet-the-company
+  // requests must specify explicitly.
+  research_depth?: 'quick_take' | 'client_advice' | 'filing_grade' | 'bet_the_company';
+}
+
+// PR-A — seed an initial doctrinal_frame at analysis creation time.
+// The frame is a label, not an enum; we pick by practice area as a
+// reasonable default. Stages can propose flips as they encounter
+// authority that contradicts this initial guess.
+function defaultFrameForPracticeArea(practiceArea: string | null): {
+  primary_regime: string;
+  alternative_regimes: Array<{ regime: string; prior: number }>;
+  last_updated_by_stage: 'intake';
+  flip_count: number;
+} {
+  const seedByArea: Record<string, string> = {
+    commercial: 'state_common_law_contract',
+    employment: 'title_VII_disparate_treatment',
+    privacy: 'state_consumer_privacy_act',
+    litigation: 'state_civil_procedure',
+    corporate: 'delaware_general_corporation_law',
+    regulatory: 'federal_administrative_law',
+    ip: 'federal_intellectual_property',
+    real_estate: 'state_real_property',
+    other: 'unspecified',
+  };
+  return {
+    primary_regime: seedByArea[practiceArea ?? 'other'] ?? 'unspecified',
+    alternative_regimes: [],
+    last_updated_by_stage: 'intake',
+    flip_count: 0,
+  };
 }
 
 export function pickWorseConfidence(
@@ -87,6 +121,9 @@ export async function handleAnalyzeJob(db: Db, job: Job) {
       pipelineVersion: PIPELINE_VERSION,
       status: 'running',
       startedAt: new Date(),
+      // PR-A — seed depth + initial frame state.
+      researchDepth: payload.research_depth ?? 'client_advice',
+      doctrinalFrame: defaultFrameForPracticeArea(matter.practiceArea),
     })
     .returning({ id: matterAnalyses.id });
   const analysisId = analysis!.id;

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ResearchDepthSchema } from './depth-policy.js';
 
 // PRD §7 — Pre-review analysis pipeline. These schemas are the typed JSON
 // contracts between the worker (TypeScript) and the AI skills (Python). The
@@ -209,4 +210,94 @@ export type DeconstructToolInvocation = z.infer<typeof DeconstructToolInvocation
 
 // Current pipeline version. Bumped when the stage contracts change so old
 // matter_analyses rows can be identified as belonging to an older shape.
-export const PIPELINE_VERSION = '1.0.0';
+// PR-A bumped this to '1.1.0' — adds research_depth, doctrinal_frame,
+// frame_flip_proposal, escalation_request fields across every stage.
+export const PIPELINE_VERSION = '1.1.0';
+
+// ----- PR-A — research depth + doctrinal-frame state -----
+// Carried on every skill request so each stage can modulate behavior
+// (depth) and propose Bayesian updates to the carried frame.
+
+export { DEPTH_LABELS, DEPTH_DESCRIPTIONS, DEPTH_POLICY, depthPolicy } from './depth-policy.js';
+export { ResearchDepthSchema };
+export type { ResearchDepth, DepthPolicy } from './depth-policy.js';
+
+// The frame state itself. Stored as jsonb on matter_analyses; pulled
+// into every skill user-prompt so the model can reason about what
+// regime is currently presumed to govern. Frame is intentionally
+// open-vocabulary — a string label — because the doctrinal universe
+// is too vast to enumerate. Examples: "ERISA_preempted",
+// "state_common_law_contract", "UCC_Article_2", "FAA_arbitration",
+// "title_VII_disparate_treatment", "section_1983_state_action".
+export const DoctrinalFrameStateSchema = z.object({
+  primary_regime: z.string().min(1),
+  alternative_regimes: z
+    .array(
+      z.object({
+        regime: z.string().min(1),
+        prior: z.number().min(0).max(1),
+      }),
+    )
+    .default([]),
+  last_updated_by_stage: z.enum([
+    'intake',
+    'stage_0',
+    'stage_1',
+    'stage_2a',
+    'stage_2b',
+    'stage_3',
+  ]),
+  flip_count: z.number().int().min(0).default(0),
+});
+export type DoctrinalFrameState = z.infer<typeof DoctrinalFrameStateSchema>;
+
+// Proposed frame revision produced by any skill that finds authority
+// inconsistent with the carried frame (e.g., Stage 2a finds ERISA
+// preempts the state-law claim Stage 0 flagged). Worker writes one
+// row to matter_frame_flips; UI surfaces a banner with accept/reject.
+export const FrameFlipProposalSchema = z.object({
+  from_frame: z.string().nullable(),
+  to_frame: z.string().min(1),
+  evidence_quote: z.string().min(1),
+  evidence_citation: z.string().optional(),
+  rationale: z.string().min(1),
+  confidence: z.number().min(0).max(1),
+});
+export type FrameFlipProposal = z.infer<typeof FrameFlipProposalSchema>;
+
+// Lawyer's decision on a proposed flip.
+export const FrameFlipDecisionSchema = z.enum(['pending', 'accepted', 'rejected']);
+export type FrameFlipDecision = z.infer<typeof FrameFlipDecisionSchema>;
+
+// Stored row shape returned by the analysis router.
+export const FrameFlipSchema = z.object({
+  id: z.string().uuid(),
+  matter_analysis_id: z.string().uuid(),
+  proposed_by_stage: z.string(),
+  from_frame: z.string().nullable(),
+  to_frame: z.string(),
+  evidence: z.record(z.string(), z.unknown()),
+  confidence: z.number().nullable(),
+  lawyer_decision: FrameFlipDecisionSchema,
+  lawyer_decided_at: z.string().nullable(),
+  lawyer_decided_by_user_id: z.string().uuid().nullable(),
+  created_at: z.string(),
+});
+export type FrameFlip = z.infer<typeof FrameFlipSchema>;
+
+// Every skill receives + may emit these on its request and response
+// envelopes. Worker is responsible for propagation; skills only read
+// what they need.
+export const PipelineContextSchema = z.object({
+  research_depth: ResearchDepthSchema.default('client_advice'),
+  doctrinal_frame: DoctrinalFrameStateSchema.nullable().default(null),
+});
+export type PipelineContext = z.infer<typeof PipelineContextSchema>;
+
+// Optional emission on any skill response. Worker reads this off
+// every stage and writes to matter_frame_flips when present.
+export const SkillEnvelopeMixinSchema = z.object({
+  frame_flip_proposal: FrameFlipProposalSchema.nullable().default(null),
+});
+export type SkillEnvelopeMixin = z.infer<typeof SkillEnvelopeMixinSchema>;
+
