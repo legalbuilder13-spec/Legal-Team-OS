@@ -253,6 +253,13 @@
       "when": 1778814000000,
       "tag": "0035_clauses",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1778817600000,
+      "tag": "0036_conflict_detection",
+      "breakpoints": true
     }
   ]
 }

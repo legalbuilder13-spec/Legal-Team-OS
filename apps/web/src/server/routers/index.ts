@@ -20,6 +20,7 @@ import { playbookEditProposalsRouter } from './playbook-edit-proposals';
 import { entityLinksRouter } from './entity-links';
 import { searchRouter } from './search';
 import { clausesRouter } from './clauses';
+import { conflictsRouter } from './conflicts';
 
 export const appRouter = router({
   matters: mattersRouter,
@@ -43,6 +44,7 @@ export const appRouter = router({
   entityLinks: entityLinksRouter,
   search: searchRouter,
   clauses: clausesRouter,
+  conflicts: conflictsRouter,
 });
 
 export type AppRouter = typeof appRouter;

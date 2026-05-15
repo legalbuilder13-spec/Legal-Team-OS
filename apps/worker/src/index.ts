@@ -41,6 +41,7 @@ import {
   handleEmbedContentJob,
 } from './handlers/embed-content.js';
 import { handleExtractTemplateClausesJob } from './handlers/extract-template-clauses.js';
+import { runDetectConflicts } from './handlers/detect-conflicts.js';
 import { isPermanentJobError } from './utils.js';
 
 const db = getDb();
@@ -138,6 +139,9 @@ async function dispatch(job: Job) {
       break;
     case 'extract_template_clauses':
       await handleExtractTemplateClausesJob(db, job);
+      break;
+    case 'detect_conflicts':
+      await runDetectConflicts(db);
       break;
     default:
       throw new Error(`unknown job kind: ${job.kind}`);
@@ -349,6 +353,28 @@ cron.schedule(
       );
     } catch (err) {
       console.error('notify-playbook-edits failed:', err);
+    }
+  },
+  { timezone: env.DIGEST_TIMEZONE },
+);
+
+// PR #7 / M8 — Weekly conflict-detection cron. Runs the structural
+// detectors (duplicate canonical clauses, rule priority collisions,
+// near-duplicate playbooks by embedding similarity) and writes new
+// detected_conflicts rows. Idempotent — already-active conflicts
+// aren't re-flagged thanks to the unique-on-active index.
+cron.schedule(
+  '0 11 * * 0',
+  async () => {
+    try {
+      const r = await runDetectConflicts(db);
+      if (r.totalNewConflicts > 0) {
+        console.log(
+          `detect-conflicts: ${r.totalNewConflicts} new (clauses=${r.duplicateClauses}, rule_collisions=${r.rulePriorityCollisions}, near_dup_playbooks=${r.nearDuplicatePlaybooks})`,
+        );
+      }
+    } catch (err) {
+      console.error('detect-conflicts failed:', err);
     }
   },
   { timezone: env.DIGEST_TIMEZONE },
