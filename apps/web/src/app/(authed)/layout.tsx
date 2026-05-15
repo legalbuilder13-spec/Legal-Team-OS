@@ -89,6 +89,7 @@ export default async function AuthedLayout({ children }: { children: React.React
               <NavLink href="/admin/clauses" label="Clauses" icon={ListChecks} />
               <NavLink href="/admin/patterns" label="Patterns" icon={Workflow} />
               <NavLink href="/admin/rules" label="Rules" icon={Route} />
+              <NavLink href="/admin/conflicts" label="Conflicts" icon={Siren} />
               <NavLink href="/admin/audit" label="Audit Log" icon={ClipboardList} />
               <NavLink href="/admin/system" label="System" icon={Activity} />
             </>

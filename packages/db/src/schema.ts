@@ -98,6 +98,7 @@ export const jobKind = pgEnum('job_kind', [
   'apply_playbook_edit_to_notion',
   'embed_content',
   'extract_template_clauses',
+  'detect_conflicts',
 ]);
 
 export const insightKind = pgEnum('insight_kind', [
@@ -1611,3 +1612,55 @@ export type Clause = typeof clauses.$inferSelect;
 export type NewClause = typeof clauses.$inferInsert;
 export type TemplateClause = typeof templateClauses.$inferSelect;
 export type ClauseExtraction = typeof clauseExtractions.$inferSelect;
+
+// PR #7 / M8 — Conflict detection. Weekly cron writes pairs of
+// content rows that structurally contradict each other to this table
+// for admin review at /admin/conflicts.
+export const conflictKind = pgEnum('conflict_kind', [
+  'duplicate_canonical_clause',
+  'rule_priority_collision',
+  'near_duplicate_playbook',
+  'kb_playbook_drift',
+]);
+
+export const conflictSeverity = pgEnum('conflict_severity', ['high', 'medium', 'low']);
+
+export const conflictStatus = pgEnum('conflict_status', [
+  'active',
+  'dismissed',
+  'resolved',
+]);
+
+export const detectedConflicts = pgTable(
+  'detected_conflicts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: conflictKind('kind').notNull(),
+    severity: conflictSeverity('severity').notNull().default('medium'),
+    entityAType: text('entity_a_type').notNull(),
+    entityAId: uuid('entity_a_id').notNull(),
+    entityBType: text('entity_b_type'),
+    entityBId: uuid('entity_b_id'),
+    summary: text('summary').notNull(),
+    evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull().default({}),
+    detectorVersion: text('detector_version').notNull().default('v1'),
+    status: conflictStatus('status').notNull().default('active'),
+    resolvedById: uuid('resolved_by_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolutionNote: text('resolution_note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    statusIdx: index('detected_conflicts_status_idx').on(
+      t.status,
+      t.severity,
+      t.createdAt,
+    ),
+    entityAIdx: index('detected_conflicts_entity_a_idx').on(t.entityAType, t.entityAId),
+    entityBIdx: index('detected_conflicts_entity_b_idx').on(t.entityBType, t.entityBId),
+  }),
+);
+
+export type DetectedConflict = typeof detectedConflicts.$inferSelect;
