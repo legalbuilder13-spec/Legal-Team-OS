@@ -10,6 +10,7 @@ import { PlainEnglishTrace } from './PlainEnglishTrace';
 import { FrameFlipBanner } from './FrameFlipBanner';
 import { DepthSelector } from './DepthSelector';
 import { AbsencePanel } from './AbsencePanel';
+import { EscalationBanner } from './EscalationBanner';
 import type { ResearchDepth } from '@legal/types';
 
 // PRD §6.1 — the matter detail page's Analysis panel. Two sections:
@@ -146,6 +147,13 @@ export function AnalysisPanel({ matterId }: Props) {
           )}
         </div>
       </div>
+
+      {analysis.escalatedAt && (
+        <EscalationBanner
+          escalatedAt={analysis.escalatedAt}
+          reason={analysis.escalationReason}
+        />
+      )}
 
       {frameFlips && frameFlips.length > 0 && (
         <FrameFlipBanner matterId={matterId} flips={frameFlips} />

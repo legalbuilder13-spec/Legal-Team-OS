@@ -17,6 +17,7 @@ import { env } from '../env.js';
 import { runStage0 } from './analyze/stage-0-thresholds.js';
 import { runStage1 } from './analyze/stage-1-guidance.js';
 import { runAbsenceSpotter } from './analyze/absence-spotter.js';
+import { persistEscalation } from './analyze/escalation.js';
 
 // PRD §7 — pre-review analysis pipeline entry point.
 // Auto pipeline only: Stage 0 (pre-merits checklist) + Stage 1 (playbook
@@ -131,6 +132,25 @@ export async function handleAnalyzeJob(db: Db, job: Job) {
 
   try {
     const stage0 = await runStage0(db, analysisId, matter);
+
+    // PR-11 — skill-emitted escalation short-circuits the pipeline.
+    // Stage 0 saw something that warrants raising the lawyer's hand
+    // rather than letting downstream stages produce confident output
+    // on a wrong premise.
+    if (stage0.escalationRequest) {
+      await persistEscalation(
+        db,
+        matter,
+        analysisId,
+        'stage_0',
+        stage0.escalationRequest as Parameters<typeof persistEscalation>[4],
+        shadowMode,
+      );
+      console.log(
+        `analyze: matter ${matter.shortId} escalated by stage_0 (${stage0.escalationRequest.reason}); skipping downstream`,
+      );
+      return;
+    }
 
     // PR-6 — absence spotter runs in parallel with Stage 1. Best-effort:
     // failure does not block the pipeline. Receives raised thresholds

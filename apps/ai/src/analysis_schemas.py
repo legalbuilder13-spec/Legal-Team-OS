@@ -45,6 +45,26 @@ class PipelineContext(BaseModel):
     doctrinal_frame: DoctrinalFrameState | None = None
 
 
+# PR-11 — explicit escalation. Any skill may emit an escalation_request
+# instead of (or alongside) its normal output when it encounters a
+# condition it should not work around silently. Worker short-circuits
+# the pipeline, sets matter_analyses.escalated_at, and pages the lawyer.
+# how-lawyers-think Part IV §6, V.17 — escalation is an expert move,
+# not a failure.
+class EscalationRequest(BaseModel):
+    reason: Literal[
+        "practice_area_mismatch",
+        "jurisdiction_outside_competence",
+        "unresolvable_frame_flip",
+        "too_many_missing_facts",
+        "authority_directly_contradicts_prior_stage",
+        "novel_legal_question",
+        "verification_failure",
+    ]
+    detail: str
+    recommended_next_step: str
+
+
 # ----- Stage 0 — threshold spotter -----
 
 # ----- Stage 0 — threshold spotter -----
@@ -106,6 +126,8 @@ class ThresholdSpotterResult(BaseModel):
     practice_area_confidence: float = Field(ge=0.0, le=1.0, default=1.0)
     suggested_reroute: str | None = None
     reroute_rationale: str | None = None
+    # PR-11 — optional escalation request.
+    escalation_request: EscalationRequest | None = None
 
 
 # ----- Stage 1 — guidance relevance grader -----
@@ -156,3 +178,4 @@ class GuidanceGraderResult(BaseModel):
     headline_answer: GuidanceHeadline | None = None
     notes_for_lawyer: str | None = None
     frame_flip_proposal: FrameFlipProposal | None = None
+    escalation_request: EscalationRequest | None = None

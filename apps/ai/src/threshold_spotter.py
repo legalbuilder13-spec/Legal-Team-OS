@@ -15,6 +15,7 @@ import json
 import logging
 
 from .analysis_schemas import (
+    EscalationRequest,
     FrameFlipProposal,
     ThresholdFinding,
     ThresholdSpotterRequest,
@@ -25,6 +26,7 @@ from .domain_config import domain_config_block
 from .llm.client import get_client
 from .pipeline_context import (
     DEPTH_AND_FRAME_SYSTEM_ADDENDUM,
+    ESCALATION_REQUEST_SCHEMA,
     FRAME_FLIP_PROPOSAL_SCHEMA,
     render_context_block,
 )
@@ -142,6 +144,7 @@ TOOL = {
                 ],
             },
             "reroute_rationale": {"type": ["string", "null"]},
+            "escalation_request": ESCALATION_REQUEST_SCHEMA,
         },
         "required": ["findings"],
     },
@@ -238,6 +241,9 @@ def spot_thresholds(request: ThresholdSpotterRequest) -> ThresholdSpotterResult:
                 )
             )
 
+    esc_payload = payload.get("escalation_request")
+    escalation = EscalationRequest(**esc_payload) if esc_payload else None
+
     return ThresholdSpotterResult(
         matter_id=request.matter_id,
         practice_area=request.practice_area,
@@ -247,4 +253,5 @@ def spot_thresholds(request: ThresholdSpotterRequest) -> ThresholdSpotterResult:
         practice_area_confidence=float(payload.get("practice_area_confidence", 1.0)),
         suggested_reroute=payload.get("suggested_reroute"),
         reroute_rationale=payload.get("reroute_rationale"),
+        escalation_request=escalation,
     )

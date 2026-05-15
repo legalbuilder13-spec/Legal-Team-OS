@@ -61,6 +61,12 @@ interface ThresholdSpotterResult {
   practice_area_confidence?: number;
   suggested_reroute?: string | null;
   reroute_rationale?: string | null;
+  // PR-11 — optional escalation request.
+  escalation_request?: {
+    reason: string;
+    detail: string;
+    recommended_next_step: string;
+  } | null;
 }
 
 export interface StageResult {
@@ -74,6 +80,13 @@ export interface StageResult {
   practiceAreaConfidence?: number;
   suggestedReroute?: string | null;
   rerouteRationale?: string | null;
+  // PR-11 — surface skill-emitted escalation upstream so analyze.ts
+  // can short-circuit Stage 1 and notify Slack.
+  escalationRequest?: {
+    reason: string;
+    detail: string;
+    recommended_next_step: string;
+  } | null;
 }
 
 export async function runStage0(
@@ -230,6 +243,7 @@ export async function runStage0(
       practiceAreaConfidence: raw.practice_area_confidence,
       suggestedReroute: raw.suggested_reroute ?? null,
       rerouteRationale: raw.reroute_rationale ?? null,
+      escalationRequest: raw.escalation_request ?? null,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

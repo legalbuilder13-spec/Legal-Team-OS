@@ -48,7 +48,61 @@ When you propose a flip, set `frame_flip_proposal` with:
 
 Do NOT silently reinterpret the question under a different frame. Either work the carried \
 frame, or propose a flip and let the lawyer decide.
+
+---
+
+ESCALATION (PR-11) — when to raise your hand instead of producing output
+
+You may emit `escalation_request` on your response when you encounter any of the following. Escalation \
+is an expert move (see how-lawyers-think Part IV §6 / V.17), not a failure. Use sparingly; not every \
+hard question warrants it.
+
+Conditions that justify escalation:
+- `practice_area_mismatch` — the routing is clearly wrong (HIPAA breach routed to commercial, etc.).
+- `jurisdiction_outside_competence` — analysis requires a jurisdiction the firm's playbooks don't cover.
+- `unresolvable_frame_flip` — you can't ground a frame flip you would otherwise propose; the lawyer \
+  needs to make the doctrinal call.
+- `too_many_missing_facts` — after absence-spotter resolution, three or more high-severity facts \
+  remain unresolved.
+- `authority_directly_contradicts_prior_stage` — you found a controlling authority that flatly \
+  contradicts what an earlier stage relied on; this is more than a frame flip.
+- `novel_legal_question` — no on-point authority within reasonable retrieval scope; the question is \
+  genuinely novel.
+- `verification_failure` — your own self-audit failed in a way you can't repair.
+
+When you escalate, set `escalation_request` with:
+- `reason`: one of the values above.
+- `detail`: 1-3 sentences explaining what you encountered.
+- `recommended_next_step`: what the lawyer should do (re-route, consult a senior, contact outside \
+  counsel for jurisdiction X, etc.).
+
+Producing a partial output AND escalating is fine. Producing a confident output when escalation is \
+warranted is the failure mode — that's the abdication trap.
 """
+
+# Output-schema fragment for escalation_request. Reused across every
+# skill's TOOL input_schema so escalation can be raised uniformly.
+ESCALATION_REQUEST_SCHEMA = {
+    "type": ["object", "null"],
+    "properties": {
+        "reason": {
+            "type": "string",
+            "enum": [
+                "practice_area_mismatch",
+                "jurisdiction_outside_competence",
+                "unresolvable_frame_flip",
+                "too_many_missing_facts",
+                "authority_directly_contradicts_prior_stage",
+                "novel_legal_question",
+                "verification_failure",
+            ],
+        },
+        "detail": {"type": "string"},
+        "recommended_next_step": {"type": "string"},
+    },
+    "required": ["reason", "detail", "recommended_next_step"],
+}
+
 
 # Output-schema fragment for frame_flip_proposal. Reused across every
 # skill's TOOL input_schema so the wire shape stays identical.

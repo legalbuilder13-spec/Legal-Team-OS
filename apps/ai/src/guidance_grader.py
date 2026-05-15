@@ -16,6 +16,7 @@ import json
 import logging
 
 from .analysis_schemas import (
+    EscalationRequest,
     FrameFlipProposal,
     GuidanceGrade,
     GuidanceGraderRequest,
@@ -26,6 +27,7 @@ from .config import settings
 from .llm.client import get_client
 from .pipeline_context import (
     DEPTH_AND_FRAME_SYSTEM_ADDENDUM,
+    ESCALATION_REQUEST_SCHEMA,
     FRAME_FLIP_PROPOSAL_SCHEMA,
     render_context_block,
 )
@@ -103,6 +105,7 @@ TOOL = {
             },
             "notes_for_lawyer": {"type": ["string", "null"]},
             "frame_flip_proposal": FRAME_FLIP_PROPOSAL_SCHEMA,
+            "escalation_request": ESCALATION_REQUEST_SCHEMA,
         },
         "required": ["grades", "headline_answer", "notes_for_lawyer"],
     },
@@ -214,6 +217,9 @@ def grade_guidance(request: GuidanceGraderRequest) -> GuidanceGraderResult:
     if verdict != "matched":
         headline = None
 
+    esc_payload = payload.get("escalation_request")
+    escalation = EscalationRequest(**esc_payload) if esc_payload else None
+
     return GuidanceGraderResult(
         matter_id=request.matter_id,
         verdict=verdict,  # type: ignore[arg-type]
@@ -222,4 +228,5 @@ def grade_guidance(request: GuidanceGraderRequest) -> GuidanceGraderResult:
         headline_answer=headline,
         notes_for_lawyer=payload.get("notes_for_lawyer"),
         frame_flip_proposal=frame_flip,
+        escalation_request=escalation,
     )
