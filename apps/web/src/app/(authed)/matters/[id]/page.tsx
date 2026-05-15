@@ -12,6 +12,7 @@ import { EscalationsCard } from './EscalationsCard';
 import { ContextCardGrid } from './ContextCardGrid';
 // import { DocumentsCard } from './DocumentsCard'; // TODO(v2): re-enable
 import { AnalysisPanel } from './AnalysisPanel';
+import { RuleFiringsPanel } from './RuleFiringsPanel';
 import { formatPracticeArea } from '@/lib/format';
 
 function TriageConfidence({ metadata }: { metadata: Record<string, unknown> }) {
@@ -246,6 +247,8 @@ export default function MatterDetailPage({ params }: { params: Promise<{ id: str
           {/* <DocumentsCard matterId={matter.id} /> */}
 
           <PlaybooksCard matterId={matter.id} />
+
+          <RuleFiringsPanel matterId={matter.id} />
 
           <div className="bg-white dark:bg-ink-900 border rounded-lg p-4 text-sm">
             <h2 className="font-medium mb-2">Metadata</h2>
