@@ -5,6 +5,8 @@ import { trpc } from '@/lib/trpc';
 import { PracticeAreaSchema, type PracticeArea } from '@legal/types';
 import { formatPracticeArea } from '@/lib/format';
 import { EntityLinksPanel } from '@/components/EntityLinksPanel';
+import { TaxonomyGuide } from '@/components/TaxonomyGuide';
+import { DuplicateCheck } from '@/components/DuplicateCheck';
 
 const PRACTICE_AREAS = PracticeAreaSchema.options;
 
@@ -233,6 +235,8 @@ function PatternEditor({
       }}
       className="space-y-3 rounded border border-ink-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-4 mb-4"
     >
+      {!form.id && <TaxonomyGuide currentKind="execution_pattern" />}
+      <DuplicateCheck title={form.name} currentKind="execution_pattern" disabled={!!form.id} />
       <div className="grid grid-cols-4 gap-3">
         <label className="text-xs">
           <div className="text-ink-500 dark:text-ink-400 mb-1">Practice area</div>
