@@ -218,6 +218,13 @@
       "when": 1778796000000,
       "tag": "0030_playbook_edit_proposals",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1778799600000,
+      "tag": "0031_m7_followups",
+      "breakpoints": true
     }
   ]
 }

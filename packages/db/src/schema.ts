@@ -94,6 +94,8 @@ export const jobKind = pgEnum('job_kind', [
   'run_deconstruct',
   'take_snapshot',
   'compact_matter',
+  'mine_playbook_edits',
+  'apply_playbook_edit_to_notion',
 ]);
 
 export const insightKind = pgEnum('insight_kind', [
@@ -1415,6 +1417,17 @@ export const playbookEditProposals = pgTable(
     }),
     actionedAt: timestamp('actioned_at', { withTimezone: true }),
     actionedReason: text('actioned_reason'),
+    // M7 follow-up — Notion auto-apply tracking. notion_applied_at
+    // is set when the worker successfully appends the callout block;
+    // notion_block_id stores the Notion block ID so future PRs can
+    // edit / delete the appended content. notion_apply_error captures
+    // the failure message for retries.
+    notionAppliedAt: timestamp('notion_applied_at', { withTimezone: true }),
+    notionBlockId: text('notion_block_id'),
+    notionApplyError: text('notion_apply_error'),
+    // M7 follow-up — Slack DM tracking. Set when the daily notify
+    // cron sends a DM about this proposal so it isn't re-DM'd.
+    slackDmSentAt: timestamp('slack_dm_sent_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({

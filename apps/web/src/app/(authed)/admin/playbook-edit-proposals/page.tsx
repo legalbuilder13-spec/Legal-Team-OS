@@ -95,6 +95,9 @@ interface ProposalCardProps {
     actionedAt: Date | string | null;
     actionedReason: string | null;
     createdAt: Date | string;
+    notionAppliedAt: Date | string | null;
+    notionBlockId: string | null;
+    notionApplyError: string | null;
   };
   onAccept: (reason?: string) => void;
   onDismiss: (reason?: string) => void;
@@ -134,17 +137,47 @@ function ProposalCard({ proposal, onAccept, onDismiss, disabled }: ProposalCardP
             )}
           </div>
         </div>
-        <span
-          className={`shrink-0 text-[10px] font-mono uppercase px-1.5 py-0.5 rounded border ${
-            proposal.status === 'pending'
-              ? 'border-amber-200 text-amber-700 dark:border-amber-900 dark:text-amber-300'
-              : proposal.status === 'accepted'
-                ? 'border-emerald-200 text-emerald-700 dark:border-emerald-900 dark:text-emerald-300'
-                : 'border-ink-200 text-ink-600 dark:border-ink-700 dark:text-ink-400'
-          }`}
-        >
-          {proposal.status}
-        </span>
+        <div className="shrink-0 flex items-center gap-1.5">
+          {proposal.status === 'accepted' && proposal.notionAppliedAt && (
+            <span
+              className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded border border-blue-200 text-blue-700 dark:border-blue-900 dark:text-blue-300"
+              title={`Applied to Notion as block ${proposal.notionBlockId ?? '(unknown)'}`}
+            >
+              applied to notion
+            </span>
+          )}
+          {proposal.status === 'accepted' &&
+            !proposal.notionAppliedAt &&
+            proposal.notionApplyError && (
+              <span
+                className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded border border-red-200 text-red-700 dark:border-red-900 dark:text-red-300"
+                title={proposal.notionApplyError}
+              >
+                apply failed
+              </span>
+            )}
+          {proposal.status === 'accepted' &&
+            !proposal.notionAppliedAt &&
+            !proposal.notionApplyError && (
+              <span
+                className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded border border-ink-200 text-ink-600 dark:border-ink-700 dark:text-ink-400"
+                title="Auto-apply is off (M7_AUTO_APPLY_NOTION) or the worker hasn't run yet."
+              >
+                not applied
+              </span>
+            )}
+          <span
+            className={`text-[10px] font-mono uppercase px-1.5 py-0.5 rounded border ${
+              proposal.status === 'pending'
+                ? 'border-amber-200 text-amber-700 dark:border-amber-900 dark:text-amber-300'
+                : proposal.status === 'accepted'
+                  ? 'border-emerald-200 text-emerald-700 dark:border-emerald-900 dark:text-emerald-300'
+                  : 'border-ink-200 text-ink-600 dark:border-ink-700 dark:text-ink-400'
+            }`}
+          >
+            {proposal.status}
+          </span>
+        </div>
       </header>
 
       <div className="px-4 py-4 space-y-4">
@@ -172,6 +205,14 @@ function ProposalCard({ proposal, onAccept, onDismiss, disabled }: ProposalCardP
           <Field label="Reviewer note">
             <p className="text-[13px] italic text-ink-700 dark:text-ink-300">
               {proposal.actionedReason}
+            </p>
+          </Field>
+        )}
+
+        {proposal.status === 'accepted' && proposal.notionApplyError && (
+          <Field label="Notion apply error">
+            <p className="text-[13px] text-red-700 dark:text-red-300 font-mono whitespace-pre-wrap">
+              {proposal.notionApplyError}
             </p>
           </Field>
         )}
