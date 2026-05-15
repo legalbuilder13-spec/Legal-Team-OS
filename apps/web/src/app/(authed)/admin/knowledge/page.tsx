@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { PracticeAreaSchema } from '@legal/types';
 import { formatPracticeArea } from '@/lib/format';
+import { EntityLinksPanel } from '@/components/EntityLinksPanel';
 
 const PRACTICE_AREAS = PracticeAreaSchema.options;
 
@@ -35,6 +36,7 @@ export default function KnowledgeAdminPage() {
   const remove = trpc.admin.deleteKnowledgeArticle.useMutation({ onSuccess: () => refetch() });
 
   const [editing, setEditing] = useState<ArticleForm | null>(null);
+  const [linksFor, setLinksFor] = useState<string | null>(null);
 
   return (
     <div className="max-w-4xl">
@@ -162,54 +164,69 @@ export default function KnowledgeAdminPage() {
       ) : (
         <div className="space-y-3">
           {articles.map((art) => (
-            <div
-              key={art.id}
-              className="bg-white dark:bg-ink-900 border rounded-lg p-4 flex items-start justify-between gap-4"
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <span className="font-medium text-sm">{art.title}</span>
-                  <span className="text-xs bg-ink-100 dark:bg-ink-800 px-1.5 py-0.5 rounded">
-                    {formatPracticeArea(art.practiceArea)}
-                  </span>
-                  {!art.isActive && (
-                    <span className="text-xs bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400 px-1.5 py-0.5 rounded">
-                      inactive
+            <div key={art.id}>
+              <div className="bg-white dark:bg-ink-900 border rounded-lg p-4 flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="font-medium text-sm">{art.title}</span>
+                    <span className="text-xs bg-ink-100 dark:bg-ink-800 px-1.5 py-0.5 rounded">
+                      {formatPracticeArea(art.practiceArea)}
                     </span>
-                  )}
-                  {art.tags.map((t) => (
-                    <span key={t} className="text-xs text-brand-600">
-                      #{t}
-                    </span>
-                  ))}
+                    {!art.isActive && (
+                      <span className="text-xs bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400 px-1.5 py-0.5 rounded">
+                        inactive
+                      </span>
+                    )}
+                    {art.tags.map((t) => (
+                      <span key={t} className="text-xs text-brand-600">
+                        #{t}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-ink-500 dark:text-ink-400 line-clamp-2">{art.body}</p>
                 </div>
-                <p className="text-xs text-ink-500 dark:text-ink-400 line-clamp-2">{art.body}</p>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => setLinksFor(linksFor === art.id ? null : art.id)}
+                    className="text-xs text-ink-600 dark:text-ink-400 hover:underline"
+                  >
+                    {linksFor === art.id ? 'Hide links' : 'Links'}
+                  </button>
+                  <button
+                    onClick={() =>
+                      setEditing({
+                        id: art.id,
+                        practiceArea: art.practiceArea,
+                        title: art.title,
+                        body: art.body,
+                        tags: art.tags.join(', '),
+                        isActive: art.isActive,
+                      })
+                    }
+                    className="text-xs text-brand-600 hover:underline"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm(`Delete "${art.title}"?`)) remove.mutate({ id: art.id });
+                    }}
+                    className="text-xs text-red-500 hover:underline"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
-              <div className="flex gap-2 shrink-0">
-                <button
-                  onClick={() =>
-                    setEditing({
-                      id: art.id,
-                      practiceArea: art.practiceArea,
-                      title: art.title,
-                      body: art.body,
-                      tags: art.tags.join(', '),
-                      isActive: art.isActive,
-                    })
-                  }
-                  className="text-xs text-brand-600 hover:underline"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => {
-                    if (confirm(`Delete "${art.title}"?`)) remove.mutate({ id: art.id });
-                  }}
-                  className="text-xs text-red-500 hover:underline"
-                >
-                  Delete
-                </button>
-              </div>
+              {linksFor === art.id && (
+                <div className="mt-2">
+                  <EntityLinksPanel
+                    entityType="knowledge_article"
+                    entityId={art.id}
+                    entityTitle={art.title}
+                    defaultOpen
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>

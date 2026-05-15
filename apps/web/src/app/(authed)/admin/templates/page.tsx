@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { PracticeAreaSchema, type PracticeArea } from '@legal/types';
+import { EntityLinksPanel } from '@/components/EntityLinksPanel';
 
 const PRACTICE_AREAS = PracticeAreaSchema.options;
 
@@ -40,6 +41,7 @@ export default function TemplatesAdminPage() {
     onSuccess: () => utils.templates.listAll.invalidate(),
   });
   const [editing, setEditing] = useState<TemplateForm | null>(null);
+  const [linksFor, setLinksFor] = useState<string | null>(null);
 
   const byArea = PRACTICE_AREAS.map((area) => ({
     area,
@@ -127,24 +129,43 @@ export default function TemplatesAdminPage() {
                           {!t.isActive && <span className="ml-2 text-ink-400">inactive</span>}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setEditing({
-                            id: t.id,
-                            practiceArea: t.practiceArea,
-                            matterType: t.matterType ?? '',
-                            name: t.name,
-                            body: t.body,
-                            variables: t.variables ?? [],
-                            isActive: t.isActive,
-                          })
-                        }
-                        className="text-xs text-brand-600 hover:underline"
-                      >
-                        Edit
-                      </button>
+                      <div className="flex gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setLinksFor(linksFor === t.id ? null : t.id)}
+                          className="text-xs text-ink-600 dark:text-ink-400 hover:underline"
+                        >
+                          {linksFor === t.id ? 'Hide links' : 'Links'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditing({
+                              id: t.id,
+                              practiceArea: t.practiceArea,
+                              matterType: t.matterType ?? '',
+                              name: t.name,
+                              body: t.body,
+                              variables: t.variables ?? [],
+                              isActive: t.isActive,
+                            })
+                          }
+                          className="text-xs text-brand-600 hover:underline"
+                        >
+                          Edit
+                        </button>
+                      </div>
                     </div>
+                    {linksFor === t.id && (
+                      <div className="mt-2">
+                        <EntityLinksPanel
+                          entityType="template"
+                          entityId={t.id}
+                          entityTitle={t.name}
+                          defaultOpen
+                        />
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

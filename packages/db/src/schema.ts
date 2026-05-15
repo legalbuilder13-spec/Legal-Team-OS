@@ -1446,3 +1446,57 @@ export const playbookEditProposalsRelations = relations(playbookEditProposals, (
 
 export type PlaybookEditProposal = typeof playbookEditProposals.$inferSelect;
 export type NewPlaybookEditProposal = typeof playbookEditProposals.$inferInsert;
+
+// Polymorphic cross-references between content tables. Each row links
+// a (source_type, source_id) to a (target_type, target_id) with a
+// labeled relationship. See migration 0033 for the rationale and the
+// CHECK / UNIQUE constraints.
+export const entityLinkKind = pgEnum('entity_link_kind', [
+  'playbook',
+  'knowledge_article',
+  'rule',
+  'template',
+  'execution_pattern',
+  'matter',
+]);
+
+export const entityLinkRelationship = pgEnum('entity_link_relationship', [
+  'codifies',
+  'implements',
+  'triggers',
+  'cites',
+  'supersedes',
+  'derived_from',
+  'related_to',
+]);
+
+export const entityLinks = pgTable(
+  'entity_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sourceType: entityLinkKind('source_type').notNull(),
+    sourceId: uuid('source_id').notNull(),
+    targetType: entityLinkKind('target_type').notNull(),
+    targetId: uuid('target_id').notNull(),
+    relationship: entityLinkRelationship('relationship').notNull(),
+    note: text('note'),
+    createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    uniqueIdx: uniqueIndex('entity_links_unique_idx').on(
+      t.sourceType,
+      t.sourceId,
+      t.targetType,
+      t.targetId,
+      t.relationship,
+    ),
+    sourceIdx: index('entity_links_source_idx').on(t.sourceType, t.sourceId),
+    targetIdx: index('entity_links_target_idx').on(t.targetType, t.targetId),
+  }),
+);
+
+export type EntityLink = typeof entityLinks.$inferSelect;
+export type NewEntityLink = typeof entityLinks.$inferInsert;
+export type EntityLinkKind = (typeof entityLinkKind.enumValues)[number];
+export type EntityLinkRelationship = (typeof entityLinkRelationship.enumValues)[number];
