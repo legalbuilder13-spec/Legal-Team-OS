@@ -102,6 +102,10 @@ class DeconstructRequest(BaseModel):
     domain_config: DomainConfig | None = None
     # PR-A — pipeline context (research_depth + carried doctrinal_frame).
     context: PipelineContext = PipelineContext()
+    # PR-8 — contested-doctrines registry for this practice area. Skill
+    # checks whether any tree node touches one and, if so, surfaces an
+    # alternative frame rather than committing silently.
+    contested_doctrines: list[ContestedDoctrineFrameInput] = Field(default_factory=list)
 
 
 # ----- Response: tree nodes + memo -----
@@ -115,6 +119,21 @@ NodeStatus = Literal[
     'closed_not_dispositive',
     'deferred',
 ]
+
+
+HohfeldPosition = Literal['claim_right', 'privilege', 'power', 'immunity']
+HohfeldCorrelative = Literal['duty', 'no_right', 'liability', 'disability']
+
+
+class HohfeldAnalysis(BaseModel):
+    # PR-8 — required when node.type == 'right'. Disambiguates the
+    # word "right" to one of Hohfeld's four jural positions, with the
+    # correlative party and the conduct/relation it concerns.
+    # how-lawyers-think Part VI §6.4.
+    position: HohfeldPosition
+    correlative_party: str
+    with_respect_to: str
+    correlative_relation: HohfeldCorrelative
 
 
 class DeconstructionNode(BaseModel):
@@ -139,6 +158,29 @@ class DeconstructionNode(BaseModel):
     # cite, playbook id, etc.). Worker re-checks these are not invented.
     anchor_citation: str | None = None
     notes: str | None = None
+    # PR-8 — Hohfeldian disambiguation. REQUIRED when type='right'.
+    hohfeld: HohfeldAnalysis | None = None
+
+
+class ContestedDoctrineFrameInput(BaseModel):
+    # PR-8 — worker passes the contested-doctrines registry for the
+    # practice area into the request so the skill knows which frames
+    # to surface side-by-side.
+    id: str
+    label: str
+    frames: list[str]
+    trigger_keywords: list[str]
+    canonical_source: str
+
+
+class AlternativeFrame(BaseModel):
+    # PR-8 — when the skill emits frame_choice_required=true, it also
+    # supplies the alternative tree (or a summary of how the tree would
+    # differ) so the lawyer can compare.
+    frame_id: str
+    frame_label: str
+    one_paragraph_summary: str
+    materially_different_nodes: list[str] = Field(default_factory=list)
 
 
 class IRACMemo(BaseModel):
@@ -175,6 +217,13 @@ class DeconstructResult(BaseModel):
     # PR-A — optional frame flip when synthesis turns up authority
     # inconsistent with the carried doctrinal frame.
     frame_flip_proposal: FrameFlipProposal | None = None
+    # PR-8 — when the tree touches a contested doctrine, the skill
+    # surfaces the alternative frame rather than picking silently.
+    # The lawyer accepts one frame; the skill is re-invoked with the
+    # chosen frame locked in.
+    frame_choice_required: bool = False
+    alternative_frames: list[AlternativeFrame] = Field(default_factory=list)
+    frame_choice_explanation: str | None = None
 
 
 # ----- Prompt -----
@@ -216,9 +265,23 @@ inventory_items_pruned. Record what you kept in inventory_categories_addressed.
 - 'rule' → state the elements, decompose into element-level children
 - 'standard' → enumerate balancing factors as children (e.g., reasonableness factors)
 - 'factor' → leaf, weighted; not further decomposed
-- 'right' → Hohfeldian — which jural position (claim / privilege / power / immunity), against whom
+- 'right' → REQUIRED Hohfeldian disambiguation (PR-8). Populate node.hohfeld with:
+    position ∈ {claim_right, privilege, power, immunity};
+    correlative_party (who has the corresponding duty/no_right/liability/disability);
+    with_respect_to (the conduct or relation at issue);
+    correlative_relation ∈ {duty, no_right, liability, disability}.
+  A 'right' node without hohfeld is not actionable — it conflates four distinct legal positions.
 - 'evidence' → Wigmorean trace from evidence → interim probandum → ultimate probandum
 - 'threshold' → jurisdiction/limitations/etc., resolved or deferred
+
+## Contested-doctrine frame-check (PR-8)
+If your tree touches a doctrine listed in `contested_doctrines`, you MUST surface the alternative \
+decomposition frame rather than silently picking one. Set frame_choice_required=true, populate \
+alternative_frames with one entry per competing frame (frame_id, frame_label, one_paragraph_summary, \
+materially_different_nodes), and frame_choice_explanation: 2–4 sentences naming what the lawyer must \
+decide and what changes downstream. Example: a negligence matter triggers torts_duty — emit the tree \
+under restatement_third_duty_as_filter AND populate alternative_frames with the foreseeability_first \
+alternative. The Goldberg/Zipursky lesson: a wrong frame poisons every downstream node.
 
 ## Annotation per leaf (PRD §D6)
 Every leaf node MUST have: jurisdiction, procedural_posture, standard_of_review (where applicable), burden of \
@@ -348,6 +411,19 @@ def build_user_prompt(req: DeconstructRequest) -> str:
                     f"    PJI {pji.source} {pji.section}: \"{pji.operative_language}\""
                 )
     parts.append(domain_config_block(req.domain_config))
+    if req.contested_doctrines:
+        parts.append("")
+        parts.append("--- Contested doctrines in this practice area (PR-8) ---")
+        for cd in req.contested_doctrines:
+            parts.append(
+                f"- [{cd.id}] {cd.label} — frames: {', '.join(cd.frames)}"
+            )
+            parts.append(f"    triggers: {', '.join(cd.trigger_keywords)}")
+            parts.append(f"    canonical: {cd.canonical_source}")
+        parts.append(
+            "When a tree node touches one of these, set frame_choice_required=true and populate "
+            "alternative_frames."
+        )
     parts.append(render_context_block(req.context))
     return "\n".join(parts)
 

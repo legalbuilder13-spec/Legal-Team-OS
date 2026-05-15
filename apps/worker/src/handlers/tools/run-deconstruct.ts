@@ -10,6 +10,7 @@ import {
 import {
   PIPELINE_VERSION,
   getPracticeAreaInventory,
+  contestedDoctrinesForPracticeArea,
   type AnalysisConfidence,
   type PracticeArea,
 } from '@legal/types';
@@ -282,6 +283,15 @@ export async function handleRunDeconstructJob(db: Db, job: Job) {
       },
       // PR12 §15 — domain config blended into the skill's prompt.
       domain_config: domainConfigForSkill(orgConfig),
+      // PR-8 — contested-doctrines registry. Skill emits
+      // frame_choice_required when a tree node touches one.
+      contested_doctrines: contestedDoctrinesForPracticeArea(practiceArea).map((cd) => ({
+        id: cd.id,
+        label: cd.label,
+        frames: cd.frames,
+        trigger_keywords: cd.triggerKeywords,
+        canonical_source: cd.canonicalSource,
+      })),
     };
 
     const res = await fetch(`${env.AI_SERVICE_URL}/deconstruct`, {
