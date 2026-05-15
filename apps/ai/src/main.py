@@ -55,6 +55,11 @@ from .statute_analysis import (
     StatuteAnalysisResult,
     analyze_statute,
 )
+from .absence_spotter import (
+    AbsenceSpotterRequest,
+    AbsenceSpotterResult,
+    spot_absences,
+)
 from .threshold_spotter import spot_thresholds
 from .triage import triage
 
@@ -182,6 +187,23 @@ def post_guidance_grader(request: GuidanceGraderRequest) -> GuidanceGraderResult
         len(request.candidates),
     )
     return grade_guidance(request)
+
+
+@app.post(
+    "/absence-spotter",
+    response_model=AbsenceSpotterResult,
+    dependencies=[Depends(require_token)],
+)
+def post_absence_spotter(request: AbsenceSpotterRequest) -> AbsenceSpotterResult:
+    # PR-6 — absence-detection skill. Sibling to threshold-spotter; runs
+    # in parallel with Stage 1. See how-lawyers-think Part III §3 op 4.
+    logger.info(
+        "absence_spotter matter_id=%s practice_area=%s thresholds=%d",
+        request.matter_id,
+        request.practice_area,
+        len(request.raised_thresholds),
+    )
+    return spot_absences(request)
 
 
 @app.post(

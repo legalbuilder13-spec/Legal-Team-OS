@@ -86,6 +86,12 @@ class ThresholdSpotterResult(BaseModel):
     # PR-A — opt-in proposal that the carried doctrinal_frame is wrong.
     # Worker writes to matter_frame_flips when present.
     frame_flip_proposal: FrameFlipProposal | None = None
+    # PR-6 — out-of-distribution detection. Model assesses whether the
+    # matter was routed to the right practice area; on misroute,
+    # suggests where it should go.
+    practice_area_confidence: float = Field(ge=0.0, le=1.0, default=1.0)
+    suggested_reroute: str | None = None
+    reroute_rationale: str | None = None
 
 
 # ----- Stage 1 — guidance relevance grader -----

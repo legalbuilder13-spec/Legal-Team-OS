@@ -16,6 +16,7 @@ import {
 import { env } from '../env.js';
 import { runStage0 } from './analyze/stage-0-thresholds.js';
 import { runStage1 } from './analyze/stage-1-guidance.js';
+import { runAbsenceSpotter } from './analyze/absence-spotter.js';
 
 // PRD §7 — pre-review analysis pipeline entry point.
 // Auto pipeline only: Stage 0 (pre-merits checklist) + Stage 1 (playbook
@@ -130,7 +131,14 @@ export async function handleAnalyzeJob(db: Db, job: Job) {
 
   try {
     const stage0 = await runStage0(db, analysisId, matter);
-    const stage1 = await runStage1(db, analysisId, matter);
+
+    // PR-6 — absence spotter runs in parallel with Stage 1. Best-effort:
+    // failure does not block the pipeline. Receives raised thresholds
+    // so it can focus on facts adjacent to known issues.
+    const [stage1, absenceResult] = await Promise.all([
+      runStage1(db, analysisId, matter),
+      runAbsenceSpotter(db, analysisId, matter, stage0.highSeverityRaised),
+    ]);
 
     const overallConfidence = pickWorseConfidence(stage0.confidence, stage1.confidence);
     const matched = stage1.verdict === 'matched';
@@ -166,6 +174,10 @@ export async function handleAnalyzeJob(db: Db, job: Job) {
         escalated,
         seniorReviewTriggers: seniorTriggers.map((t) => t.id),
         shadowMode,
+        // PR-6 — OOD signal + absence-spotter counts for the trace.
+        practiceAreaConfidence: stage0.practiceAreaConfidence,
+        suggestedReroute: stage0.suggestedReroute,
+        absenceFindings: absenceResult?.findings.length ?? 0,
       },
     });
 

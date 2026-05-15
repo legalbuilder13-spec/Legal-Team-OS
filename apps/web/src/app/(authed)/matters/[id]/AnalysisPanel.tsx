@@ -9,6 +9,7 @@ import { DeconstructStageCard } from './DeconstructStageCard';
 import { PlainEnglishTrace } from './PlainEnglishTrace';
 import { FrameFlipBanner } from './FrameFlipBanner';
 import { DepthSelector } from './DepthSelector';
+import { AbsencePanel } from './AbsencePanel';
 import type { ResearchDepth } from '@legal/types';
 
 // PRD §6.1 — the matter detail page's Analysis panel. Two sections:
@@ -105,7 +106,7 @@ export function AnalysisPanel({ matterId }: Props) {
     );
   }
 
-  const { analysis, stages, frameFlips } = data;
+  const { analysis, stages, frameFlips, absenceFindings } = data;
   const preMeritsStage = stages.find((s) => s.stageName === 'pre_merits');
   const guidanceStage = stages.find((s) => s.stageName === 'guidance');
   const statutoryStages = stages.filter((s) => s.stageName === 'statutory');
@@ -148,6 +149,10 @@ export function AnalysisPanel({ matterId }: Props) {
 
       {frameFlips && frameFlips.length > 0 && (
         <FrameFlipBanner matterId={matterId} flips={frameFlips} />
+      )}
+
+      {absenceFindings && absenceFindings.length > 0 && (
+        <AbsencePanel matterId={matterId} findings={absenceFindings} />
       )}
 
       {status === 'matched' && headline && (

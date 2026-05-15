@@ -1055,6 +1055,32 @@ export const matterFrameFlips = pgTable(
   }),
 );
 
+// PR-6 — one row per absence the absence-spotter skill identified.
+export const matterAbsenceFindings = pgTable(
+  'matter_absence_findings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    matterAnalysisId: uuid('matter_analysis_id')
+      .notNull()
+      .references(() => matterAnalyses.id, { onDelete: 'cascade' }),
+    missingFact: text('missing_fact').notNull(),
+    whyDispositive: text('why_dispositive').notNull(),
+    severity: text('severity').notNull().$type<'high' | 'medium' | 'low'>(),
+    suggestedClarifyingQuestion: text('suggested_clarifying_question').notNull(),
+    resolved: boolean('resolved').notNull().default(false),
+    resolvedValue: text('resolved_value'),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedByUserId: uuid('resolved_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    dismissed: boolean('dismissed').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    matterIdx: index('matter_absence_findings_matter_idx').on(t.matterAnalysisId, t.severity),
+  }),
+);
+
 // One row per stage that ran. Auto pipeline writes pre_merits + guidance
 // rows; each lawyer-invoked tool writes a statutory/case_law/deconstruct row.
 export const matterAnalysisStages = pgTable(
@@ -1454,6 +1480,8 @@ export type MatterAnalysisSource = typeof matterAnalysisSources.$inferSelect;
 export type NewMatterAnalysisSource = typeof matterAnalysisSources.$inferInsert;
 export type MatterFrameFlip = typeof matterFrameFlips.$inferSelect;
 export type NewMatterFrameFlip = typeof matterFrameFlips.$inferInsert;
+export type MatterAbsenceFinding = typeof matterAbsenceFindings.$inferSelect;
+export type NewMatterAbsenceFinding = typeof matterAbsenceFindings.$inferInsert;
 
 export type RejectionClusterRun = typeof rejectionClusterRuns.$inferSelect;
 export type NewRejectionClusterRun = typeof rejectionClusterRuns.$inferInsert;

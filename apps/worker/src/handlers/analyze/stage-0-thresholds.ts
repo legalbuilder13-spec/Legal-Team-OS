@@ -52,6 +52,10 @@ interface ThresholdSpotterResult {
     one_line_justification: string;
   }>;
   frame_flip_proposal?: FrameFlipProposal | null;
+  // PR-6 — out-of-distribution detection.
+  practice_area_confidence?: number;
+  suggested_reroute?: string | null;
+  reroute_rationale?: string | null;
 }
 
 export interface StageResult {
@@ -60,6 +64,11 @@ export interface StageResult {
   confidence: AnalysisConfidence;
   output: PreMeritsStageOutput | { error: string };
   highSeverityRaised: string[];
+  // PR-6 — OOD signal. Surfaced in the analyze.ts handler as a reroute
+  // banner; the lawyer accepts or rejects.
+  practiceAreaConfidence?: number;
+  suggestedReroute?: string | null;
+  rerouteRationale?: string | null;
 }
 
 export async function runStage0(
@@ -191,7 +200,16 @@ export async function runStage0(
       })
       .where(eq(matterAnalysisStages.id, stageId));
 
-    return { stageId, status: 'complete', confidence, output, highSeverityRaised };
+    return {
+      stageId,
+      status: 'complete',
+      confidence,
+      output,
+      highSeverityRaised,
+      practiceAreaConfidence: raw.practice_area_confidence,
+      suggestedReroute: raw.suggested_reroute ?? null,
+      rerouteRationale: raw.reroute_rationale ?? null,
+    };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await db

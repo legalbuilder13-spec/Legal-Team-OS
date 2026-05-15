@@ -1,11 +1,13 @@
 import { z } from 'zod';
 import { desc, eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
+import { and } from 'drizzle-orm';
 import {
   matterAnalyses,
   matterAnalysisStages,
   matterAnalysisSources,
   matterFrameFlips,
+  matterAbsenceFindings,
   auditLog,
   matters,
   playbooks,
@@ -62,7 +64,59 @@ export const analysisRouter = router({
         .where(eq(matterFrameFlips.matterAnalysisId, analysis.id))
         .orderBy(desc(matterFrameFlips.createdAt));
 
-      return { analysis, stages, frameFlips };
+      // PR-6 — absence findings for the missing-facts panel.
+      const absenceFindings = await ctx.db
+        .select()
+        .from(matterAbsenceFindings)
+        .where(eq(matterAbsenceFindings.matterAnalysisId, analysis.id))
+        .orderBy(matterAbsenceFindings.createdAt);
+
+      return { analysis, stages, frameFlips, absenceFindings };
+    }),
+
+  // PR-6 — resolve a missing-fact finding (the lawyer supplies the
+  // missing fact's value) or dismiss it (the model was wrong / fact
+  // isn't actually dispositive here).
+  resolveAbsence: staffProcedure
+    .input(
+      z.object({
+        findingId: z.string().uuid(),
+        action: z.discriminatedUnion('kind', [
+          z.object({ kind: z.literal('resolve'), value: z.string().min(1).max(2000) }),
+          z.object({ kind: z.literal('dismiss') }),
+        ]),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.action.kind === 'resolve') {
+        await ctx.db
+          .update(matterAbsenceFindings)
+          .set({
+            resolved: true,
+            resolvedValue: input.action.value,
+            resolvedAt: new Date(),
+            resolvedByUserId: ctx.user.id,
+          })
+          .where(eq(matterAbsenceFindings.id, input.findingId));
+        await ctx.db.insert(auditLog).values({
+          actorKind: 'user',
+          actorId: ctx.user.id,
+          action: 'analysis.absence_resolved',
+          details: { findingId: input.findingId },
+        });
+      } else {
+        await ctx.db
+          .update(matterAbsenceFindings)
+          .set({ dismissed: true, resolvedAt: new Date(), resolvedByUserId: ctx.user.id })
+          .where(eq(matterAbsenceFindings.id, input.findingId));
+        await ctx.db.insert(auditLog).values({
+          actorKind: 'user',
+          actorId: ctx.user.id,
+          action: 'analysis.absence_dismissed',
+          details: { findingId: input.findingId },
+        });
+      }
+      return { ok: true };
     }),
 
   // PR-A — depth selector. Lawyer escalates depth on the same matter

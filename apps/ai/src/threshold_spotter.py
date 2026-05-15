@@ -53,7 +53,15 @@ You do NOT:
 - Cite statutes or cases (none are in your context).
 - Speculate about facts not in the request.
 
-Return findings for every item in the checklist. If the checklist is empty, return an empty findings array.""" + DEPTH_AND_FRAME_SYSTEM_ADDENDUM
+Return findings for every item in the checklist. If the checklist is empty, return an empty findings array.
+
+# Out-of-distribution detection (PR-6)
+After producing findings, assess whether this matter is actually in the practice area it was routed to. \
+Examples: a 'commercial' matter that's actually 80% a HIPAA breach belongs in 'privacy'; an 'employment' \
+matter dominated by a stock-option vesting dispute belongs in 'corporate'. Return practice_area_confidence \
+in [0,1] (1.0 = clearly correct area, 0.5 = mixed, <0.5 = misrouted). When confidence is below 0.6, set \
+suggested_reroute to one of: commercial, employment, privacy, litigation, corporate, regulatory, ip, \
+real_estate, other; otherwise null. reroute_rationale: one short sentence explaining the call.""" + DEPTH_AND_FRAME_SYSTEM_ADDENDUM
 
 TOOL = {
     "name": "submit_findings",
@@ -83,6 +91,24 @@ TOOL = {
             },
             # PR-A — opt-in. Model emits when carried frame is wrong.
             "frame_flip_proposal": FRAME_FLIP_PROPOSAL_SCHEMA,
+            # PR-6 — out-of-distribution detection.
+            "practice_area_confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+            "suggested_reroute": {
+                "type": ["string", "null"],
+                "enum": [
+                    "commercial",
+                    "employment",
+                    "privacy",
+                    "litigation",
+                    "corporate",
+                    "regulatory",
+                    "ip",
+                    "real_estate",
+                    "other",
+                    None,
+                ],
+            },
+            "reroute_rationale": {"type": ["string", "null"]},
         },
         "required": ["findings"],
     },
@@ -185,4 +211,7 @@ def spot_thresholds(request: ThresholdSpotterRequest) -> ThresholdSpotterResult:
         checklist_version=request.checklist_version,
         findings=findings,
         frame_flip_proposal=frame_flip,
+        practice_area_confidence=float(payload.get("practice_area_confidence", 1.0)),
+        suggested_reroute=payload.get("suggested_reroute"),
+        reroute_rationale=payload.get("reroute_rationale"),
     )
