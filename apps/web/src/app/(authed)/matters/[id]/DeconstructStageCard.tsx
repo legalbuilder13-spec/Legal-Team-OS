@@ -8,11 +8,16 @@ import { StageDecisionBar } from './StageDecisionBar';
 // nested view, then verification banner.
 
 type NodeType = 'rule' | 'standard' | 'factor' | 'right' | 'evidence' | 'threshold';
+// PR-9 — expanded status set supports instantiate-then-prune. Every
+// inventory item enters the tree; the skill closes each explicitly.
 type NodeStatus =
   | 'open'
+  | 'kept'
   | 'closed_by_rule'
   | 'closed_by_stipulation'
   | 'closed_not_dispositive'
+  | 'closed_by_facts_absent'
+  | 'closed_by_preemption'
   | 'deferred';
 
 interface DeconstructionNode {
@@ -132,23 +137,25 @@ function NodeTypePill({ t }: { t: NodeType }) {
 }
 
 function NodeStatusBadge({ s }: { s: NodeStatus }) {
-  const label =
-    s === 'open'
-      ? 'open'
-      : s === 'closed_by_rule'
-        ? '✓ rule'
-        : s === 'closed_by_stipulation'
-          ? '✓ stipulated'
-          : s === 'closed_not_dispositive'
-            ? '✓ moot'
-            : 'deferred';
+  const labels: Record<NodeStatus, string> = {
+    open: 'open',
+    kept: '★ kept',
+    closed_by_rule: '✓ rule',
+    closed_by_stipulation: '✓ stipulated',
+    closed_not_dispositive: '✓ moot',
+    closed_by_facts_absent: '∅ facts absent',
+    closed_by_preemption: '⊘ preempted',
+    deferred: 'deferred',
+  };
   const tone =
     s === 'open'
       ? 'text-blue-600 dark:text-blue-400'
-      : s === 'deferred'
-        ? 'text-amber-600 dark:text-amber-400'
-        : 'text-emerald-600 dark:text-emerald-400';
-  return <span className={`text-[10px] font-mono ${tone}`}>{label}</span>;
+      : s === 'kept'
+        ? 'text-violet-600 dark:text-violet-400 font-medium'
+        : s === 'deferred'
+          ? 'text-amber-600 dark:text-amber-400'
+          : 'text-emerald-600 dark:text-emerald-400';
+  return <span className={`text-[10px] font-mono ${tone}`}>{labels[s]}</span>;
 }
 
 function NodeRow({ node, depth }: { node: DeconstructionNode; depth: number }) {

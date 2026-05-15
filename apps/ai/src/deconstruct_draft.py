@@ -112,11 +112,17 @@ class DeconstructRequest(BaseModel):
 
 
 NodeType = Literal['rule', 'standard', 'factor', 'right', 'evidence', 'threshold']
+# PR-9 — expanded status enum supports instantiate-then-prune. Every
+# candidate inventory item enters the tree as 'open' and the skill must
+# close each one explicitly. how-lawyers-think Part VI §D7.
 NodeStatus = Literal[
     'open',
+    'kept',
     'closed_by_rule',
     'closed_by_stipulation',
     'closed_not_dispositive',
+    'closed_by_facts_absent',
+    'closed_by_preemption',
     'deferred',
 ]
 
@@ -256,10 +262,23 @@ Do NOT redo statutory or case-law work. If the statutory stage already identifie
 'rule' node references that cite via anchor_citation. If case-law produced controlling authority, your relevant \
 nodes inherit that. You are synthesizing, not researching.
 
-## Inventory pruning
-The inventory_items list is candidate issues for the practice area. Most won't be relevant to this matter. Prune \
-ruthlessly — only create nodes for issues that the facts and prior stages put in play. Record what you pruned in \
-inventory_items_pruned. Record what you kept in inventory_categories_addressed.
+## Instantiate-then-prune (PR-9 — supersedes prior "selective pickup")
+The inventory_items list is the COMPLETE set of candidate issues for the practice area. EVERY inventory item \
+MUST appear in your output as a node with a status. No silent omission. This forces the specialist's \
+full-inventory move — running through the checklist — rather than picking only the items the request makes \
+obvious.
+
+Allowable statuses:
+- 'kept' — node carried forward into the live decomposition. Add children, annotations, anchor citation.
+- 'closed_by_rule' — a rule resolves the question without further fact-development.
+- 'closed_by_stipulation' — undisputed or conceded by the parties.
+- 'closed_not_dispositive' — present but does not affect the outcome.
+- 'closed_by_facts_absent' — the facts that would make this relevant are not in the request.
+- 'closed_by_preemption' — preempted by another regime (ERISA, Copyright §301, etc.).
+- 'deferred' — material but cannot be resolved without more information; surface via verify_flags.
+
+`inventory_items_pruned` (legacy field) lists IDs you closed for any reason. `inventory_categories_addressed` \
+lists the categories with at least one 'kept' node.
 
 ## Decomposition by node type
 - 'rule' → state the elements, decompose into element-level children
