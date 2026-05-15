@@ -1,4 +1,4 @@
-import { AnalysisStepsContent, WhatItDoesNotDo } from './steps';
+import { AnalysisStepsContent, OnLawyerInvokedDeconstruct, WhatItDoesNotDo } from './steps';
 
 export const metadata = {
   title: 'Analysis Steps · Legal Team OS',
@@ -20,6 +20,10 @@ export default function AnalysisStepsPage() {
       <AnalysisStepsContent />
 
       <div className="mt-8">
+        <OnLawyerInvokedDeconstruct />
+      </div>
+
+      <div className="mt-6">
         <WhatItDoesNotDo />
       </div>
 
