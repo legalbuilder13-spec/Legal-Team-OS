@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { getDb, users, escalations } from '@legal/db';
 import { ThemeToggle } from '@/components/theme';
+import { GlobalSearch, GlobalSearchTrigger } from '@/components/GlobalSearch';
 
 export default async function AuthedLayout({ children }: { children: React.ReactNode }) {
   const { userId } = await auth();
@@ -54,6 +55,8 @@ export default async function AuthedLayout({ children }: { children: React.React
             Legal Team OS
           </span>
         </Link>
+
+        <GlobalSearchTrigger />
 
         <nav className="flex flex-col gap-0.5 text-[13.5px]">
           <NavLink href="/dashboard" label="Dashboard" icon={LayoutDashboard} />
@@ -105,6 +108,7 @@ export default async function AuthedLayout({ children }: { children: React.React
       </aside>
 
       <main className="flex-1 px-10 py-10">{children}</main>
+      <GlobalSearch />
     </div>
   );
 }

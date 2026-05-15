@@ -14,6 +14,7 @@ const Env = z.object({
   NOTION_DEFAULT_PARENT_PAGE_ID: z.string().optional(),
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   GOOGLE_DRIVE_DEFAULT_FOLDER_ID: z.string().optional(),
+  VOYAGE_API_KEY: z.string().optional(),
 });
 
 export const env = Env.parse({
@@ -30,4 +31,5 @@ export const env = Env.parse({
   NOTION_DEFAULT_PARENT_PAGE_ID: process.env.NOTION_DEFAULT_PARENT_PAGE_ID,
   GOOGLE_SERVICE_ACCOUNT_JSON: process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
   GOOGLE_DRIVE_DEFAULT_FOLDER_ID: process.env.GOOGLE_DRIVE_DEFAULT_FOLDER_ID,
+  VOYAGE_API_KEY: process.env.VOYAGE_API_KEY,
 });

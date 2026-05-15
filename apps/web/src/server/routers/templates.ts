@@ -3,6 +3,7 @@ import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { templates, auditLog } from '@legal/db';
 import { PracticeAreaSchema } from '@legal/types';
 import { adminProcedure, staffProcedure, router } from '../trpc.js';
+import { enqueueEmbedContent } from '../lib/embed-enqueue.js';
 
 const VariableSchema = z.object({
   name: z.string().min(1).max(60),
@@ -119,6 +120,7 @@ export const templatesRouter = router({
           name: input.name,
         },
       });
+      if (result) await enqueueEmbedContent(ctx.db, 'template', result.id);
       return result;
     }),
 

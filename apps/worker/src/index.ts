@@ -36,6 +36,10 @@ import { handleMinePlaybookEditsJob } from './handlers/mine-playbook-edits-job.j
 import { handleApplyPlaybookEditToNotionJob } from './handlers/apply-playbook-edit-to-notion.js';
 import { runNotifyPlaybookEdits } from './handlers/notify-playbook-edits.js';
 import { runNudgeMissedPlaybooks } from './handlers/nudge-missed-playbooks.js';
+import {
+  enqueueStaleContentEmbeddings,
+  handleEmbedContentJob,
+} from './handlers/embed-content.js';
 import { isPermanentJobError } from './utils.js';
 
 const db = getDb();
@@ -127,6 +131,9 @@ async function dispatch(job: Job) {
       break;
     case 'apply_playbook_edit_to_notion':
       await handleApplyPlaybookEditToNotionJob(db, job);
+      break;
+    case 'embed_content':
+      await handleEmbedContentJob(db, job);
       break;
     default:
       throw new Error(`unknown job kind: ${job.kind}`);
@@ -338,6 +345,25 @@ cron.schedule(
       );
     } catch (err) {
       console.error('notify-playbook-edits failed:', err);
+    }
+  },
+  { timezone: env.DIGEST_TIMEZONE },
+);
+
+// Daily content-embedding backfill. Scans the five content tables
+// (knowledge_articles, templates, rules, execution_patterns, playbooks)
+// for active rows whose embedding is NULL and enqueues embed_content
+// jobs. Runs at 03:00 so backfill batches finish before the M-jobs
+// consume signal. The handler short-circuits on stable content_hash
+// so re-runs cost nothing on already-embedded rows.
+cron.schedule(
+  '0 3 * * *',
+  async () => {
+    try {
+      const enqueued = await enqueueStaleContentEmbeddings(db);
+      if (enqueued > 0) console.log(`embed-content backfill: enqueued ${enqueued} jobs`);
+    } catch (err) {
+      console.error('embed-content backfill failed:', err);
     }
   },
   { timezone: env.DIGEST_TIMEZONE },
