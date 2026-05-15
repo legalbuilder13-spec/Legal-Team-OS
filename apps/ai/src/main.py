@@ -37,6 +37,11 @@ from .extract_playbook_edits import (
     ExtractPlaybookEditsResult,
     extract_playbook_edits,
 )
+from .extract_template_clauses import (
+    ExtractClausesRequest,
+    ExtractClausesResult,
+    extract_template_clauses,
+)
 from .extract_terminology_diffs import (
     ExtractDiffsRequest,
     ExtractDiffsResult,
@@ -266,6 +271,23 @@ def post_extract_terminology_diffs(request: ExtractDiffsRequest) -> ExtractDiffs
         len(request.revisions),
     )
     return extract_terminology_diffs(request)
+
+
+@app.post(
+    "/extract-template-clauses",
+    response_model=ExtractClausesResult,
+    dependencies=[Depends(require_token)],
+)
+def post_extract_template_clauses(
+    request: ExtractClausesRequest,
+) -> ExtractClausesResult:
+    logger.info(
+        "extract_template_clauses template=%s practice=%s body_chars=%d",
+        request.template_id,
+        request.practice_area,
+        len(request.body or ""),
+    )
+    return extract_template_clauses(request)
 
 
 @app.post(

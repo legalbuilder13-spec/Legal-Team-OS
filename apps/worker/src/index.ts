@@ -40,6 +40,7 @@ import {
   enqueueStaleContentEmbeddings,
   handleEmbedContentJob,
 } from './handlers/embed-content.js';
+import { handleExtractTemplateClausesJob } from './handlers/extract-template-clauses.js';
 import { isPermanentJobError } from './utils.js';
 
 const db = getDb();
@@ -134,6 +135,9 @@ async function dispatch(job: Job) {
       break;
     case 'embed_content':
       await handleEmbedContentJob(db, job);
+      break;
+    case 'extract_template_clauses':
+      await handleExtractTemplateClausesJob(db, job);
       break;
     default:
       throw new Error(`unknown job kind: ${job.kind}`);
