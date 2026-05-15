@@ -18,6 +18,7 @@ import { analysisMetricsRouter } from './analysis-metrics';
 import { rejectionThemesRouter } from './rejection-themes';
 import { playbookEditProposalsRouter } from './playbook-edit-proposals';
 import { entityLinksRouter } from './entity-links';
+import { searchRouter } from './search';
 
 export const appRouter = router({
   matters: mattersRouter,
@@ -39,6 +40,7 @@ export const appRouter = router({
   rejectionThemes: rejectionThemesRouter,
   playbookEditProposals: playbookEditProposalsRouter,
   entityLinks: entityLinksRouter,
+  search: searchRouter,
 });
 
 export type AppRouter = typeof appRouter;

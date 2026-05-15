@@ -19,6 +19,7 @@ import {
 import { PracticeAreaSchema } from '@legal/types';
 import { adminProcedure, router } from '../trpc.js';
 import { env } from '@/env';
+import { enqueueEmbedContent } from '../lib/embed-enqueue.js';
 
 const RoleSchema = z.enum(['attorney', 'legal_ops', 'admin', 'requester']);
 
@@ -198,6 +199,7 @@ export const adminRouter = router({
           })
           .where(eq(playbooks.id, input.id))
           .returning();
+        if (updated) await enqueueEmbedContent(ctx.db, 'playbook', updated.id);
         return updated;
       }
       const [created] = await ctx.db
@@ -210,6 +212,7 @@ export const adminRouter = router({
           createdById: ctx.user.id,
         })
         .returning();
+      if (created) await enqueueEmbedContent(ctx.db, 'playbook', created.id);
       return created;
     }),
 
@@ -346,6 +349,7 @@ export const adminRouter = router({
           })
           .where(eq(knowledgeArticles.id, input.id))
           .returning();
+        if (updated) await enqueueEmbedContent(ctx.db, 'knowledge_article', updated.id);
         return updated;
       }
       const [created] = await ctx.db
@@ -359,6 +363,7 @@ export const adminRouter = router({
           createdById: ctx.user.id,
         })
         .returning();
+      if (created) await enqueueEmbedContent(ctx.db, 'knowledge_article', created.id);
       return created;
     }),
 
@@ -808,6 +813,7 @@ export const adminRouter = router({
           outputFormat: input.outputFormat,
         },
       });
+      if (result) await enqueueEmbedContent(ctx.db, 'execution_pattern', result.id);
       return result;
     }),
 });

@@ -4,6 +4,7 @@ import { rules, auditLog, jobs } from '@legal/db';
 import { RuleKindSchema, RuleStatusSchema } from '@legal/types';
 import { adminProcedure, router } from '../trpc.js';
 import { env } from '@/env';
+import { enqueueEmbedContent } from '../lib/embed-enqueue.js';
 
 async function compileViaAiService(input: {
   ruleId: string;
@@ -92,6 +93,7 @@ export const rulesRouter = router({
         action: 'rule.created',
         details: { id: created.id, kind: input.kind, name: input.name },
       });
+      await enqueueEmbedContent(ctx.db, 'rule', created.id);
       return created;
     }),
 
@@ -178,6 +180,9 @@ export const rulesRouter = router({
         action: 'rule.updated',
         details: { id: input.id, patch: Object.keys(patch) },
       });
+      if (input.naturalText !== undefined && updated) {
+        await enqueueEmbedContent(ctx.db, 'rule', updated.id);
+      }
       return updated;
     }),
 
