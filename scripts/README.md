@@ -68,6 +68,33 @@ The script prints:
 
 The **override-rate gate** from §20.1 (< 15% lawyer overrides on matched verdicts) isn't computable from `audit_log` alone — the override mutations don't currently emit audit events. Track it manually from `matter_notes` for the first 2–3 weeks of shadow mode.
 
+## Seeding playbook Notion pages (launch-gate prerequisite)
+
+If `shadow-mode-metrics.sql` shows 0% matched-rate (see [`LAUNCH_GATE_2026-05-15.md`](LAUNCH_GATE_2026-05-15.md) for the assessment that ran into this), the cause is usually that `playbooks.notion_page_id` is NULL for every row. Stage 1's Notion search returns 0 candidates → grader has nothing to score → no_hit on every matter.
+
+This script creates a Notion child page for each unwired playbook and updates the DB row:
+
+```bash
+# Dry-run first.
+DATABASE_URL=postgres://... \
+  NOTION_API_KEY=secret_... \
+  PLAYBOOKS_PARENT_PAGE_ID=35f598cc-a369-8145-83ba-cf7786ff2d33 \
+    pnpm --filter @legal/web exec tsx ../../scripts/seed-playbook-notion-pages.ts --dry-run
+
+# For real.
+DATABASE_URL=postgres://... \
+  NOTION_API_KEY=secret_... \
+  PLAYBOOKS_PARENT_PAGE_ID=35f598cc-a369-8145-83ba-cf7786ff2d33 \
+    pnpm --filter @legal/web exec tsx ../../scripts/seed-playbook-notion-pages.ts
+```
+
+The script is idempotent — rows that already have `notion_page_id` set are skipped. After running, manually promote at least one playbook to `canon_tier='org'` so the M4 canon-tier boost has something to amplify:
+
+```sql
+UPDATE playbooks SET canon_tier='org', last_promoted_at=now()
+  WHERE title='NDA & MSA Review Checklist';
+```
+
 ## Flipping to live
 
 After the shadow window meets the gates:
