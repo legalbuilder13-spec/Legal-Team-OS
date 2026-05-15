@@ -32,6 +32,11 @@ from .deconstruct_draft import (
     deconstruct_and_draft,
 )
 from .enrich_counterparty import EnrichRequest, EnrichResult, enrich_counterparty
+from .extract_playbook_edits import (
+    ExtractPlaybookEditsRequest,
+    ExtractPlaybookEditsResult,
+    extract_playbook_edits,
+)
 from .extract_terminology_diffs import (
     ExtractDiffsRequest,
     ExtractDiffsResult,
@@ -261,3 +266,19 @@ def post_extract_terminology_diffs(request: ExtractDiffsRequest) -> ExtractDiffs
         len(request.revisions),
     )
     return extract_terminology_diffs(request)
+
+
+@app.post(
+    "/extract-playbook-edits",
+    response_model=ExtractPlaybookEditsResult,
+    dependencies=[Depends(require_token)],
+)
+def post_extract_playbook_edits(
+    request: ExtractPlaybookEditsRequest,
+) -> ExtractPlaybookEditsResult:
+    logger.info(
+        "extract_playbook_edits proposals=%d total_evidence=%d",
+        len(request.proposals),
+        sum(len(p.evidence_matters) for p in request.proposals),
+    )
+    return extract_playbook_edits(request)
