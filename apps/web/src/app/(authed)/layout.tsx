@@ -17,6 +17,8 @@ import {
   Activity,
   Files,
   Workflow,
+  ListChecks,
+  Wand2,
 } from 'lucide-react';
 import { getDb, users, escalations } from '@legal/db';
 import { ThemeToggle } from '@/components/theme';
@@ -64,6 +66,7 @@ export default async function AuthedLayout({ children }: { children: React.React
             badge={openEscalations > 0 ? openEscalations : undefined}
           />
           <NavLink href="/archive" label="Archive" icon={Archive} />
+          <NavLink href="/analysis-steps" label="Analysis Steps" icon={ListChecks} />
 
           {isAdmin && (
             <>
@@ -71,6 +74,11 @@ export default async function AuthedLayout({ children }: { children: React.React
                 Admin
               </div>
               <NavLink href="/admin/playbooks" label="Playbooks" icon={BookOpen} />
+              <NavLink
+                href="/admin/playbook-edit-proposals"
+                label="Playbook Edits"
+                icon={Wand2}
+              />
               <NavLink href="/admin/knowledge" label="Knowledge Base" icon={GraduationCap} />
               <NavLink href="/admin/routing" label="Routing Rules" icon={Route} />
               <NavLink href="/admin/users" label="Users" icon={Users} />

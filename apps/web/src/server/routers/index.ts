@@ -16,6 +16,7 @@ import { toolsRouter } from './tools';
 import { domainConfigRouter } from './domain-config';
 import { analysisMetricsRouter } from './analysis-metrics';
 import { rejectionThemesRouter } from './rejection-themes';
+import { playbookEditProposalsRouter } from './playbook-edit-proposals';
 
 export const appRouter = router({
   matters: mattersRouter,
@@ -35,6 +36,7 @@ export const appRouter = router({
   domainConfig: domainConfigRouter,
   analysisMetrics: analysisMetricsRouter,
   rejectionThemes: rejectionThemesRouter,
+  playbookEditProposals: playbookEditProposalsRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -257,6 +257,16 @@ export const domainConfigProposalStatus = pgEnum('domain_config_proposal_status'
   'dismissed',
 ]);
 
+// M7 — Playbook edit proposal status. The mine-playbook-edits cron
+// emits proposed edits to playbooks based on closed-matter outcomes;
+// admins accept (logs to audit_log; future PR will push the diff to
+// Notion) or dismiss in /admin/playbook-edit-proposals.
+export const playbookEditProposalStatus = pgEnum('playbook_edit_proposal_status', [
+  'pending',
+  'accepted',
+  'dismissed',
+]);
+
 // M1 — Rejection-reason mining. A weekly worker cron clusters lawyer
 // rejection reasons from audit_log; each cluster proposes a follow-up
 // (new playbook draft, or a domain_config rule patch). 'none' = the
@@ -1380,3 +1390,49 @@ export type NewMatterSummary = typeof matterSummaries.$inferInsert;
 
 export type DomainConfigProposal = typeof domainConfigProposals.$inferSelect;
 export type NewDomainConfigProposal = typeof domainConfigProposals.$inferInsert;
+
+// M7 — Playbook edit proposals. Mined weekly from closed matters
+// whose Stage 1 matched a playbook; the AI service compares the
+// playbook content against the lawyer-accepted output and proposes
+// targeted edits. Admins review on /admin/playbook-edit-proposals.
+export const playbookEditProposals = pgTable(
+  'playbook_edit_proposals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    playbookId: uuid('playbook_id').references(() => playbooks.id, {
+      onDelete: 'cascade',
+    }),
+    notionPageId: text('notion_page_id'),
+    playbookTitle: text('playbook_title').notNull(),
+    section: text('section').notNull(),
+    proposedEdit: text('proposed_edit').notNull(),
+    rationale: text('rationale').notNull(),
+    evidenceMatterIds: jsonb('evidence_matter_ids').$type<string[]>().notNull().default([]),
+    evidenceCount: integer('evidence_count').notNull().default(1),
+    status: playbookEditProposalStatus('status').notNull().default('pending'),
+    actionedByUserId: uuid('actioned_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    actionedAt: timestamp('actioned_at', { withTimezone: true }),
+    actionedReason: text('actioned_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    statusIdx: index('playbook_edit_proposals_status_idx').on(t.status, t.createdAt),
+    playbookIdx: index('playbook_edit_proposals_playbook_idx').on(t.playbookId, t.status),
+  }),
+);
+
+export const playbookEditProposalsRelations = relations(playbookEditProposals, ({ one }) => ({
+  playbook: one(playbooks, {
+    fields: [playbookEditProposals.playbookId],
+    references: [playbooks.id],
+  }),
+  actionedBy: one(users, {
+    fields: [playbookEditProposals.actionedByUserId],
+    references: [users.id],
+  }),
+}));
+
+export type PlaybookEditProposal = typeof playbookEditProposals.$inferSelect;
+export type NewPlaybookEditProposal = typeof playbookEditProposals.$inferInsert;
