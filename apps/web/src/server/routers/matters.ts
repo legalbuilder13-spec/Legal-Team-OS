@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import {
   matters,
   matterNotes,
@@ -8,6 +8,7 @@ import {
   auditLog,
   jobs,
   playbooks,
+  rules,
   type Matter,
 } from '@legal/db';
 import { MatterStatusSchema, PracticeAreaSchema, PrioritySchema } from '@legal/types';
@@ -338,4 +339,134 @@ export const mattersRouter = router({
       )
       .orderBy(desc(matters.createdAt));
   }),
+
+  // PR #5 — Rule firings explainability. Reads audit_log for the
+  // existing rule-match events written by the worker triage handler
+  // (matter.sla_rule_matched, matter.routing_rule_matched), joins to
+  // the rules table for human-readable name + naturalText, and returns
+  // a list with override status from any matter.rule_overridden events.
+  ruleFirings: staffProcedure
+    .input(z.object({ matterId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const RULE_FIRE_ACTIONS = [
+        'matter.sla_rule_matched',
+        'matter.routing_rule_matched',
+        'matter.routing_default_used',
+        'matter.triage_rule_matched',
+      ];
+      const fires = await ctx.db
+        .select({
+          id: auditLog.id,
+          action: auditLog.action,
+          details: auditLog.details,
+          createdAt: auditLog.createdAt,
+        })
+        .from(auditLog)
+        .where(
+          and(
+            eq(auditLog.matterId, input.matterId),
+            inArray(auditLog.action, RULE_FIRE_ACTIONS),
+          ),
+        )
+        .orderBy(asc(auditLog.createdAt));
+
+      const overrides = await ctx.db
+        .select({ details: auditLog.details, createdAt: auditLog.createdAt })
+        .from(auditLog)
+        .where(
+          and(
+            eq(auditLog.matterId, input.matterId),
+            eq(auditLog.action, 'matter.rule_overridden'),
+          ),
+        )
+        .orderBy(desc(auditLog.createdAt));
+
+      // Resolve rule names + natural text in one batched query.
+      const ruleIds = Array.from(
+        new Set(
+          fires
+            .map((f) => (f.details as Record<string, unknown> | null)?.['ruleId'] as string | undefined)
+            .filter((v): v is string => typeof v === 'string'),
+        ),
+      );
+      const ruleRows =
+        ruleIds.length > 0
+          ? await ctx.db
+              .select({
+                id: rules.id,
+                name: rules.name,
+                kind: rules.kind,
+                naturalText: rules.naturalText,
+                status: rules.status,
+              })
+              .from(rules)
+              .where(inArray(rules.id, ruleIds))
+          : [];
+      const ruleMap = new Map(ruleRows.map((r) => [r.id, r] as const));
+
+      // Index overrides by firing audit_log.id (they reference each
+      // other via details.firingId).
+      const overrideByFiringId = new Map<string, { reason: string | null; at: Date }>();
+      for (const o of overrides) {
+        const details = (o.details as Record<string, unknown> | null) ?? {};
+        const firingId = details['firingId'] as string | undefined;
+        if (firingId) {
+          overrideByFiringId.set(firingId, {
+            reason: (details['reason'] as string | null) ?? null,
+            at: o.createdAt,
+          });
+        }
+      }
+
+      return fires.map((f) => {
+        const details = (f.details as Record<string, unknown> | null) ?? {};
+        const ruleId = details['ruleId'] as string | undefined;
+        const rule = ruleId ? ruleMap.get(ruleId) ?? null : null;
+        const override = overrideByFiringId.get(f.id) ?? null;
+        return {
+          firingId: f.id,
+          action: f.action,
+          firedAt: f.createdAt,
+          rule,
+          details,
+          override,
+        };
+      });
+    }),
+
+  // PR #5 — Mark a rule firing as having produced the wrong outcome.
+  // Doesn't undo the rule's effect (the lawyer separately fixes the
+  // matter via reassignment / priority change). The override audit
+  // entry is the signal a future rule-quality cron uses to flag rules
+  // with high override rates as candidates for demotion.
+  overrideRuleFiring: staffProcedure
+    .input(
+      z.object({
+        firingId: z.string().uuid(),
+        matterId: z.string().uuid(),
+        reason: z.string().min(1).max(2000),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const firing = await ctx.db.query.auditLog.findFirst({
+        where: eq(auditLog.id, input.firingId),
+      });
+      if (!firing) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Firing not found.' });
+      }
+      const details = (firing.details as Record<string, unknown> | null) ?? {};
+      const ruleId = details['ruleId'] as string | undefined;
+      await ctx.db.insert(auditLog).values({
+        actorId: ctx.user.id,
+        matterId: input.matterId,
+        action: 'matter.rule_overridden',
+        details: {
+          firingId: input.firingId,
+          ruleId,
+          firingAction: firing.action,
+          reason: input.reason,
+        },
+      });
+      return { recorded: true };
+    }),
 });

@@ -338,6 +338,22 @@ export async function handleTriageJob(db: Db, job: Job) {
   }
   const resolvedAssigneeId = ruleAssigneeId ?? rule?.defaultAssigneeId ?? null;
 
+  // PR #5 — When the structured routing_rules fallback supplies the
+  // assignee (no NL routing rule matched), still log an explainability
+  // event so the matter "Why this happened" panel shows the chain.
+  if (!routingMatch.matchedRuleId && rule?.defaultAssigneeId) {
+    await db.insert(auditLog).values({
+      actorKind: 'system',
+      matterId: matter.id,
+      action: 'matter.routing_default_used',
+      details: {
+        practiceArea: triage.practice_area,
+        defaultAssigneeId: rule.defaultAssigneeId,
+        slaHoursDefault: rule.slaHours,
+      },
+    });
+  }
+
   const slaDueAt = new Date(Date.now() + slaHours * 3600 * 1000);
 
   await db
