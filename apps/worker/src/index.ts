@@ -32,6 +32,9 @@ import {
 import { runPromotePlaybooks } from './handlers/promote-playbooks.js';
 import { runMineRevisions } from './handlers/mine-revisions.js';
 import { runMinePlaybookEdits } from './handlers/mine-playbook-edits.js';
+import { handleMinePlaybookEditsJob } from './handlers/mine-playbook-edits-job.js';
+import { handleApplyPlaybookEditToNotionJob } from './handlers/apply-playbook-edit-to-notion.js';
+import { runNotifyPlaybookEdits } from './handlers/notify-playbook-edits.js';
 import { runNudgeMissedPlaybooks } from './handlers/nudge-missed-playbooks.js';
 import { isPermanentJobError } from './utils.js';
 
@@ -118,6 +121,12 @@ async function dispatch(job: Job) {
       break;
     case 'compact_matter':
       await handleCompactMatterJob(db, job);
+      break;
+    case 'mine_playbook_edits':
+      await handleMinePlaybookEditsJob(db, job);
+      break;
+    case 'apply_playbook_edit_to_notion':
+      await handleApplyPlaybookEditToNotionJob(db, job);
       break;
     default:
       throw new Error(`unknown job kind: ${job.kind}`);
@@ -309,6 +318,26 @@ cron.schedule(
       );
     } catch (err) {
       console.error('mine-playbook-edits failed:', err);
+    }
+  },
+  { timezone: env.DIGEST_TIMEZONE },
+);
+
+// M7 follow-up — Daily Slack DM cron for pending playbook edit
+// proposals. Sends one DM per admin batching the new proposals with
+// accept/dismiss buttons. Runs at 09:30 in DIGEST_TIMEZONE, just
+// after the M6 nudge at 08:00. Gated by M7_SLACK_NOTIFY_ENABLED.
+cron.schedule(
+  '30 9 * * *',
+  async () => {
+    try {
+      const result = await runNotifyPlaybookEdits(db);
+      console.log(
+        `notify-playbook-edits: ${result.pendingCount} pending → ${result.dmsSent} DMs sent` +
+          (result.skipped ? ` (skipped: ${result.skipped})` : ''),
+      );
+    } catch (err) {
+      console.error('notify-playbook-edits failed:', err);
     }
   },
   { timezone: env.DIGEST_TIMEZONE },

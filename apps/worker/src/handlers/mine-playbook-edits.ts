@@ -91,7 +91,11 @@ async function callExtractApi(
 
 export async function runMinePlaybookEdits(
   db: Db,
-  options: { lookbackDays?: number; mode?: 'off' | 'shadow' | 'on' } = {},
+  options: {
+    lookbackDays?: number;
+    mode?: 'off' | 'shadow' | 'on';
+    matterId?: string;
+  } = {},
 ): Promise<MinePlaybookEditsResult> {
   const mode = options.mode ?? 'off';
   if (mode === 'off') {
@@ -101,26 +105,45 @@ export async function runMinePlaybookEdits(
 
   // Find (matter, notion_page_id) pairs where:
   //   - audit_log recorded a playbook.matched_in_guidance for this matter
-  //   - matter has closed (status = 'closed') in the lookback window
+  //   - matter has closed (status = 'closed') and either is within the
+  //     lookback window OR was scoped explicitly via options.matterId
+  //     (single-matter mode, fired by the on-close trigger)
   //   - matter has a generated summary (M2)
   // One row per pair — we cluster by playbook below.
-  const candidates = (await db.execute(sql`
-    SELECT DISTINCT
-      m.id::text AS matter_id,
-      m.title AS matter_title,
-      (al.details->>'notion_page_id') AS notion_page_id,
-      ms.summary_md AS matter_summary,
-      m.updated_at AS closed_at
-    FROM audit_log al
-    JOIN matters m ON m.id = al.matter_id
-    JOIN matter_summaries ms ON ms.matter_id = m.id
-    WHERE al.action = 'playbook.matched_in_guidance'
-      AND al.details->>'notion_page_id' IS NOT NULL
-      AND m.status = 'closed'
-      AND m.updated_at >= now() - (${lookbackDays} || ' days')::interval
-    ORDER BY m.updated_at DESC
-    LIMIT ${MAX_CANDIDATES_PER_RUN}
-  `)) as unknown as CandidateRow[];
+  const candidates = options.matterId
+    ? ((await db.execute(sql`
+        SELECT DISTINCT
+          m.id::text AS matter_id,
+          m.title AS matter_title,
+          (al.details->>'notion_page_id') AS notion_page_id,
+          ms.summary_md AS matter_summary,
+          m.updated_at AS closed_at
+        FROM audit_log al
+        JOIN matters m ON m.id = al.matter_id
+        JOIN matter_summaries ms ON ms.matter_id = m.id
+        WHERE al.action = 'playbook.matched_in_guidance'
+          AND al.details->>'notion_page_id' IS NOT NULL
+          AND m.status = 'closed'
+          AND m.id = ${options.matterId}::uuid
+        LIMIT ${MAX_CANDIDATES_PER_RUN}
+      `)) as unknown as CandidateRow[])
+    : ((await db.execute(sql`
+        SELECT DISTINCT
+          m.id::text AS matter_id,
+          m.title AS matter_title,
+          (al.details->>'notion_page_id') AS notion_page_id,
+          ms.summary_md AS matter_summary,
+          m.updated_at AS closed_at
+        FROM audit_log al
+        JOIN matters m ON m.id = al.matter_id
+        JOIN matter_summaries ms ON ms.matter_id = m.id
+        WHERE al.action = 'playbook.matched_in_guidance'
+          AND al.details->>'notion_page_id' IS NOT NULL
+          AND m.status = 'closed'
+          AND m.updated_at >= now() - (${lookbackDays} || ' days')::interval
+        ORDER BY m.updated_at DESC
+        LIMIT ${MAX_CANDIDATES_PER_RUN}
+      `)) as unknown as CandidateRow[]);
 
   if (candidates.length < MIN_CANDIDATES) {
     return { candidateCount: candidates.length, proposalCount: 0, skipped: 'no_candidates' };

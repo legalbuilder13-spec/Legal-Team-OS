@@ -29,6 +29,19 @@ const Env = z.object({
   M7_ENABLED: z
     .union([z.literal('off'), z.literal('shadow'), z.literal('on')])
     .default('off'),
+  // M7 follow-up: when 'on', the apply-playbook-edit-to-notion job
+  // handler appends an accepted proposal as a callout block to the
+  // Notion playbook page. Default 'off' — accepting still logs the
+  // decision but does not modify Notion.
+  M7_AUTO_APPLY_NOTION: z
+    .union([z.literal('off'), z.literal('on')])
+    .default('off'),
+  // M7 follow-up: when 'on', the daily M7 notify cron DMs admins
+  // with new pending proposals + accept/dismiss buttons. Default 'off'
+  // — proposals only visible on the admin page.
+  M7_SLACK_NOTIFY_ENABLED: z
+    .union([z.literal('off'), z.literal('on')])
+    .default('off'),
   // PRD §11 + §20.2 — case-law backend. Optional; without it the worker
   // hits CourtListener's anonymous tier (~100 req/day rate limit).
   // Commercial citator providers can be plumbed in with their own env

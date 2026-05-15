@@ -146,6 +146,17 @@ export const mattersRouter = router({
           payload: { counterparty_id: updated.counterpartyId },
         });
       }
+      // M7 follow-up — on-close trigger. Always enqueue; the worker
+      // handler honors M7_ENABLED and short-circuits with
+      // skipped='disabled' if M7 is off. Cheaper than mirroring the
+      // env flag on the web side.
+      if (input.status === 'closed' && updated) {
+        await ctx.db.insert(jobs).values({
+          kind: 'mine_playbook_edits',
+          matterId: updated.id,
+          payload: { matter_id: updated.id },
+        });
+      }
       return updated;
     }),
 

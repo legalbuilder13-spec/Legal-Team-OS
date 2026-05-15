@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { and, desc, eq } from 'drizzle-orm';
-import { auditLog, playbookEditProposals } from '@legal/db';
+import { auditLog, jobs, playbookEditProposals } from '@legal/db';
 import { adminProcedure, router } from '../trpc.js';
 
 // M7 — admin tRPC for the playbook edit proposal queue. The
@@ -82,6 +82,17 @@ export const playbookEditProposalsRouter = router({
           evidenceCount: proposal.evidenceCount,
         },
       });
+
+      // M7 follow-up — enqueue Notion auto-apply. Always enqueue; the
+      // worker handler honors M7_AUTO_APPLY_NOTION and short-circuits
+      // if the flag is off. This keeps env gating on the worker side
+      // and avoids mirroring it on web.
+      if (proposal.notionPageId) {
+        await ctx.db.insert(jobs).values({
+          kind: 'apply_playbook_edit_to_notion',
+          payload: { proposal_id: input.proposalId },
+        });
+      }
 
       return { ok: true };
     }),
