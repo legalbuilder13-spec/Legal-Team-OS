@@ -31,6 +31,7 @@ import {
 } from './handlers/compact-matter.js';
 import { runPromotePlaybooks } from './handlers/promote-playbooks.js';
 import { runMineRevisions } from './handlers/mine-revisions.js';
+import { runMinePlaybookEdits } from './handlers/mine-playbook-edits.js';
 import { runNudgeMissedPlaybooks } from './handlers/nudge-missed-playbooks.js';
 import { isPermanentJobError } from './utils.js';
 
@@ -281,6 +282,33 @@ cron.schedule(
       );
     } catch (err) {
       console.error('mine-revisions failed:', err);
+    }
+  },
+  { timezone: env.DIGEST_TIMEZONE },
+);
+
+// M7 — Weekly playbook-edit mining. Looks at playbooks that matched
+// in Stage 1 on matters that have since closed, and asks the AI to
+// propose targeted edits to those playbooks based on the matter's
+// final accepted summary. Sunday 11:00 in DIGEST_TIMEZONE so it runs
+// just after the M5 mine-revisions batch.
+//
+// Gated by M7_ENABLED (off | shadow | on). Default 'off' — the cron
+// fires but short-circuits with skipped='disabled'.
+cron.schedule(
+  '0 11 * * 0',
+  async () => {
+    try {
+      const result = await runMinePlaybookEdits(db, {
+        lookbackDays: 7,
+        mode: env.M7_ENABLED,
+      });
+      console.log(
+        `mine-playbook-edits: ${result.candidateCount} candidates → ${result.proposalCount} proposals` +
+          (result.skipped ? ` (skipped: ${result.skipped})` : ''),
+      );
+    } catch (err) {
+      console.error('mine-playbook-edits failed:', err);
     }
   },
   { timezone: env.DIGEST_TIMEZONE },

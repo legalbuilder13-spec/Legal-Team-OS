@@ -20,6 +20,15 @@ const Env = z.object({
   ANALYSIS_PIPELINE_ENABLED: z
     .union([z.literal('true'), z.literal('false'), z.literal('shadow')])
     .default('false'),
+  // M7 — gates the mine-playbook-edits cron. 'off' (default) means the
+  // weekly job short-circuits with skipped='disabled' and writes
+  // nothing. 'shadow' runs the candidate-gathering + Notion-fetch
+  // path but skips the AI call and writes no proposals (operators
+  // can verify the candidate flow in logs first). 'on' runs the full
+  // path and writes pending proposals to the admin queue.
+  M7_ENABLED: z
+    .union([z.literal('off'), z.literal('shadow'), z.literal('on')])
+    .default('off'),
   // PRD §11 + §20.2 — case-law backend. Optional; without it the worker
   // hits CourtListener's anonymous tier (~100 req/day rate limit).
   // Commercial citator providers can be plumbed in with their own env

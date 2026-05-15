@@ -211,6 +211,13 @@
       "when": 1778792400000,
       "tag": "0029_routing_rules_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1778796000000,
+      "tag": "0030_playbook_edit_proposals",
+      "breakpoints": true
     }
   ]
 }
