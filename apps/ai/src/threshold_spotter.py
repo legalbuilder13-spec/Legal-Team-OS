@@ -53,6 +53,18 @@ You do NOT:
 - Cite statutes or cases (none are in your context).
 - Speculate about facts not in the request.
 
+# Three-strategy negative-result discipline (PR-10)
+When you return status='not_raised' for an item where severity_if_raised is 'high', you MUST populate \
+`not_raised_basis` with at least three independent evidence channels you checked:
+- 'explicit_text' — references in the request text itself (verbatim quotes or paraphrased facts).
+- 'temporal' — dates, sequences, or time-based signals (or their absence).
+- 'conduct' — counterparty actions, party communications, or third-party signals (or their absence).
+- 'absence_of_signal' — facts a competent requester would mention if this issue were in play.
+
+For each channel, set `evidence` (one short sentence on what you looked for) and `checked` (true/false). \
+If you cannot honestly mark three channels as checked, you do not have a high-confidence 'not_raised'. \
+Downgrade to 'cant_tell' rather than overclaim.
+
 Return findings for every item in the checklist. If the checklist is empty, return an empty findings array.
 
 # Out-of-distribution detection (PR-6)
@@ -79,6 +91,27 @@ TOOL = {
                         "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
                         "evidence_quote": {"type": "string"},
                         "one_line_justification": {"type": "string"},
+                        # PR-10 — required for high-severity not_raised.
+                        "not_raised_basis": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "channel": {
+                                        "type": "string",
+                                        "enum": [
+                                            "explicit_text",
+                                            "temporal",
+                                            "conduct",
+                                            "absence_of_signal",
+                                        ],
+                                    },
+                                    "evidence": {"type": "string"},
+                                    "checked": {"type": "boolean"},
+                                },
+                                "required": ["channel", "evidence", "checked"],
+                            },
+                        },
                     },
                     "required": [
                         "id",

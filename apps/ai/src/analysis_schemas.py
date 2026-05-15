@@ -70,12 +70,26 @@ class ThresholdSpotterRequest(BaseModel):
     context: PipelineContext = PipelineContext()
 
 
+class ThresholdEvidenceChannel(BaseModel):
+    # PR-10 — three-strategy negative-result discipline. When the
+    # spotter returns not_raised for a high-severity threshold, it
+    # must articulate three independent evidence channels checked.
+    # how-lawyers-think Part IV §3 / V.18.
+    channel: Literal["explicit_text", "temporal", "conduct", "absence_of_signal"]
+    evidence: str
+    checked: bool
+
+
 class ThresholdFinding(BaseModel):
     id: str
     status: Literal["raised", "not_raised", "cant_tell"]
     confidence: float = Field(ge=0.0, le=1.0)
     evidence_quote: str
     one_line_justification: str
+    # PR-10 — required for high-severity 'not_raised' findings.
+    # Worker downgrades to 'cant_tell' if fewer than 3 channels are
+    # checked. Optional for medium/low and for raised/cant_tell.
+    not_raised_basis: list[ThresholdEvidenceChannel] = Field(default_factory=list)
 
 
 class ThresholdSpotterResult(BaseModel):

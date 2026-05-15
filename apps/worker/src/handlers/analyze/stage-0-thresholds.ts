@@ -50,6 +50,11 @@ interface ThresholdSpotterResult {
     confidence: number;
     evidence_quote: string;
     one_line_justification: string;
+    not_raised_basis?: Array<{
+      channel: 'explicit_text' | 'temporal' | 'conduct' | 'absence_of_signal';
+      evidence: string;
+      checked: boolean;
+    }>;
   }>;
   frame_flip_proposal?: FrameFlipProposal | null;
   // PR-6 — out-of-distribution detection.
@@ -159,13 +164,29 @@ export async function runStage0(
     // Look up severity per id from the checklist (the skill returns id +
     // status but not severity — severity is a hardcoded property).
     const severityById = new Map(checklist.items.map((i) => [i.id, i.severityIfRaised]));
-    const findings = raw.findings.map((f) => ({
-      id: f.id,
-      status: f.status,
-      confidence: f.confidence,
-      evidenceQuote: f.evidence_quote,
-      oneLineJustification: f.one_line_justification,
-    }));
+
+    // PR-10 — three-strategy negative-result downgrade. For
+    // high-severity items where status='not_raised', if fewer than
+    // three evidence channels were checked, downgrade to 'cant_tell'.
+    // Better to make the lawyer look than to overclaim a negative.
+    const findings = raw.findings.map((f) => {
+      const sev = severityById.get(f.id);
+      let status = f.status;
+      let confidence = f.confidence;
+      const channelsChecked = (f.not_raised_basis ?? []).filter((c) => c.checked).length;
+      if (sev === 'high' && f.status === 'not_raised' && channelsChecked < 3) {
+        status = 'cant_tell';
+        confidence = Math.min(confidence, 0.5);
+      }
+      return {
+        id: f.id,
+        status,
+        confidence,
+        evidenceQuote: f.evidence_quote,
+        oneLineJustification: f.one_line_justification,
+        notRaisedBasis: f.not_raised_basis ?? [],
+      };
+    });
     const highSeverityRaised = findings
       .filter((f) => f.status === 'raised' && f.confidence >= 0.7 && severityById.get(f.id) === 'high')
       .map((f) => f.id);
