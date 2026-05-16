@@ -86,6 +86,18 @@ class PriorStageContext(BaseModel):
     case_law_summary: dict | None = None
 
 
+class ContestedDoctrineFrameInput(BaseModel):
+    # PR-8 — worker passes the contested-doctrines registry for the
+    # practice area into the request so the skill knows which frames
+    # to surface side-by-side. Defined here (before DeconstructRequest)
+    # to satisfy forward-reference checking.
+    id: str
+    label: str
+    frames: list[str]
+    trigger_keywords: list[str]
+    canonical_source: str
+
+
 class DeconstructRequest(BaseModel):
     matter_id: str
     request_text: str
@@ -166,17 +178,6 @@ class DeconstructionNode(BaseModel):
     notes: str | None = None
     # PR-8 — Hohfeldian disambiguation. REQUIRED when type='right'.
     hohfeld: HohfeldAnalysis | None = None
-
-
-class ContestedDoctrineFrameInput(BaseModel):
-    # PR-8 — worker passes the contested-doctrines registry for the
-    # practice area into the request so the skill knows which frames
-    # to surface side-by-side.
-    id: str
-    label: str
-    frames: list[str]
-    trigger_keywords: list[str]
-    canonical_source: str
 
 
 class AlternativeFrame(BaseModel):

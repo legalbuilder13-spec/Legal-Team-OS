@@ -31,11 +31,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from .config import settings
 from .analysis_schemas import FrameFlipProposal, PipelineContext
+from .config import settings
 from .domain_config import DomainConfig, domain_config_block
-from .pipeline_context import DEPTH_AND_FRAME_SYSTEM_ADDENDUM, render_context_block
 from .llm.client import get_client
+from .pipeline_context import DEPTH_AND_FRAME_SYSTEM_ADDENDUM, render_context_block
 
 logger = logging.getLogger(__name__)
 

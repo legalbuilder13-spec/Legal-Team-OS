@@ -5,6 +5,11 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 
+from .absence_spotter import (
+    AbsenceSpotterRequest,
+    AbsenceSpotterResult,
+    spot_absences,
+)
 from .analysis_schemas import (
     GuidanceGraderRequest,
     GuidanceGraderResult,
@@ -54,11 +59,6 @@ from .statute_analysis import (
     StatuteAnalysisRequest,
     StatuteAnalysisResult,
     analyze_statute,
-)
-from .absence_spotter import (
-    AbsenceSpotterRequest,
-    AbsenceSpotterResult,
-    spot_absences,
 )
 from .threshold_spotter import spot_thresholds
 from .triage import triage

@@ -75,7 +75,8 @@ Examples: a 'commercial' matter that's actually 80% a HIPAA breach belongs in 'p
 matter dominated by a stock-option vesting dispute belongs in 'corporate'. Return practice_area_confidence \
 in [0,1] (1.0 = clearly correct area, 0.5 = mixed, <0.5 = misrouted). When confidence is below 0.6, set \
 suggested_reroute to one of: commercial, employment, privacy, litigation, corporate, regulatory, ip, \
-real_estate, other; otherwise null. reroute_rationale: one short sentence explaining the call.""" + DEPTH_AND_FRAME_SYSTEM_ADDENDUM
+real_estate, other; otherwise null. reroute_rationale: one short sentence explaining the call."""
+SYSTEM_PROMPT = SYSTEM_PROMPT + DEPTH_AND_FRAME_SYSTEM_ADDENDUM
 
 TOOL = {
     "name": "submit_findings",
