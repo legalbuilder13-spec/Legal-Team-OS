@@ -182,12 +182,16 @@ export async function runStage0(
     // high-severity items where status='not_raised', if fewer than
     // three evidence channels were checked, downgrade to 'cant_tell'.
     // Better to make the lawyer look than to overclaim a negative.
+    // Gated by ANALYSIS_HLT_ENABLED: when 'off' (the default after
+    // merge), the downgrade does not fire even though the AI service
+    // may or may not be emitting not_raised_basis yet.
+    const hltOn = env.ANALYSIS_HLT_ENABLED === 'on';
     const findings = raw.findings.map((f) => {
       const sev = severityById.get(f.id);
       let status = f.status;
       let confidence = f.confidence;
       const channelsChecked = (f.not_raised_basis ?? []).filter((c) => c.checked).length;
-      if (sev === 'high' && f.status === 'not_raised' && channelsChecked < 3) {
+      if (hltOn && sev === 'high' && f.status === 'not_raised' && channelsChecked < 3) {
         status = 'cant_tell';
         confidence = Math.min(confidence, 0.5);
       }

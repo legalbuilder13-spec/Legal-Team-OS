@@ -134,9 +134,10 @@ export async function handleAnalyzeJob(db: Db, job: Job) {
     const stage0 = await runStage0(db, analysisId, matter);
 
     // PR-11 — skill-emitted escalation short-circuits the pipeline.
-    // Stage 0 saw something that warrants raising the lawyer's hand
-    // rather than letting downstream stages produce confident output
-    // on a wrong premise.
+    // Gated by ANALYSIS_HLT_ENABLED: when 'off', the escalation is
+    // persisted (visible in the audit log) but the pipeline does NOT
+    // short-circuit — Stage 1 + absence spotter still run so behavior
+    // matches pre-PR-#72.
     if (stage0.escalationRequest) {
       await persistEscalation(
         db,
@@ -146,10 +147,15 @@ export async function handleAnalyzeJob(db: Db, job: Job) {
         stage0.escalationRequest as Parameters<typeof persistEscalation>[4],
         shadowMode,
       );
+      if (env.ANALYSIS_HLT_ENABLED === 'on') {
+        console.log(
+          `analyze: matter ${matter.shortId} escalated by stage_0 (${stage0.escalationRequest.reason}); skipping downstream`,
+        );
+        return;
+      }
       console.log(
-        `analyze: matter ${matter.shortId} escalated by stage_0 (${stage0.escalationRequest.reason}); skipping downstream`,
+        `analyze: matter ${matter.shortId} stage_0 emitted escalation (${stage0.escalationRequest.reason}) but ANALYSIS_HLT_ENABLED=off; continuing`,
       );
-      return;
     }
 
     // PR-6 — absence spotter runs in parallel with Stage 1. Best-effort:

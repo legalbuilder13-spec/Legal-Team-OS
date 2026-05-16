@@ -172,7 +172,10 @@ export async function handleRunCaseLawJob(db: Db, job: Job) {
     // PR-10 — rabbit-hole monitor. Tracks Jaccard overlap between
     // strategies and short-circuits when subsequent strategies return
     // mostly the same opinion_ids. Persisted on the stage output.
+    // Gated by ANALYSIS_HLT_ENABLED: when 'off', observe() is still
+    // called for the trace but the early-bail signal is ignored.
     const loopMon = newLoopMonitor();
+    const hltOn = env.ANALYSIS_HLT_ENABLED === 'on';
 
     // Strategy 1: full-text search of opinions.
     let strat1Hits: CaseSearchHit[] = [];
@@ -182,7 +185,8 @@ export async function handleRunCaseLawJob(db: Db, job: Job) {
       console.warn('run-case-law: strategy 1 failed', { err: String(err) });
     }
     if (strat1Hits.length === 0) negativeStrategies.push('full_text');
-    const keepStrat2 = observe(loopMon, 'full_text', strat1Hits.map((h) => String(h.opinionId)));
+    const observed1 = observe(loopMon, 'full_text', strat1Hits.map((h) => String(h.opinionId)));
+    const keepStrat2 = hltOn ? observed1 : true;
 
     // Strategy 2: jurisdiction-filtered search. v1 appends the
     // jurisdiction to the query; future improvement is a court-id map.
@@ -201,9 +205,10 @@ export async function handleRunCaseLawJob(db: Db, job: Job) {
     } else {
       console.log(`run-case-law: skipping strategy 2 (${loopMon.loopReason})`);
     }
-    const keepStrat3 = keepStrat2
+    const observed2 = keepStrat2
       ? observe(loopMon, 'jurisdiction_filter', strat2Hits.map((h) => String(h.opinionId)))
       : false;
+    const keepStrat3 = hltOn ? observed2 : true;
 
     // Strategy 3: citator traversal of an anchor opinion. The anchor
     // is lawyer-supplied or pulled from earlier tool outputs. Without

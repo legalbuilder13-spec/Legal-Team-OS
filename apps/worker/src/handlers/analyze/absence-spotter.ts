@@ -34,6 +34,9 @@ export async function runAbsenceSpotter(
   matter: Matter,
   raisedThresholds: string[],
 ): Promise<{ findings: AbsenceFinding[] } | null> {
+  // PR #72 feature gate — default 'off' makes the merge inert.
+  if (env.ANALYSIS_HLT_ENABLED !== 'on') return null;
+
   const context = await loadPipelineContext(db, analysisId);
   if (context.research_depth === 'quick_take') {
     // Depth-policy: absence spotter off at quick_take.
