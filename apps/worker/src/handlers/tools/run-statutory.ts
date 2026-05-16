@@ -12,6 +12,12 @@ import { env } from '../../env.js';
 import { fetchByJurisdiction, type FetchResult } from '../../integrations/research_sources.js';
 import { recordSource, hashContent } from '../analyze/sources.js';
 import { loadOrgConfigForUser, domainConfigForSkill } from '../../integrations/org_config.js';
+import {
+  loadPipelineContext,
+  persistFrameFlipProposal,
+  type FrameFlipProposal,
+} from '../analyze/frame-flip.js';
+import { persistEscalation, type EscalationPayload } from '../analyze/escalation.js';
 
 // PRD §7.6 + §8 — Statutory & Regulatory Research tool (lawyer-invoked).
 // The lawyer triggers this from the matter detail page; the worker
@@ -161,6 +167,8 @@ export async function handleRunStatutoryJob(db: Db, job: Job) {
       focus_citations: candidateStatutes,
       // PR12 §15 — domain config blended into the skill's prompt.
       domain_config: domainConfigForSkill(orgConfig),
+      // PR-A — pipeline context (research_depth + carried doctrinal_frame).
+      context: await loadPipelineContext(db, analysisId),
     };
 
     const skillRes = await fetch(`${env.AI_SERVICE_URL}/statute-analysis`, {
@@ -178,9 +186,16 @@ export async function handleRunStatutoryJob(db: Db, job: Job) {
       operative_provisions: Array<{ quoted_text: string; source_hash: string; citation: string }>;
       definitions_used: Array<{ definition_quoted: string; source_hash: string }>;
       confidence_self_assessment: 'HIGH' | 'MEDIUM' | 'LOW';
+      // PR-A + PR-11 envelope fields.
+      frame_flip_proposal?: FrameFlipProposal | null;
+      escalation_request?: EscalationPayload | null;
       [k: string]: unknown;
     };
     const analysis = (await skillRes.json()) as SkillOutput;
+    await persistFrameFlipProposal(db, analysisId, 'stage_2a', analysis.frame_flip_proposal);
+    if (analysis.escalation_request) {
+      await persistEscalation(db, matter, analysisId, 'stage_2a', analysis.escalation_request, false);
+    }
 
     // ----- 3. Quote verification (PRD §9 + §10.2) -----
 

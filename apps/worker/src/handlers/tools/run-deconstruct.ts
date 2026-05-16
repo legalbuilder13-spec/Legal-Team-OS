@@ -17,6 +17,12 @@ import {
 import { env } from '../../env.js';
 import { hashContent } from '../analyze/sources.js';
 import { loadOrgConfigForUser, domainConfigForSkill } from '../../integrations/org_config.js';
+import {
+  loadPipelineContext,
+  persistFrameFlipProposal,
+  type FrameFlipProposal,
+} from '../analyze/frame-flip.js';
+import { persistEscalation, type EscalationPayload } from '../analyze/escalation.js';
 
 // PRD §12 + §7. Deconstruction + Draft Memo tool (lawyer-invoked).
 // Synthesizes prior stage outputs into a deconstruction tree + IRAC
@@ -292,6 +298,8 @@ export async function handleRunDeconstructJob(db: Db, job: Job) {
         trigger_keywords: cd.triggerKeywords,
         canonical_source: cd.canonicalSource,
       })),
+      // PR-A — pipeline context.
+      context: await loadPipelineContext(db, analysisId),
     };
 
     const res = await fetch(`${env.AI_SERVICE_URL}/deconstruct`, {
@@ -305,7 +313,14 @@ export async function handleRunDeconstructJob(db: Db, job: Job) {
     if (!res.ok) {
       throw new Error(`deconstruct ${res.status}: ${await res.text()}`);
     }
-    const analysis = (await res.json()) as DeconstructSkillResult;
+    const analysis = (await res.json()) as DeconstructSkillResult & {
+      frame_flip_proposal?: FrameFlipProposal | null;
+      escalation_request?: EscalationPayload | null;
+    };
+    await persistFrameFlipProposal(db, analysisId, 'stage_3', analysis.frame_flip_proposal);
+    if (analysis.escalation_request) {
+      await persistEscalation(db, matter, analysisId, 'stage_3', analysis.escalation_request, false);
+    }
 
     // ----- 4. Hardcoded post-checks (PRD §12.3) -----
 
