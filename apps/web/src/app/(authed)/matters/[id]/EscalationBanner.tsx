@@ -20,8 +20,9 @@ export function EscalationBanner({ escalatedAt, reason }: Props) {
   // escalation_reason is stored as "<reason>: <detail>". Split for
   // display; fall back to the whole string if it doesn't follow the
   // pattern.
-  const [reasonCode, ...detailParts] = (reason ?? 'unknown').split(': ');
-  const detail = detailParts.join(': ');
+  const parts = (reason ?? 'unknown').split(': ');
+  const reasonCode = parts[0] ?? 'unknown';
+  const detail = parts.slice(1).join(': ');
   const reasonLabel = reasonCode.replace(/_/g, ' ');
 
   return (

@@ -181,10 +181,28 @@ export const analysisRouter = router({
           .where(eq(matterAnalyses.id, flip.matterAnalysisId))
           .limit(1);
         if (analysis) {
+          type StageLabel =
+            | 'intake'
+            | 'stage_0'
+            | 'stage_1'
+            | 'stage_2a'
+            | 'stage_2b'
+            | 'stage_3';
+          const STAGE_LABELS: ReadonlySet<StageLabel> = new Set([
+            'intake',
+            'stage_0',
+            'stage_1',
+            'stage_2a',
+            'stage_2b',
+            'stage_3',
+          ]);
+          const stageLabel: StageLabel = STAGE_LABELS.has(flip.proposedByStage as StageLabel)
+            ? (flip.proposedByStage as StageLabel)
+            : 'intake';
           const prior = analysis.doctrinalFrame as {
             primary_regime: string;
             alternative_regimes: Array<{ regime: string; prior: number }>;
-            last_updated_by_stage: string;
+            last_updated_by_stage: StageLabel;
             flip_count: number;
           } | null;
           const nextFrame = {
@@ -195,7 +213,7 @@ export const analysisRouter = router({
                 : []),
               ...(prior?.alternative_regimes ?? []),
             ],
-            last_updated_by_stage: flip.proposedByStage,
+            last_updated_by_stage: stageLabel,
             flip_count: (prior?.flip_count ?? 0) + 1,
           };
           await ctx.db
