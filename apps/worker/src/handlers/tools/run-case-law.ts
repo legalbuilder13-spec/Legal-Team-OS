@@ -19,6 +19,13 @@ import {
 } from '../../integrations/case_law_sources.js';
 import { recordSource, hashContent } from '../analyze/sources.js';
 import { loadOrgConfigForUser, domainConfigForSkill } from '../../integrations/org_config.js';
+import {
+  loadPipelineContext,
+  persistFrameFlipProposal,
+  type FrameFlipProposal,
+} from '../analyze/frame-flip.js';
+import { persistEscalation, type EscalationPayload } from '../analyze/escalation.js';
+import { newLoopMonitor, observe } from '../analyze/loop-monitor.js';
 
 // PRD §11 + §7.7 — Case-Law Research tool (lawyer-invoked).
 // Worker executes three independent retrieval strategies (PRD §11.2
@@ -162,6 +169,14 @@ export async function handleRunCaseLawJob(db: Db, job: Job) {
       .replace(/\s+/g, ' ')
       .trim();
 
+    // PR-10 — rabbit-hole monitor. Tracks Jaccard overlap between
+    // strategies and short-circuits when subsequent strategies return
+    // mostly the same opinion_ids. Persisted on the stage output.
+    // Gated by ANALYSIS_HLT_ENABLED: when 'off', observe() is still
+    // called for the trace but the early-bail signal is ignored.
+    const loopMon = newLoopMonitor();
+    const hltOn = env.ANALYSIS_HLT_ENABLED === 'on';
+
     // Strategy 1: full-text search of opinions.
     let strat1Hits: CaseSearchHit[] = [];
     try {
@@ -170,26 +185,36 @@ export async function handleRunCaseLawJob(db: Db, job: Job) {
       console.warn('run-case-law: strategy 1 failed', { err: String(err) });
     }
     if (strat1Hits.length === 0) negativeStrategies.push('full_text');
+    const observed1 = observe(loopMon, 'full_text', strat1Hits.map((h) => String(h.opinionId)));
+    const keepStrat2 = hltOn ? observed1 : true;
 
     // Strategy 2: jurisdiction-filtered search. v1 appends the
     // jurisdiction to the query; future improvement is a court-id map.
     let strat2Hits: CaseSearchHit[] = [];
-    try {
-      strat2Hits = await searchCases({
-        query: queryTokens,
-        jurisdiction: payload.jurisdiction,
-        limit: 8,
-      });
-    } catch (err) {
-      console.warn('run-case-law: strategy 2 failed', { err: String(err) });
+    if (keepStrat2) {
+      try {
+        strat2Hits = await searchCases({
+          query: queryTokens,
+          jurisdiction: payload.jurisdiction,
+          limit: 8,
+        });
+      } catch (err) {
+        console.warn('run-case-law: strategy 2 failed', { err: String(err) });
+      }
+      if (strat2Hits.length === 0) negativeStrategies.push('jurisdiction_filter');
+    } else {
+      console.log(`run-case-law: skipping strategy 2 (${loopMon.loopReason})`);
     }
-    if (strat2Hits.length === 0) negativeStrategies.push('jurisdiction_filter');
+    const observed2 = keepStrat2
+      ? observe(loopMon, 'jurisdiction_filter', strat2Hits.map((h) => String(h.opinionId)))
+      : false;
+    const keepStrat3 = hltOn ? observed2 : true;
 
     // Strategy 3: citator traversal of an anchor opinion. The anchor
     // is lawyer-supplied or pulled from earlier tool outputs. Without
     // an anchor this strategy is skipped (recorded as negative).
     let strat3Hits: CaseSearchHit[] = [];
-    if (payload.anchor_opinion_id) {
+    if (keepStrat3 && payload.anchor_opinion_id) {
       try {
         const citingIds = await findCitingOpinions(payload.anchor_opinion_id, 8);
         // Resolve each citing opinion id to a search hit via the
@@ -206,8 +231,11 @@ export async function handleRunCaseLawJob(db: Db, job: Job) {
       } catch (err) {
         console.warn('run-case-law: strategy 3 failed', { err: String(err) });
       }
+    } else if (!keepStrat3) {
+      console.log(`run-case-law: skipping strategy 3 (${loopMon.loopReason})`);
     }
     if (strat3Hits.length === 0) negativeStrategies.push('citator_traversal');
+    if (keepStrat3) observe(loopMon, 'citator_traversal', strat3Hits.map((h) => String(h.opinionId)));
 
     // ----- 2. Citator verification — independent source per cite -----
 
@@ -301,6 +329,8 @@ export async function handleRunCaseLawJob(db: Db, job: Job) {
       candidates: dedupedCandidates,
       // PR12 §15 — domain config blended into the skill's prompt.
       domain_config: domainConfigForSkill(orgConfig),
+      // PR-A — pipeline context.
+      context: await loadPipelineContext(db, analysisId),
     };
 
     const skillRes = await fetch(`${env.AI_SERVICE_URL}/case-law-research`, {
@@ -314,7 +344,14 @@ export async function handleRunCaseLawJob(db: Db, job: Job) {
     if (!skillRes.ok) {
       throw new Error(`case-law-research ${skillRes.status}: ${await skillRes.text()}`);
     }
-    const analysis = (await skillRes.json()) as CaseLawSkillResult;
+    const analysis = (await skillRes.json()) as CaseLawSkillResult & {
+      frame_flip_proposal?: FrameFlipProposal | null;
+      escalation_request?: EscalationPayload | null;
+    };
+    await persistFrameFlipProposal(db, analysisId, 'stage_2b', analysis.frame_flip_proposal);
+    if (analysis.escalation_request) {
+      await persistEscalation(db, matter, analysisId, 'stage_2b', analysis.escalation_request, false);
+    }
 
     // ----- 4. Hardcoded post-checks (PRD §11.2 non-negotiables) -----
 
@@ -356,6 +393,14 @@ export async function handleRunCaseLawJob(db: Db, job: Job) {
         per_cite_status: Array.from(verifications.values()),
       },
       worker_confidence: confidence,
+      // PR-10 — loop-monitor trace. UI surfaces "loop detected" chip
+      // and the per-strategy overlap so the lawyer knows the search
+      // stopped early on diminishing returns.
+      loop_monitor: {
+        loop_detected: loopMon.loopDetected,
+        loop_reason: loopMon.loopReason,
+        per_strategy: loopMon.perStrategy,
+      },
     };
 
     await db

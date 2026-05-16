@@ -1,3 +1,4 @@
+// PR-B follow-up — first-pass annotations added 2026-05-16; attorney review required.
 import type { InventoryItem } from './types.js';
 
 // PRD §12.1 / how-lawyers-think Part VI §6.9 — employment inventory.
@@ -5,7 +6,7 @@ import type { InventoryItem } from './types.js';
 // doc, generalized so any employment matter (termination, leave,
 // classification, harassment, wage-hour) is covered.
 
-export const EMPLOYMENT_INVENTORY_VERSION = '1.0.0';
+export const EMPLOYMENT_INVENTORY_VERSION = '1.1.0';
 
 export const EMPLOYMENT_INVENTORY: InventoryItem[] = [
   // Federal statutes
@@ -15,36 +16,91 @@ export const EMPLOYMENT_INVENTORY: InventoryItem[] = [
     label: 'Title VII',
     description:
       'Race, color, religion, sex (including SO/GI per Bostock), national origin discrimination. Title VII of the Civil Rights Act of 1964.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfProduction: 'shifting',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'summary_judgment',
+      appellateStandardOfReview: 'de_novo',
+      pjiAnchor: {
+        source: 'CACI',
+        section: 'CACI 2500 (Disparate Treatment—Essential Factual Elements)',
+        operativeLanguage:
+          'To establish a disparate-treatment claim, plaintiff must prove (1) plaintiff was a member of a protected class, (2) plaintiff was qualified for the position, (3) plaintiff suffered an adverse employment action, and (4) the protected characteristic was a substantial motivating reason for the adverse action.',
+        url: 'https://www.courts.ca.gov/partners/juryinstructions.htm',
+      },
+    },
   },
   {
     id: 'ada',
     category: 'federal_statutes',
     label: 'ADA',
     description: 'Americans with Disabilities Act — disability discrimination + reasonable accommodation.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfProduction: 'shifting',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'summary_judgment',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'adea',
     category: 'federal_statutes',
     label: 'ADEA',
     description: 'Age Discrimination in Employment Act — age 40+ protected class.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfProduction: 'shifting',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'summary_judgment',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'fmla',
     category: 'federal_statutes',
     label: 'FMLA',
     description: 'Family and Medical Leave Act — interference + retaliation; 12-week unpaid leave.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfProduction: 'shifting',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'summary_judgment',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'usefra',
     category: 'federal_statutes',
     label: 'USERRA',
     description: 'Uniformed Services Employment and Reemployment Rights Act — military leave.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfProduction: 'shifting',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'summary_judgment',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'epa',
     category: 'federal_statutes',
     label: 'Equal Pay Act',
     description: 'Sex-based wage discrimination for substantially equal work.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfProduction: 'shifting',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'nlra',
@@ -52,24 +108,56 @@ export const EMPLOYMENT_INVENTORY: InventoryItem[] = [
     label: 'NLRA §7',
     description:
       'Protected concerted activity — applies in non-union workplaces too. Section 7 covers group complaints about wages/conditions.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfProduction: 'shifting',
+      burdenOfPersuasion: 'agency',
+      standardOfProof: 'substantial_evidence',
+      defaultPosture: 'agency_proceeding',
+      appellateStandardOfReview: 'substantial_evidence',
+    },
   },
   {
     id: 'flsa_retaliation',
     category: 'federal_statutes',
     label: 'FLSA retaliation',
     description: 'Anti-retaliation for wage/hour complaints under FLSA §215(a)(3).',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfProduction: 'shifting',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'sox_whistleblower',
     category: 'federal_statutes',
     label: 'SOX / Dodd-Frank whistleblower',
     description: 'Whistleblower protections for public-company employees + financial-services workers.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfProduction: 'shifting',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'agency_proceeding',
+      appellateStandardOfReview: 'substantial_evidence',
+    },
   },
   {
     id: 'gina',
     category: 'federal_statutes',
     label: 'GINA',
     description: 'Genetic Information Nondiscrimination Act.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfProduction: 'shifting',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'summary_judgment',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   // State statutes
   {
@@ -78,6 +166,14 @@ export const EMPLOYMENT_INVENTORY: InventoryItem[] = [
     label: 'State FEPA equivalent',
     description:
       'State fair-employment-practices act (e.g., FEHA in CA, NYSHRL in NY, IHRA in IL). Often broader protected classes than Title VII; lower employee-size thresholds.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfProduction: 'shifting',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'summary_judgment',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'state_warn',
@@ -85,18 +181,41 @@ export const EMPLOYMENT_INVENTORY: InventoryItem[] = [
     label: 'State WARN Act',
     description:
       'State plant-closing / mass-layoff notice acts. Several states have notice thresholds lower than federal WARN (60 days).',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'summary_judgment',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'state_leave_acts',
     category: 'state_statutes',
     label: 'State leave acts',
     description: 'State family-leave (CFRA, NY PFL), state paid sick leave, state pregnancy accommodation.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfProduction: 'shifting',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'summary_judgment',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'state_whistleblower',
     category: 'state_statutes',
     label: 'State whistleblower',
     description: 'State whistleblower statutes — often broader than federal.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfProduction: 'shifting',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'summary_judgment',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   // Local
   {
@@ -104,6 +223,14 @@ export const EMPLOYMENT_INVENTORY: InventoryItem[] = [
     category: 'local_ordinances',
     label: 'Local human rights laws',
     description: 'NYC HRL, Cook County HRO, Philadelphia FPA, etc. Often the most protective.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfProduction: 'shifting',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'summary_judgment',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   // Common law
   {
@@ -111,36 +238,85 @@ export const EMPLOYMENT_INVENTORY: InventoryItem[] = [
     category: 'common_law',
     label: 'Wrongful discharge in violation of public policy',
     description: 'Common-law claim where termination violates an articulated public policy.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+      pjiAnchor: {
+        source: 'CACI',
+        section: 'CACI 2430 (Wrongful Discharge in Violation of Public Policy—Essential Factual Elements)',
+        operativeLanguage:
+          'To establish wrongful discharge in violation of public policy, plaintiff must prove (1) an employer/employee relationship, (2) discharge, (3) the discharge was a violation of a public policy that is fundamental, well-established, and substantial, and (4) the discharge caused harm.',
+        url: 'https://www.courts.ca.gov/partners/juryinstructions.htm',
+      },
+    },
   },
   {
     id: 'implied_contract_handbook',
     category: 'common_law',
     label: 'Implied contract / handbook',
     description: 'Employee handbook or course-of-dealing may create implied contract limiting at-will termination.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'iied',
     category: 'common_law',
     label: 'IIED',
     description: 'Intentional infliction of emotional distress — extreme/outrageous conduct.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'clear_error',
+    },
   },
   {
     id: 'defamation',
     category: 'common_law',
     label: 'Defamation',
     description: 'Statements made in references or to third parties; per-se vs. per quod; qualified privilege.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'tortious_interference',
     category: 'common_law',
     label: 'Tortious interference',
     description: 'Interference with prospective contractual relations (next employer).',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'invasion_of_privacy',
     category: 'common_law',
     label: 'Invasion of privacy',
     description: 'Intrusion upon seclusion, public disclosure of private facts, false light.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   // Restrictive covenants
   {
@@ -149,24 +325,52 @@ export const EMPLOYMENT_INVENTORY: InventoryItem[] = [
     label: 'Non-compete',
     description:
       'Enforceability varies sharply by state (CA: void; FL: enforceable; etc.). FTC rule status is in flux.',
+    annotations: {
+      nodeType: 'standard',
+      burdenOfPersuasion: 'movant',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'pleadings',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'non_solicit',
     category: 'restrictive_covenants',
     label: 'Non-solicit',
     description: 'Customer-non-solicit and employee-non-solicit — generally enforced more broadly than non-competes.',
+    annotations: {
+      nodeType: 'standard',
+      burdenOfPersuasion: 'movant',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'pleadings',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'nda',
     category: 'restrictive_covenants',
     label: 'NDA / confidentiality',
     description: 'Trade-secret + confidential-information protections; SOX whistleblower preemption concerns.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'movant',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'pleadings',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'garden_leave',
     category: 'restrictive_covenants',
     label: 'Garden leave',
     description: 'Paid notice period as alternative or supplement to non-compete.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'movant',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'pleadings',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   // Severance & release
   {
@@ -174,12 +378,26 @@ export const EMPLOYMENT_INVENTORY: InventoryItem[] = [
     category: 'collateral_consequences',
     label: 'OWBPA (ADEA waivers)',
     description: 'Older Workers Benefit Protection Act — 21/45-day consideration, 7-day revocation for ADEA waivers.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'defendant',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'summary_judgment',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'cal_1542',
     category: 'collateral_consequences',
     label: 'Cal. Civ. Code § 1542',
     description: 'California general-release statute — requires explicit waiver of unknown claims.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'defendant',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'summary_judgment',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   // Collateral consequences
   {
@@ -187,35 +405,79 @@ export const EMPLOYMENT_INVENTORY: InventoryItem[] = [
     category: 'collateral_consequences',
     label: 'Unemployment insurance',
     description: 'Misconduct vs. lack-of-work classification affects benefits + employer rate.',
+    annotations: {
+      nodeType: 'classification',
+      burdenOfPersuasion: 'agency',
+      standardOfProof: 'substantial_evidence',
+      defaultPosture: 'agency_proceeding',
+      appellateStandardOfReview: 'substantial_evidence',
+    },
   },
   {
     id: 'cobra',
     category: 'collateral_consequences',
     label: 'COBRA',
     description: 'Continuation of group health coverage — notice requirements + 60-day election period.',
+    annotations: {
+      nodeType: 'procedural',
+      burdenOfPersuasion: 'defendant',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'summary_judgment',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'erisa_510',
     category: 'collateral_consequences',
     label: 'ERISA §510',
     description: 'Benefits-interference claim — termination to prevent benefits vesting.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfProduction: 'shifting',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'summary_judgment',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'workers_comp_retaliation',
     category: 'collateral_consequences',
     label: 'Workers comp retaliation',
     description: 'Most states prohibit retaliation for workers-comp claims.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfProduction: 'shifting',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'immigration',
     category: 'collateral_consequences',
     label: 'Immigration',
     description: 'E-Verify, visa sponsorship, post-termination grace periods (typically 60 days for H-1B).',
+    annotations: {
+      nodeType: 'procedural',
+      burdenOfPersuasion: 'agency',
+      standardOfProof: 'substantial_evidence',
+      defaultPosture: 'agency_proceeding',
+      appellateStandardOfReview: 'substantial_evidence',
+    },
   },
   {
     id: 'equity',
     category: 'collateral_consequences',
     label: 'Equity vesting / clawback',
     description: 'Acceleration triggers, post-termination exercise windows, clawback provisions.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'summary_judgment',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
 ];

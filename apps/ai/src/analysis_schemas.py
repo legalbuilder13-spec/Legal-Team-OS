@@ -11,6 +11,62 @@ from pydantic import BaseModel, Field
 
 from .domain_config import DomainConfig
 
+# ----- PR-A — research depth + doctrinal-frame state -----
+
+ResearchDepth = Literal["quick_take", "client_advice", "filing_grade", "bet_the_company"]
+StageLabel = Literal["intake", "stage_0", "stage_1", "stage_2a", "stage_2b", "stage_3"]
+
+
+class AlternativeRegime(BaseModel):
+    regime: str
+    prior: float = Field(ge=0.0, le=1.0)
+
+
+class DoctrinalFrameState(BaseModel):
+    primary_regime: str
+    alternative_regimes: list[AlternativeRegime] = []
+    last_updated_by_stage: StageLabel
+    flip_count: int = Field(ge=0, default=0)
+
+
+class FrameFlipProposal(BaseModel):
+    from_frame: str | None = None
+    to_frame: str
+    evidence_quote: str
+    evidence_citation: str | None = None
+    rationale: str
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class PipelineContext(BaseModel):
+    """Carried on every skill request; skills may emit a frame flip on the response."""
+
+    research_depth: ResearchDepth = "client_advice"
+    doctrinal_frame: DoctrinalFrameState | None = None
+
+
+# PR-11 — explicit escalation. Any skill may emit an escalation_request
+# instead of (or alongside) its normal output when it encounters a
+# condition it should not work around silently. Worker short-circuits
+# the pipeline, sets matter_analyses.escalated_at, and pages the lawyer.
+# how-lawyers-think Part IV §6, V.17 — escalation is an expert move,
+# not a failure.
+class EscalationRequest(BaseModel):
+    reason: Literal[
+        "practice_area_mismatch",
+        "jurisdiction_outside_competence",
+        "unresolvable_frame_flip",
+        "too_many_missing_facts",
+        "authority_directly_contradicts_prior_stage",
+        "novel_legal_question",
+        "verification_failure",
+    ]
+    detail: str
+    recommended_next_step: str
+
+
+# ----- Stage 0 — threshold spotter -----
+
 # ----- Stage 0 — threshold spotter -----
 
 
@@ -30,6 +86,18 @@ class ThresholdSpotterRequest(BaseModel):
     # PR12 §15 — per-organization domain config. Optional + defaults
     # to empty; the prompt renderer no-ops when there's no content.
     domain_config: DomainConfig | None = None
+    # PR-A — pipeline context: research_depth + carried doctrinal_frame.
+    context: PipelineContext = PipelineContext()
+
+
+class ThresholdEvidenceChannel(BaseModel):
+    # PR-10 — three-strategy negative-result discipline. When the
+    # spotter returns not_raised for a high-severity threshold, it
+    # must articulate three independent evidence channels checked.
+    # how-lawyers-think Part IV §3 / V.18.
+    channel: Literal["explicit_text", "temporal", "conduct", "absence_of_signal"]
+    evidence: str
+    checked: bool
 
 
 class ThresholdFinding(BaseModel):
@@ -38,6 +106,10 @@ class ThresholdFinding(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     evidence_quote: str
     one_line_justification: str
+    # PR-10 — required for high-severity 'not_raised' findings.
+    # Worker downgrades to 'cant_tell' if fewer than 3 channels are
+    # checked. Optional for medium/low and for raised/cant_tell.
+    not_raised_basis: list[ThresholdEvidenceChannel] = Field(default_factory=list)
 
 
 class ThresholdSpotterResult(BaseModel):
@@ -45,6 +117,17 @@ class ThresholdSpotterResult(BaseModel):
     practice_area: str
     checklist_version: str
     findings: list[ThresholdFinding]
+    # PR-A — opt-in proposal that the carried doctrinal_frame is wrong.
+    # Worker writes to matter_frame_flips when present.
+    frame_flip_proposal: FrameFlipProposal | None = None
+    # PR-6 — out-of-distribution detection. Model assesses whether the
+    # matter was routed to the right practice area; on misroute,
+    # suggests where it should go.
+    practice_area_confidence: float = Field(ge=0.0, le=1.0, default=1.0)
+    suggested_reroute: str | None = None
+    reroute_rationale: str | None = None
+    # PR-11 — optional escalation request.
+    escalation_request: EscalationRequest | None = None
 
 
 # ----- Stage 1 — guidance relevance grader -----
@@ -67,6 +150,8 @@ class GuidanceGraderRequest(BaseModel):
     request_text: str
     practice_area: str
     candidates: list[GuidanceCandidate]
+    # PR-A — pipeline context.
+    context: PipelineContext = PipelineContext()
 
 
 class GuidanceGrade(BaseModel):
@@ -92,3 +177,5 @@ class GuidanceGraderResult(BaseModel):
     top_match_index: int | None = None
     headline_answer: GuidanceHeadline | None = None
     notes_for_lawyer: str | None = None
+    frame_flip_proposal: FrameFlipProposal | None = None
+    escalation_request: EscalationRequest | None = None

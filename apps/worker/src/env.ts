@@ -20,6 +20,19 @@ const Env = z.object({
   ANALYSIS_PIPELINE_ENABLED: z
     .union([z.literal('true'), z.literal('false'), z.literal('shadow')])
     .default('false'),
+  // PR #72 — How Lawyers Think v1. Default 'off' so the merge is an
+  // inert deploy. When 'on': absence spotter fires, three-strategy
+  // negative-result downgrade applies on Stage 0, loop-monitor is
+  // honored on the case-law tool's strategy chain, and skill-emitted
+  // escalations short-circuit the pipeline. Frame-flip proposals,
+  // doctrinal frame seeding, depth selector, and inventory annotations
+  // are passive (they flow through schemas + UI but produce no new
+  // user-facing behavior unless the AI service emits new fields, which
+  // it only does once the AI service is also redeployed). Flip to 'on'
+  // after a clean shadow-mode pass.
+  ANALYSIS_HLT_ENABLED: z
+    .union([z.literal('off'), z.literal('on')])
+    .default('off'),
   // M7 — gates the mine-playbook-edits cron. 'off' (default) means the
   // weekly job short-circuits with skipped='disabled' and writes
   // nothing. 'shadow' runs the candidate-gathering + Notion-fetch

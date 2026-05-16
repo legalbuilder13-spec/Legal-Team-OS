@@ -16,6 +16,8 @@ import json
 import logging
 
 from .analysis_schemas import (
+    EscalationRequest,
+    FrameFlipProposal,
     GuidanceGrade,
     GuidanceGraderRequest,
     GuidanceGraderResult,
@@ -23,6 +25,12 @@ from .analysis_schemas import (
 )
 from .config import settings
 from .llm.client import get_client
+from .pipeline_context import (
+    DEPTH_AND_FRAME_SYSTEM_ADDENDUM,
+    ESCALATION_REQUEST_SCHEMA,
+    FRAME_FLIP_PROPOSAL_SCHEMA,
+    render_context_block,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +57,7 @@ age_concern=false, you also produce a headline_answer summarizing what that cand
 in 2–4 sentences. Otherwise headline_answer is null and the worker will escalate to the lawyer.
 
 Be conservative. False-positive matches (saying "we have a position on this" when we don't) waste lawyer time \
-and erode trust. When in doubt, score lower."""
+and erode trust. When in doubt, score lower.""" + DEPTH_AND_FRAME_SYSTEM_ADDENDUM
 
 TOOL = {
     "name": "submit_grades",
@@ -96,6 +104,8 @@ TOOL = {
                 ],
             },
             "notes_for_lawyer": {"type": ["string", "null"]},
+            "frame_flip_proposal": FRAME_FLIP_PROPOSAL_SCHEMA,
+            "escalation_request": ESCALATION_REQUEST_SCHEMA,
         },
         "required": ["grades", "headline_answer", "notes_for_lawyer"],
     },
@@ -125,6 +135,7 @@ def build_user_prompt(request: GuidanceGraderRequest) -> str:
         if len(excerpt) > 1500:
             excerpt = excerpt[:1500] + "…"
         parts.append(f"  excerpt:\n{excerpt}")
+    parts.append(render_context_block(request.context))
     return "\n".join(parts)
 
 
@@ -171,6 +182,8 @@ def grade_guidance(request: GuidanceGraderRequest) -> GuidanceGraderResult:
     grades = [GuidanceGrade(**g) for g in payload["grades"]]
     headline_raw = payload.get("headline_answer")
     headline = GuidanceHeadline(**headline_raw) if headline_raw else None
+    flip_payload = payload.get("frame_flip_proposal")
+    frame_flip = FrameFlipProposal(**flip_payload) if flip_payload else None
 
     # Hardcoded gating — verdict is decided in code, not by the model.
     # PRD §7.5 thresholds; tunable per organization in domain config.
@@ -204,6 +217,9 @@ def grade_guidance(request: GuidanceGraderRequest) -> GuidanceGraderResult:
     if verdict != "matched":
         headline = None
 
+    esc_payload = payload.get("escalation_request")
+    escalation = EscalationRequest(**esc_payload) if esc_payload else None
+
     return GuidanceGraderResult(
         matter_id=request.matter_id,
         verdict=verdict,  # type: ignore[arg-type]
@@ -211,4 +227,6 @@ def grade_guidance(request: GuidanceGraderRequest) -> GuidanceGraderResult:
         top_match_index=top_index,
         headline_answer=headline,
         notes_for_lawyer=payload.get("notes_for_lawyer"),
+        frame_flip_proposal=frame_flip,
+        escalation_request=escalation,
     )

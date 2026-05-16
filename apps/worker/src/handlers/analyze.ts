@@ -16,6 +16,8 @@ import {
 import { env } from '../env.js';
 import { runStage0 } from './analyze/stage-0-thresholds.js';
 import { runStage1 } from './analyze/stage-1-guidance.js';
+import { runAbsenceSpotter } from './analyze/absence-spotter.js';
+import { persistEscalation } from './analyze/escalation.js';
 
 // PRD §7 — pre-review analysis pipeline entry point.
 // Auto pipeline only: Stage 0 (pre-merits checklist) + Stage 1 (playbook
@@ -24,6 +26,40 @@ import { runStage1 } from './analyze/stage-1-guidance.js';
 
 interface AnalyzePayload {
   matter_id: string;
+  // PR-A — optional override of the default research_depth. When
+  // omitted, the matter inherits the user's depth preference (currently
+  // 'client_advice' globally). Pipeline-grade work and bet-the-company
+  // requests must specify explicitly.
+  research_depth?: 'quick_take' | 'client_advice' | 'filing_grade' | 'bet_the_company';
+}
+
+// PR-A — seed an initial doctrinal_frame at analysis creation time.
+// The frame is a label, not an enum; we pick by practice area as a
+// reasonable default. Stages can propose flips as they encounter
+// authority that contradicts this initial guess.
+function defaultFrameForPracticeArea(practiceArea: string | null): {
+  primary_regime: string;
+  alternative_regimes: Array<{ regime: string; prior: number }>;
+  last_updated_by_stage: 'intake';
+  flip_count: number;
+} {
+  const seedByArea: Record<string, string> = {
+    commercial: 'state_common_law_contract',
+    employment: 'title_VII_disparate_treatment',
+    privacy: 'state_consumer_privacy_act',
+    litigation: 'state_civil_procedure',
+    corporate: 'delaware_general_corporation_law',
+    regulatory: 'federal_administrative_law',
+    ip: 'federal_intellectual_property',
+    real_estate: 'state_real_property',
+    other: 'unspecified',
+  };
+  return {
+    primary_regime: seedByArea[practiceArea ?? 'other'] ?? 'unspecified',
+    alternative_regimes: [],
+    last_updated_by_stage: 'intake',
+    flip_count: 0,
+  };
 }
 
 export function pickWorseConfidence(
@@ -87,13 +123,48 @@ export async function handleAnalyzeJob(db: Db, job: Job) {
       pipelineVersion: PIPELINE_VERSION,
       status: 'running',
       startedAt: new Date(),
+      // PR-A — seed depth + initial frame state.
+      researchDepth: payload.research_depth ?? 'client_advice',
+      doctrinalFrame: defaultFrameForPracticeArea(matter.practiceArea),
     })
     .returning({ id: matterAnalyses.id });
   const analysisId = analysis!.id;
 
   try {
     const stage0 = await runStage0(db, analysisId, matter);
-    const stage1 = await runStage1(db, analysisId, matter);
+
+    // PR-11 — skill-emitted escalation short-circuits the pipeline.
+    // Gated by ANALYSIS_HLT_ENABLED: when 'off', the escalation is
+    // persisted (visible in the audit log) but the pipeline does NOT
+    // short-circuit — Stage 1 + absence spotter still run so behavior
+    // matches pre-PR-#72.
+    if (stage0.escalationRequest) {
+      await persistEscalation(
+        db,
+        matter,
+        analysisId,
+        'stage_0',
+        stage0.escalationRequest as Parameters<typeof persistEscalation>[4],
+        shadowMode,
+      );
+      if (env.ANALYSIS_HLT_ENABLED === 'on') {
+        console.log(
+          `analyze: matter ${matter.shortId} escalated by stage_0 (${stage0.escalationRequest.reason}); skipping downstream`,
+        );
+        return;
+      }
+      console.log(
+        `analyze: matter ${matter.shortId} stage_0 emitted escalation (${stage0.escalationRequest.reason}) but ANALYSIS_HLT_ENABLED=off; continuing`,
+      );
+    }
+
+    // PR-6 — absence spotter runs in parallel with Stage 1. Best-effort:
+    // failure does not block the pipeline. Receives raised thresholds
+    // so it can focus on facts adjacent to known issues.
+    const [stage1, absenceResult] = await Promise.all([
+      runStage1(db, analysisId, matter),
+      runAbsenceSpotter(db, analysisId, matter, stage0.highSeverityRaised),
+    ]);
 
     const overallConfidence = pickWorseConfidence(stage0.confidence, stage1.confidence);
     const matched = stage1.verdict === 'matched';
@@ -129,6 +200,10 @@ export async function handleAnalyzeJob(db: Db, job: Job) {
         escalated,
         seniorReviewTriggers: seniorTriggers.map((t) => t.id),
         shadowMode,
+        // PR-6 — OOD signal + absence-spotter counts for the trace.
+        practiceAreaConfidence: stage0.practiceAreaConfidence,
+        suggestedReroute: stage0.suggestedReroute,
+        absenceFindings: absenceResult?.findings.length ?? 0,
       },
     });
 

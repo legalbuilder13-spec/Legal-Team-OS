@@ -10,12 +10,19 @@ import {
 import {
   PIPELINE_VERSION,
   getPracticeAreaInventory,
+  contestedDoctrinesForPracticeArea,
   type AnalysisConfidence,
   type PracticeArea,
 } from '@legal/types';
 import { env } from '../../env.js';
 import { hashContent } from '../analyze/sources.js';
 import { loadOrgConfigForUser, domainConfigForSkill } from '../../integrations/org_config.js';
+import {
+  loadPipelineContext,
+  persistFrameFlipProposal,
+  type FrameFlipProposal,
+} from '../analyze/frame-flip.js';
+import { persistEscalation, type EscalationPayload } from '../analyze/escalation.js';
 
 // PRD §12 + §7. Deconstruction + Draft Memo tool (lawyer-invoked).
 // Synthesizes prior stage outputs into a deconstruction tree + IRAC
@@ -251,6 +258,27 @@ export async function handleRunDeconstructJob(db: Db, job: Job) {
         category: i.category,
         label: i.label,
         description: i.description,
+        // PR-B — pass through burden/posture annotations when present.
+        annotations: i.annotations
+          ? {
+              node_type: i.annotations.nodeType ?? null,
+              burden_of_production: i.annotations.burdenOfProduction ?? null,
+              burden_of_persuasion: i.annotations.burdenOfPersuasion ?? null,
+              standard_of_proof: i.annotations.standardOfProof ?? null,
+              default_posture: i.annotations.defaultPosture ?? null,
+              appellate_standard_of_review:
+                i.annotations.appellateStandardOfReview ?? null,
+              schaffer_default: i.annotations.schafferDefault ?? null,
+              pji_anchor: i.annotations.pjiAnchor
+                ? {
+                    source: i.annotations.pjiAnchor.source,
+                    section: i.annotations.pjiAnchor.section,
+                    operative_language: i.annotations.pjiAnchor.operativeLanguage,
+                    url: i.annotations.pjiAnchor.url ?? null,
+                  }
+                : null,
+            }
+          : null,
       })),
       prior: {
         pre_merits_flags: preMeritsFlags,
@@ -261,6 +289,17 @@ export async function handleRunDeconstructJob(db: Db, job: Job) {
       },
       // PR12 §15 — domain config blended into the skill's prompt.
       domain_config: domainConfigForSkill(orgConfig),
+      // PR-8 — contested-doctrines registry. Skill emits
+      // frame_choice_required when a tree node touches one.
+      contested_doctrines: contestedDoctrinesForPracticeArea(practiceArea).map((cd) => ({
+        id: cd.id,
+        label: cd.label,
+        frames: cd.frames,
+        trigger_keywords: cd.triggerKeywords,
+        canonical_source: cd.canonicalSource,
+      })),
+      // PR-A — pipeline context.
+      context: await loadPipelineContext(db, analysisId),
     };
 
     const res = await fetch(`${env.AI_SERVICE_URL}/deconstruct`, {
@@ -274,7 +313,14 @@ export async function handleRunDeconstructJob(db: Db, job: Job) {
     if (!res.ok) {
       throw new Error(`deconstruct ${res.status}: ${await res.text()}`);
     }
-    const analysis = (await res.json()) as DeconstructSkillResult;
+    const analysis = (await res.json()) as DeconstructSkillResult & {
+      frame_flip_proposal?: FrameFlipProposal | null;
+      escalation_request?: EscalationPayload | null;
+    };
+    await persistFrameFlipProposal(db, analysisId, 'stage_3', analysis.frame_flip_proposal);
+    if (analysis.escalation_request) {
+      await persistEscalation(db, matter, analysisId, 'stage_3', analysis.escalation_request, false);
+    }
 
     // ----- 4. Hardcoded post-checks (PRD §12.3) -----
 

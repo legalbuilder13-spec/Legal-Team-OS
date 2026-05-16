@@ -5,10 +5,20 @@ interface PerMatterContent {
   step1?: ReactNode;
   step2?: ReactNode;
   step3?: ReactNode;
+  // PR-A — depth selector + frame seed.
+  step3a?: ReactNode;
   step4?: ReactNode;
+  // PR-6 — out-of-distribution check fires inside Stage 0.
+  step4a?: ReactNode;
+  // PR-6 — absence spotter runs in parallel with Stage 1.
+  step5a?: ReactNode;
   step5?: ReactNode;
   step5b?: ReactNode;
+  // PR-A — frame flip surfaces if any stage proposed one.
+  step5c?: ReactNode;
   step6?: ReactNode;
+  // PR-11 — skill-emitted escalation short-circuit.
+  step6a?: ReactNode;
   step7?: ReactNode;
   step8?: ReactNode;
 }
@@ -76,6 +86,46 @@ export function AnalysisStepsContent({ perMatter }: { perMatter?: PerMatterConte
       />
 
       <StepCard
+        number="3a"
+        title="Set research depth and seed the doctrinal frame"
+        whatItDoes={
+          <>
+            <p>
+              Every analysis runs at one of four <strong>research depths</strong>: quick-take,
+              client-advice (default), filing-grade, or bet-the-company. Depth modulates how hard
+              every downstream step works — how many retrieval strategies fire, whether the
+              absence spotter runs, whether the verification pass fires, how much the model
+              hedges. The lawyer can change it on the matter page; subsequent re-runs read the
+              new depth.
+            </p>
+            <p className="mt-2">
+              The pipeline also seeds an initial <strong>doctrinal frame</strong> based on
+              practice area — &ldquo;state common-law contract&rdquo; for commercial,
+              &ldquo;Title VII disparate treatment&rdquo; for employment, &ldquo;ERISA
+              preempted&rdquo; if a later stage flips to it, and so on. Every skill sees the
+              frame in its prompt and reasons under it. If a skill encounters authority that
+              undermines the frame, it can propose a flip rather than silently reinterpret.
+            </p>
+          </>
+        }
+        contextFrom={[
+          'The matter record (practice area)',
+          'The depth selector on the matter page, or the job payload',
+        ]}
+        produces={
+          <p>
+            <code>research_depth</code> + <code>doctrinal_frame</code> attached to the
+            <code>matter_analyses</code> row. Both flow into every subsequent skill request.
+          </p>
+        }
+        knobs={[
+          'The depth-policy table (which behaviors fire at which depth) — single source of truth in packages/types/src/depth-policy.ts',
+          'The seed-by-practice-area map for the initial doctrinal frame',
+        ]}
+        thisMatter={perMatter?.step3a}
+      />
+
+      <StepCard
         number="4"
         title="Stage 0: run the pre-merits checklist"
         whatItDoes={
@@ -91,25 +141,108 @@ export function AnalysisStepsContent({ perMatter }: { perMatter?: PerMatterConte
               plus a confidence score, a quoted snippet from the request as evidence, and a
               one-sentence justification.
             </p>
+            <p className="mt-2">
+              <strong>Three-strategy negatives (PR-10).</strong> For high-severity items where
+              the model returns &ldquo;not raised,&rdquo; it must also document three independent
+              evidence channels it checked: explicit text, temporal signals, counterparty
+              conduct, and absence-of-signal. If fewer than three channels are checked, the
+              worker downgrades the status to &ldquo;can&apos;t tell&rdquo; — better to make the
+              lawyer look than overclaim a negative.
+            </p>
           </>
         }
         contextFrom={[
           "The matter's request text, title, and summary",
           'A hard-coded checklist per practice area, maintained in the codebase',
           "The requesting organization's config (terminology rules, high-scrutiny jurisdictions)",
+          'The carried doctrinal_frame from Step 3a (so the spotter reads under the right regime)',
         ]}
         produces={
           <p>
             A scored checklist showing what was raised and what was missed, with quoted evidence
-            for each finding.
+            for each finding. Plus the three-channel basis for any high-severity negatives.
           </p>
         }
         knobs={[
           'The checklist items themselves (add new questions, retire old ones, tune severity)',
           'The org-specific terminology and jurisdiction rules blended into the prompt',
           'The AI prompt that asks the model to grade each item',
+          'The three-strategy downgrade threshold (currently: fewer than 3 channels checked → downgrade)',
         ]}
         thisMatter={perMatter?.step4}
+      />
+
+      <StepCard
+        number="4a"
+        title="Out-of-distribution check (inside Stage 0)"
+        whatItDoes={
+          <p>
+            Alongside the checklist findings, the threshold spotter assesses whether this matter
+            was routed to the right practice area in the first place. A &ldquo;commercial&rdquo;
+            matter that&apos;s really 80% a HIPAA breach belongs in privacy; an
+            &ldquo;employment&rdquo; matter dominated by a stock-option vesting dispute belongs
+            in corporate. When confidence in the current routing falls below 0.6, the spotter
+            suggests a re-route target. The lawyer accepts or rejects on the matter page.
+          </p>
+        }
+        contextFrom={['The matter request text and the practice-area enum']}
+        produces={
+          <p>
+            <code>practice_area_confidence</code>, optional <code>suggested_reroute</code>, and a
+            one-sentence rationale. Captured in the audit log even when no reroute is suggested.
+          </p>
+        }
+        knobs={[
+          'The confidence threshold for suggesting a reroute (currently &lt; 0.6)',
+          'The practice-area enum itself',
+        ]}
+        thisMatter={perMatter?.step4a}
+      />
+
+      <StepCard
+        number="5a"
+        title="Absence spotter — questions to ask before answering"
+        whatItDoes={
+          <>
+            <p>
+              Runs in parallel with Stage 1. The inverse of the threshold spotter: rather than
+              checking whether listed issues are <em>raised</em>, this skill names facts that
+              <em> should be in the request but aren&apos;t</em> — facts whose presence or
+              absence would change the answer. Employment termination matter? &ldquo;Did the
+              employee take FMLA in the last 90 days?&rdquo; Commercial breach? &ldquo;Did either
+              party send a formal cure notice?&rdquo;
+            </p>
+            <p className="mt-2">
+              The model returns 3–5 findings, each with severity (high / medium / low), why it
+              matters, and the exact clarifying question to ask. The lawyer answers each finding
+              with a value (the missing fact, once known) or dismisses it. Resolved values are
+              merged back into the matter request for any subsequent stage re-runs.
+            </p>
+            <p className="mt-2 text-ink-600 dark:text-ink-400">
+              <strong>Depth-gated.</strong> Off at quick-take; on once at client-advice and
+              filing-grade; runs twice at bet-the-company (initial + after research stages land).
+              Best-effort: failure does not block the pipeline.
+            </p>
+          </>
+        }
+        contextFrom={[
+          "The matter's request text and practice area",
+          'The high-severity thresholds raised by Stage 0 (so the model can focus on adjacent missing facts)',
+          'The carried doctrinal_frame',
+        ]}
+        produces={
+          <p>
+            A list of <code>matter_absence_findings</code> rows surfaced as a &ldquo;Questions to
+            ask before answering&rdquo; panel on the matter page. Each row resolves to a value or
+            dismissal.
+          </p>
+        }
+        knobs={[
+          'The absence-spotter prompt (severity calibration, practice-area instincts)',
+          'The depth-policy gating (when the spotter runs and how many passes)',
+          'Whether resolved values automatically trigger a stage re-run',
+        ]}
+        thisMatter={perMatter?.step5a}
       />
 
       <StepCard
@@ -229,6 +362,52 @@ export function AnalysisStepsContent({ perMatter }: { perMatter?: PerMatterConte
       />
 
       <StepCard
+        number="5c"
+        title="Frame-flip proposals (across every stage)"
+        whatItDoes={
+          <>
+            <p>
+              Any skill — Stage 0 spotter, Stage 1 grader, statutory, case-law, or deconstruct —
+              can propose a <strong>doctrinal-frame flip</strong> on its response when it
+              encounters authority that undermines the carried frame. Examples: Stage 0 framed a
+              dispute as state contract law; the statutory tool finds the agreement is governed
+              by ERISA. Stage 1 framed an employment matter as Title VII; the case-law tool
+              surfaces an arbitration clause that swallows the dispute.
+            </p>
+            <p className="mt-2">
+              Proposed flips land in <code>matter_frame_flips</code> with status
+              &ldquo;pending&rdquo; and surface as an amber banner on the matter page with the
+              from-frame, to-frame, verbatim evidence quote, the model&apos;s rationale, and a
+              confidence score. The lawyer accepts (rewrites the carried frame; demotes the
+              prior frame to an alternative with prior=0.3) or rejects (preserves it). Audit
+              logged either way.
+            </p>
+            <p className="mt-2 text-ink-600 dark:text-ink-400">
+              <strong>Why it matters:</strong> the document calls this Bayesian state — frame is
+              a hypothesis, not a label, and every new authority is evidence that may update it.
+              Silent reinterpretation is exactly what we are preventing.
+            </p>
+          </>
+        }
+        contextFrom={[
+          'The currently-carried doctrinal_frame on matter_analyses',
+          'The skill response that proposed the flip',
+        ]}
+        produces={
+          <p>
+            A pending row in <code>matter_frame_flips</code> for the UI to surface; on accept,
+            an updated <code>doctrinal_frame</code> on the matter_analyses row and
+            <code>flip_count</code> incremented.
+          </p>
+        }
+        knobs={[
+          'The system-prompt addendum that teaches every skill when to propose a flip',
+          'The demotion prior assigned to the displaced frame (currently 0.3)',
+        ]}
+        thisMatter={perMatter?.step5c}
+      />
+
+      <StepCard
         number="6"
         title="Compute the overall verdict"
         whatItDoes={
@@ -252,6 +431,49 @@ export function AnalysisStepsContent({ perMatter }: { perMatter?: PerMatterConte
           'The thresholds that decide complete vs. escalated',
         ]}
         thisMatter={perMatter?.step6}
+      />
+
+      <StepCard
+        number="6a"
+        title="Skill-emitted escalation short-circuit"
+        whatItDoes={
+          <>
+            <p>
+              Independent of the Stage 0 + Stage 1 verdict, any skill can emit an
+              <code>escalation_request</code> on its response when it encounters a condition
+              that warrants raising the lawyer&apos;s hand rather than producing confident
+              output. Enumerated reasons: practice-area mismatch, jurisdiction outside the
+              firm&apos;s competence, unresolvable frame flip, too many missing facts
+              unresolved, authority that contradicts a prior stage, a genuinely novel question,
+              or a self-audit verification failure.
+            </p>
+            <p className="mt-2">
+              When Stage 0 escalates, the worker short-circuits — Stage 1 and the absence
+              spotter are skipped. The analysis is marked &ldquo;escalated&rdquo;,
+              <code>escalated_at</code> is set, an audit-log row records the reason and
+              recommended next step, and a high-priority Slack message goes to the matter
+              thread. The matter page shows a red escalation banner above everything else.
+            </p>
+            <p className="mt-2 text-ink-600 dark:text-ink-400">
+              <strong>Why it matters:</strong> the source synthesis calls escalation an expert
+              move, not a failure. Producing a confident output when escalation is warranted is
+              the abdication trap. This step makes raising your hand a first-class action.
+            </p>
+          </>
+        }
+        contextFrom={['The escalation_request emitted by any skill']}
+        produces={
+          <p>
+            <code>matter_analyses.status = escalated</code>, <code>escalated_at</code> set,
+            <code>escalation_reason</code> populated, audit-log row, Slack notification.
+          </p>
+        }
+        knobs={[
+          'The enumerated escalation reasons (add new ones as patterns emerge)',
+          'The system-prompt addendum that teaches each skill when to escalate',
+          'Slack notification routing for escalations',
+        ]}
+        thisMatter={perMatter?.step6a}
       />
 
       <StepCard
@@ -326,6 +548,61 @@ export function WhatItDoesNotDo() {
         <li>
           <strong>No document or clause analysis.</strong> Uploaded documents aren&apos;t read
           by any auto-step yet.
+        </li>
+      </ul>
+    </section>
+  );
+}
+
+// PR-7 + PR-8 + PR-9 — extra discipline that fires on the lawyer-invoked
+// deconstruct tool. Rendered as a sibling section under the main steps
+// list so the trace is complete even though these only run on demand.
+export function OnLawyerInvokedDeconstruct() {
+  return (
+    <section className="bg-violet-50/60 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-900 rounded-lg p-5">
+      <h3 className="text-[15px] font-semibold text-ink-900 dark:text-ink-50 mb-2">
+        When the lawyer invokes &ldquo;Deconstruct&rdquo;
+      </h3>
+      <p className="text-[13.5px] text-ink-700 dark:text-ink-300 mb-3">
+        Four extra disciplines fire inside the deconstruct skill that don&apos;t exist on the
+        auto pipeline. All four pull from the same practice-area inventory and the prior stage
+        outputs.
+      </p>
+      <ul className="space-y-2 text-[13.5px] text-ink-700 dark:text-ink-300">
+        <li>
+          <strong>Instantiate-then-prune (PR-9).</strong> Every inventory item enters the
+          deconstruction tree as a candidate node. The skill must close each one explicitly with
+          a named reason — <em>kept</em>, <em>closed by rule</em>, <em>closed by stipulation</em>,
+          <em> closed not dispositive</em>, <em>closed by facts absent</em>, <em>closed by
+          preemption</em>, or <em>deferred</em>. No silent omission. The specialist&apos;s
+          full-inventory move made operational. Closed nodes still render in the UI so the
+          lawyer sees what was considered <em>and</em> ruled out, not just what survived.
+        </li>
+        <li>
+          <strong>Burden / posture annotations (PR-B).</strong> Inventory items carry burden of
+          production + persuasion, standard of proof, default procedural posture, and appellate
+          standard of review. The deconstruct skill renders these into every leaf so the tree
+          reads as litigable — duty at MTD vs. SJ vs. trial is a different operational target,
+          and the annotations make the difference explicit. Items without annotations get
+          Schaffer-default reasoning.
+        </li>
+        <li>
+          <strong>Pattern jury instruction anchors (PR-7).</strong> When an inventory item
+          carries a PJI anchor (currently: commercial indemnity = CACI 2520; warranty = CACI
+          1230; rescission = CACI 332), the verbatim operative language is inlined under the
+          node. The skill is told to anchor the rule statement in that language — what a judge
+          would actually read to the jury.
+        </li>
+        <li>
+          <strong>Contested-doctrine frame check (PR-8).</strong> When a tree node touches a
+          doctrinally contested area (negligence duty, due-process tiers, antitrust rule of
+          reason, takings analysis, at-will employment carve-outs, fair use), the skill emits a
+          violet banner with both candidate frames side-by-side. The lawyer picks; downstream
+          analysis runs under the chosen frame. The Goldberg/Zipursky lesson: a wrong frame
+          quietly poisons every downstream node, so we surface the choice rather than commit
+          silently. Plus right-typed nodes get Hohfeldian disambiguation (claim-right vs.
+          privilege vs. power vs. immunity) because the word &ldquo;right&rdquo; conflates four
+          distinct legal positions.
         </li>
       </ul>
     </section>

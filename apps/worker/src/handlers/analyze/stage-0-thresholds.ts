@@ -10,6 +10,12 @@ import {
 import { env } from '../../env.js';
 import { hashContent } from './sources.js';
 import { loadOrgConfigForUser, domainConfigForSkill } from '../../integrations/org_config.js';
+import {
+  loadPipelineContext,
+  persistFrameFlipProposal,
+  type FrameFlipProposal,
+  type PipelineContextEnvelope,
+} from './frame-flip.js';
 
 // PRD §7.5 — Stage 0 pre-merits threshold checklist.
 // Hardcoded: per-practice-area checklist load + verdict computation +
@@ -30,6 +36,8 @@ interface ThresholdSpotterRequest {
   // (terminology rules, high-scrutiny jurisdictions, etc.). Empty
   // object when no org config is set; the skill no-ops the block.
   domain_config?: Record<string, unknown>;
+  // PR-A — pipeline context (research_depth + carried doctrinal_frame).
+  context: PipelineContextEnvelope;
 }
 
 interface ThresholdSpotterResult {
@@ -42,7 +50,23 @@ interface ThresholdSpotterResult {
     confidence: number;
     evidence_quote: string;
     one_line_justification: string;
+    not_raised_basis?: Array<{
+      channel: 'explicit_text' | 'temporal' | 'conduct' | 'absence_of_signal';
+      evidence: string;
+      checked: boolean;
+    }>;
   }>;
+  frame_flip_proposal?: FrameFlipProposal | null;
+  // PR-6 — out-of-distribution detection.
+  practice_area_confidence?: number;
+  suggested_reroute?: string | null;
+  reroute_rationale?: string | null;
+  // PR-11 — optional escalation request.
+  escalation_request?: {
+    reason: string;
+    detail: string;
+    recommended_next_step: string;
+  } | null;
 }
 
 export interface StageResult {
@@ -51,6 +75,18 @@ export interface StageResult {
   confidence: AnalysisConfidence;
   output: PreMeritsStageOutput | { error: string };
   highSeverityRaised: string[];
+  // PR-6 — OOD signal. Surfaced in the analyze.ts handler as a reroute
+  // banner; the lawyer accepts or rejects.
+  practiceAreaConfidence?: number;
+  suggestedReroute?: string | null;
+  rerouteRationale?: string | null;
+  // PR-11 — surface skill-emitted escalation upstream so analyze.ts
+  // can short-circuit Stage 1 and notify Slack.
+  escalationRequest?: {
+    reason: string;
+    detail: string;
+    recommended_next_step: string;
+  } | null;
 }
 
 export async function runStage0(
@@ -62,6 +98,7 @@ export async function runStage0(
   const checklist = getThresholdChecklist(practiceArea);
 
   const orgConfig = await loadOrgConfigForUser(db, matter.requesterId);
+  const context = await loadPipelineContext(db, analysisId);
   const skillRequest: ThresholdSpotterRequest = {
     matter_id: matter.id,
     practice_area: practiceArea,
@@ -74,6 +111,7 @@ export async function runStage0(
       doc_anchor: i.docAnchor,
     })),
     domain_config: domainConfigForSkill(orgConfig),
+    context,
   };
   const inputHash = hashContent(JSON.stringify(skillRequest));
 
@@ -134,17 +172,38 @@ export async function runStage0(
       throw new Error(`threshold-spotter ${res.status}: ${await res.text()}`);
     }
     const raw = (await res.json()) as ThresholdSpotterResult;
+    await persistFrameFlipProposal(db, analysisId, 'stage_0', raw.frame_flip_proposal);
 
     // Look up severity per id from the checklist (the skill returns id +
     // status but not severity — severity is a hardcoded property).
     const severityById = new Map(checklist.items.map((i) => [i.id, i.severityIfRaised]));
-    const findings = raw.findings.map((f) => ({
-      id: f.id,
-      status: f.status,
-      confidence: f.confidence,
-      evidenceQuote: f.evidence_quote,
-      oneLineJustification: f.one_line_justification,
-    }));
+
+    // PR-10 — three-strategy negative-result downgrade. For
+    // high-severity items where status='not_raised', if fewer than
+    // three evidence channels were checked, downgrade to 'cant_tell'.
+    // Better to make the lawyer look than to overclaim a negative.
+    // Gated by ANALYSIS_HLT_ENABLED: when 'off' (the default after
+    // merge), the downgrade does not fire even though the AI service
+    // may or may not be emitting not_raised_basis yet.
+    const hltOn = env.ANALYSIS_HLT_ENABLED === 'on';
+    const findings = raw.findings.map((f) => {
+      const sev = severityById.get(f.id);
+      let status = f.status;
+      let confidence = f.confidence;
+      const channelsChecked = (f.not_raised_basis ?? []).filter((c) => c.checked).length;
+      if (hltOn && sev === 'high' && f.status === 'not_raised' && channelsChecked < 3) {
+        status = 'cant_tell';
+        confidence = Math.min(confidence, 0.5);
+      }
+      return {
+        id: f.id,
+        status,
+        confidence,
+        evidenceQuote: f.evidence_quote,
+        oneLineJustification: f.one_line_justification,
+        notRaisedBasis: f.not_raised_basis ?? [],
+      };
+    });
     const highSeverityRaised = findings
       .filter((f) => f.status === 'raised' && f.confidence >= 0.7 && severityById.get(f.id) === 'high')
       .map((f) => f.id);
@@ -179,7 +238,17 @@ export async function runStage0(
       })
       .where(eq(matterAnalysisStages.id, stageId));
 
-    return { stageId, status: 'complete', confidence, output, highSeverityRaised };
+    return {
+      stageId,
+      status: 'complete',
+      confidence,
+      output,
+      highSeverityRaised,
+      practiceAreaConfidence: raw.practice_area_confidence,
+      suggestedReroute: raw.suggested_reroute ?? null,
+      rerouteRationale: raw.reroute_rationale ?? null,
+      escalationRequest: raw.escalation_request ?? null,
+    };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await db

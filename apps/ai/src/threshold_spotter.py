@@ -15,6 +15,8 @@ import json
 import logging
 
 from .analysis_schemas import (
+    EscalationRequest,
+    FrameFlipProposal,
     ThresholdFinding,
     ThresholdSpotterRequest,
     ThresholdSpotterResult,
@@ -22,6 +24,12 @@ from .analysis_schemas import (
 from .config import settings
 from .domain_config import domain_config_block
 from .llm.client import get_client
+from .pipeline_context import (
+    DEPTH_AND_FRAME_SYSTEM_ADDENDUM,
+    ESCALATION_REQUEST_SCHEMA,
+    FRAME_FLIP_PROPOSAL_SCHEMA,
+    render_context_block,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +55,28 @@ You do NOT:
 - Cite statutes or cases (none are in your context).
 - Speculate about facts not in the request.
 
-Return findings for every item in the checklist. If the checklist is empty, return an empty findings array."""
+# Three-strategy negative-result discipline (PR-10)
+When you return status='not_raised' for an item where severity_if_raised is 'high', you MUST populate \
+`not_raised_basis` with at least three independent evidence channels you checked:
+- 'explicit_text' — references in the request text itself (verbatim quotes or paraphrased facts).
+- 'temporal' — dates, sequences, or time-based signals (or their absence).
+- 'conduct' — counterparty actions, party communications, or third-party signals (or their absence).
+- 'absence_of_signal' — facts a competent requester would mention if this issue were in play.
+
+For each channel, set `evidence` (one short sentence on what you looked for) and `checked` (true/false). \
+If you cannot honestly mark three channels as checked, you do not have a high-confidence 'not_raised'. \
+Downgrade to 'cant_tell' rather than overclaim.
+
+Return findings for every item in the checklist. If the checklist is empty, return an empty findings array.
+
+# Out-of-distribution detection (PR-6)
+After producing findings, assess whether this matter is actually in the practice area it was routed to. \
+Examples: a 'commercial' matter that's actually 80% a HIPAA breach belongs in 'privacy'; an 'employment' \
+matter dominated by a stock-option vesting dispute belongs in 'corporate'. Return practice_area_confidence \
+in [0,1] (1.0 = clearly correct area, 0.5 = mixed, <0.5 = misrouted). When confidence is below 0.6, set \
+suggested_reroute to one of: commercial, employment, privacy, litigation, corporate, regulatory, ip, \
+real_estate, other; otherwise null. reroute_rationale: one short sentence explaining the call."""
+SYSTEM_PROMPT = SYSTEM_PROMPT + DEPTH_AND_FRAME_SYSTEM_ADDENDUM
 
 TOOL = {
     "name": "submit_findings",
@@ -65,6 +94,27 @@ TOOL = {
                         "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
                         "evidence_quote": {"type": "string"},
                         "one_line_justification": {"type": "string"},
+                        # PR-10 — required for high-severity not_raised.
+                        "not_raised_basis": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "channel": {
+                                        "type": "string",
+                                        "enum": [
+                                            "explicit_text",
+                                            "temporal",
+                                            "conduct",
+                                            "absence_of_signal",
+                                        ],
+                                    },
+                                    "evidence": {"type": "string"},
+                                    "checked": {"type": "boolean"},
+                                },
+                                "required": ["channel", "evidence", "checked"],
+                            },
+                        },
                     },
                     "required": [
                         "id",
@@ -75,6 +125,27 @@ TOOL = {
                     ],
                 },
             },
+            # PR-A — opt-in. Model emits when carried frame is wrong.
+            "frame_flip_proposal": FRAME_FLIP_PROPOSAL_SCHEMA,
+            # PR-6 — out-of-distribution detection.
+            "practice_area_confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+            "suggested_reroute": {
+                "type": ["string", "null"],
+                "enum": [
+                    "commercial",
+                    "employment",
+                    "privacy",
+                    "litigation",
+                    "corporate",
+                    "regulatory",
+                    "ip",
+                    "real_estate",
+                    "other",
+                    None,
+                ],
+            },
+            "reroute_rationale": {"type": ["string", "null"]},
+            "escalation_request": ESCALATION_REQUEST_SCHEMA,
         },
         "required": ["findings"],
     },
@@ -99,6 +170,8 @@ def build_user_prompt(request: ThresholdSpotterRequest) -> str:
     # PR12 §15 — domain config block. Empty string when org has no
     # custom rules, so we can append unconditionally.
     parts.append(domain_config_block(request.domain_config))
+    # PR-A — pipeline context (research_depth + carried doctrinal_frame).
+    parts.append(render_context_block(request.context))
     return "\n".join(parts)
 
 
@@ -144,6 +217,8 @@ def spot_thresholds(request: ThresholdSpotterRequest) -> ThresholdSpotterResult:
         payload = json.loads(payload)
 
     findings = [ThresholdFinding(**f) for f in payload["findings"]]
+    flip_payload = payload.get("frame_flip_proposal")
+    frame_flip = FrameFlipProposal(**flip_payload) if flip_payload else None
 
     # The model may omit items if it considers the checklist long. We
     # backfill any missing items with a "cant_tell, confidence 0" sentinel
@@ -167,9 +242,17 @@ def spot_thresholds(request: ThresholdSpotterRequest) -> ThresholdSpotterResult:
                 )
             )
 
+    esc_payload = payload.get("escalation_request")
+    escalation = EscalationRequest(**esc_payload) if esc_payload else None
+
     return ThresholdSpotterResult(
         matter_id=request.matter_id,
         practice_area=request.practice_area,
         checklist_version=request.checklist_version,
         findings=findings,
+        frame_flip_proposal=frame_flip,
+        practice_area_confidence=float(payload.get("practice_area_confidence", 1.0)),
+        suggested_reroute=payload.get("suggested_reroute"),
+        reroute_rationale=payload.get("reroute_rationale"),
+        escalation_request=escalation,
     )

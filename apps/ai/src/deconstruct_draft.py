@@ -25,9 +25,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from .analysis_schemas import FrameFlipProposal, PipelineContext
 from .config import settings
 from .domain_config import DomainConfig, domain_config_block
 from .llm.client import get_client
+from .pipeline_context import DEPTH_AND_FRAME_SYSTEM_ADDENDUM, render_context_block
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +37,37 @@ logger = logging.getLogger(__name__)
 # ----- Request: prior stage context the worker assembles -----
 
 
+class PJIAnchor(BaseModel):
+    # PR-7 — pattern jury instruction anchor.
+    source: str
+    section: str
+    operative_language: str
+    url: str | None = None
+
+
+class InventoryAnnotations(BaseModel):
+    # PR-B — operational annotations from packages/types inventories.
+    node_type: str | None = None
+    burden_of_production: str | None = None
+    burden_of_persuasion: str | None = None
+    standard_of_proof: str | None = None
+    default_posture: str | None = None
+    appellate_standard_of_review: str | None = None
+    schaffer_default: bool | None = None
+    # PR-7 — PJI anchor for the operative language at trial.
+    pji_anchor: PJIAnchor | None = None
+
+
 class InventoryItemInput(BaseModel):
     id: str
     category: str
     label: str
     description: str
+    # PR-B — optional annotations; defaults to None when the inventory
+    # hasn't been annotated for this practice area yet. The skill
+    # renders these into each leaf and applies Schaffer-default reasoning
+    # when burdens are unspecified.
+    annotations: InventoryAnnotations | None = None
 
 
 class PriorStageContext(BaseModel):
@@ -58,6 +86,18 @@ class PriorStageContext(BaseModel):
     case_law_summary: dict | None = None
 
 
+class ContestedDoctrineFrameInput(BaseModel):
+    # PR-8 — worker passes the contested-doctrines registry for the
+    # practice area into the request so the skill knows which frames
+    # to surface side-by-side. Defined here (before DeconstructRequest)
+    # to satisfy forward-reference checking.
+    id: str
+    label: str
+    frames: list[str]
+    trigger_keywords: list[str]
+    canonical_source: str
+
+
 class DeconstructRequest(BaseModel):
     matter_id: str
     request_text: str
@@ -72,19 +112,46 @@ class DeconstructRequest(BaseModel):
     prior: PriorStageContext
     # PR12 §15 — organization domain config blended into the prompt.
     domain_config: DomainConfig | None = None
+    # PR-A — pipeline context (research_depth + carried doctrinal_frame).
+    context: PipelineContext = PipelineContext()
+    # PR-8 — contested-doctrines registry for this practice area. Skill
+    # checks whether any tree node touches one and, if so, surfaces an
+    # alternative frame rather than committing silently.
+    contested_doctrines: list[ContestedDoctrineFrameInput] = Field(default_factory=list)
 
 
 # ----- Response: tree nodes + memo -----
 
 
 NodeType = Literal['rule', 'standard', 'factor', 'right', 'evidence', 'threshold']
+# PR-9 — expanded status enum supports instantiate-then-prune. Every
+# candidate inventory item enters the tree as 'open' and the skill must
+# close each one explicitly. how-lawyers-think Part VI §D7.
 NodeStatus = Literal[
     'open',
+    'kept',
     'closed_by_rule',
     'closed_by_stipulation',
     'closed_not_dispositive',
+    'closed_by_facts_absent',
+    'closed_by_preemption',
     'deferred',
 ]
+
+
+HohfeldPosition = Literal['claim_right', 'privilege', 'power', 'immunity']
+HohfeldCorrelative = Literal['duty', 'no_right', 'liability', 'disability']
+
+
+class HohfeldAnalysis(BaseModel):
+    # PR-8 — required when node.type == 'right'. Disambiguates the
+    # word "right" to one of Hohfeld's four jural positions, with the
+    # correlative party and the conduct/relation it concerns.
+    # how-lawyers-think Part VI §6.4.
+    position: HohfeldPosition
+    correlative_party: str
+    with_respect_to: str
+    correlative_relation: HohfeldCorrelative
 
 
 class DeconstructionNode(BaseModel):
@@ -109,6 +176,18 @@ class DeconstructionNode(BaseModel):
     # cite, playbook id, etc.). Worker re-checks these are not invented.
     anchor_citation: str | None = None
     notes: str | None = None
+    # PR-8 — Hohfeldian disambiguation. REQUIRED when type='right'.
+    hohfeld: HohfeldAnalysis | None = None
+
+
+class AlternativeFrame(BaseModel):
+    # PR-8 — when the skill emits frame_choice_required=true, it also
+    # supplies the alternative tree (or a summary of how the tree would
+    # differ) so the lawyer can compare.
+    frame_id: str
+    frame_label: str
+    one_paragraph_summary: str
+    materially_different_nodes: list[str] = Field(default_factory=list)
 
 
 class IRACMemo(BaseModel):
@@ -142,6 +221,16 @@ class DeconstructResult(BaseModel):
     # jurisdiction. Single-jurisdiction matters return None.
     multi_jurisdiction_harmonization: JurisdictionHarmonization | None = None
     verify_flags: list[str] = Field(default_factory=list, max_length=3)
+    # PR-A — optional frame flip when synthesis turns up authority
+    # inconsistent with the carried doctrinal frame.
+    frame_flip_proposal: FrameFlipProposal | None = None
+    # PR-8 — when the tree touches a contested doctrine, the skill
+    # surfaces the alternative frame rather than picking silently.
+    # The lawyer accepts one frame; the skill is re-invoked with the
+    # chosen frame locked in.
+    frame_choice_required: bool = False
+    alternative_frames: list[AlternativeFrame] = Field(default_factory=list)
+    frame_choice_explanation: str | None = None
 
 
 # ----- Prompt -----
@@ -174,18 +263,45 @@ Do NOT redo statutory or case-law work. If the statutory stage already identifie
 'rule' node references that cite via anchor_citation. If case-law produced controlling authority, your relevant \
 nodes inherit that. You are synthesizing, not researching.
 
-## Inventory pruning
-The inventory_items list is candidate issues for the practice area. Most won't be relevant to this matter. Prune \
-ruthlessly — only create nodes for issues that the facts and prior stages put in play. Record what you pruned in \
-inventory_items_pruned. Record what you kept in inventory_categories_addressed.
+## Instantiate-then-prune (PR-9 — supersedes prior "selective pickup")
+The inventory_items list is the COMPLETE set of candidate issues for the practice area. EVERY inventory item \
+MUST appear in your output as a node with a status. No silent omission. This forces the specialist's \
+full-inventory move — running through the checklist — rather than picking only the items the request makes \
+obvious.
+
+Allowable statuses:
+- 'kept' — node carried forward into the live decomposition. Add children, annotations, anchor citation.
+- 'closed_by_rule' — a rule resolves the question without further fact-development.
+- 'closed_by_stipulation' — undisputed or conceded by the parties.
+- 'closed_not_dispositive' — present but does not affect the outcome.
+- 'closed_by_facts_absent' — the facts that would make this relevant are not in the request.
+- 'closed_by_preemption' — preempted by another regime (ERISA, Copyright §301, etc.).
+- 'deferred' — material but cannot be resolved without more information; surface via verify_flags.
+
+`inventory_items_pruned` (legacy field) lists IDs you closed for any reason. `inventory_categories_addressed` \
+lists the categories with at least one 'kept' node.
 
 ## Decomposition by node type
 - 'rule' → state the elements, decompose into element-level children
 - 'standard' → enumerate balancing factors as children (e.g., reasonableness factors)
 - 'factor' → leaf, weighted; not further decomposed
-- 'right' → Hohfeldian — which jural position (claim / privilege / power / immunity), against whom
+- 'right' → REQUIRED Hohfeldian disambiguation (PR-8). Populate node.hohfeld with:
+    position ∈ {claim_right, privilege, power, immunity};
+    correlative_party (who has the corresponding duty/no_right/liability/disability);
+    with_respect_to (the conduct or relation at issue);
+    correlative_relation ∈ {duty, no_right, liability, disability}.
+  A 'right' node without hohfeld is not actionable — it conflates four distinct legal positions.
 - 'evidence' → Wigmorean trace from evidence → interim probandum → ultimate probandum
 - 'threshold' → jurisdiction/limitations/etc., resolved or deferred
+
+## Contested-doctrine frame-check (PR-8)
+If your tree touches a doctrine listed in `contested_doctrines`, you MUST surface the alternative \
+decomposition frame rather than silently picking one. Set frame_choice_required=true, populate \
+alternative_frames with one entry per competing frame (frame_id, frame_label, one_paragraph_summary, \
+materially_different_nodes), and frame_choice_explanation: 2–4 sentences naming what the lawyer must \
+decide and what changes downstream. Example: a negligence matter triggers torts_duty — emit the tree \
+under restatement_third_duty_as_filter AND populate alternative_frames with the foreseeability_first \
+alternative. The Goldberg/Zipursky lesson: a wrong frame poisons every downstream node.
 
 ## Annotation per leaf (PRD §D6)
 Every leaf node MUST have: jurisdiction, procedural_posture, standard_of_review (where applicable), burden of \
@@ -214,7 +330,7 @@ jurisdiction's summary that drives the divergence.
 - `jurisdiction_specific_carveouts[]`: list jurisdiction-specific exemptions, carve-outs, or unique \
 requirements that don't appear in the other jurisdictions.
 When only one summary is present, return `multi_jurisdiction_harmonization=null` and treat the analysis as \
-single-jurisdiction."""
+single-jurisdiction.""" + DEPTH_AND_FRAME_SYSTEM_ADDENDUM
 
 
 TOOL = {
@@ -292,7 +408,43 @@ def build_user_prompt(req: DeconstructRequest) -> str:
     parts.append(f"--- Practice-area inventory ({len(req.inventory_items)} candidate issues) ---")
     for item in req.inventory_items:
         parts.append(f"- [{item.category}/{item.id}] {item.label}: {item.description[:160]}")
+        if item.annotations:
+            a = item.annotations
+            ann_parts: list[str] = []
+            if a.node_type:
+                ann_parts.append(f"type={a.node_type}")
+            if a.burden_of_persuasion:
+                ann_parts.append(f"burden_persuasion={a.burden_of_persuasion}")
+            if a.burden_of_production:
+                ann_parts.append(f"burden_production={a.burden_of_production}")
+            if a.standard_of_proof:
+                ann_parts.append(f"std={a.standard_of_proof}")
+            if a.default_posture:
+                ann_parts.append(f"posture={a.default_posture}")
+            if a.appellate_standard_of_review:
+                ann_parts.append(f"review={a.appellate_standard_of_review}")
+            if ann_parts:
+                parts.append(f"    annotations: {', '.join(ann_parts)}")
+            if a.pji_anchor:
+                pji = a.pji_anchor
+                parts.append(
+                    f"    PJI {pji.source} {pji.section}: \"{pji.operative_language}\""
+                )
     parts.append(domain_config_block(req.domain_config))
+    if req.contested_doctrines:
+        parts.append("")
+        parts.append("--- Contested doctrines in this practice area (PR-8) ---")
+        for cd in req.contested_doctrines:
+            parts.append(
+                f"- [{cd.id}] {cd.label} — frames: {', '.join(cd.frames)}"
+            )
+            parts.append(f"    triggers: {', '.join(cd.trigger_keywords)}")
+            parts.append(f"    canonical: {cd.canonical_source}")
+        parts.append(
+            "When a tree node touches one of these, set frame_choice_required=true and populate "
+            "alternative_frames."
+        )
+    parts.append(render_context_block(req.context))
     return "\n".join(parts)
 
 

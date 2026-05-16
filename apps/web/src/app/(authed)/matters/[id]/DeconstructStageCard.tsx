@@ -8,11 +8,16 @@ import { StageDecisionBar } from './StageDecisionBar';
 // nested view, then verification banner.
 
 type NodeType = 'rule' | 'standard' | 'factor' | 'right' | 'evidence' | 'threshold';
+// PR-9 — expanded status set supports instantiate-then-prune. Every
+// inventory item enters the tree; the skill closes each explicitly.
 type NodeStatus =
   | 'open'
+  | 'kept'
   | 'closed_by_rule'
   | 'closed_by_stipulation'
   | 'closed_not_dispositive'
+  | 'closed_by_facts_absent'
+  | 'closed_by_preemption'
   | 'deferred';
 
 interface DeconstructionNode {
@@ -66,6 +71,15 @@ interface DeconstructOutput {
   inventory_items_pruned: string[];
   multi_jurisdiction_harmonization?: MultiJurisdictionHarmonization | null;
   verify_flags: string[];
+  // PR-8 — contested-doctrine frame-choice surface.
+  frame_choice_required?: boolean;
+  alternative_frames?: Array<{
+    frame_id: string;
+    frame_label: string;
+    one_paragraph_summary: string;
+    materially_different_nodes?: string[];
+  }>;
+  frame_choice_explanation?: string | null;
   verification?: {
     threshold_ordering_failures: string[];
     missing_mirror_image: boolean;
@@ -123,23 +137,25 @@ function NodeTypePill({ t }: { t: NodeType }) {
 }
 
 function NodeStatusBadge({ s }: { s: NodeStatus }) {
-  const label =
-    s === 'open'
-      ? 'open'
-      : s === 'closed_by_rule'
-        ? '✓ rule'
-        : s === 'closed_by_stipulation'
-          ? '✓ stipulated'
-          : s === 'closed_not_dispositive'
-            ? '✓ moot'
-            : 'deferred';
+  const labels: Record<NodeStatus, string> = {
+    open: 'open',
+    kept: '★ kept',
+    closed_by_rule: '✓ rule',
+    closed_by_stipulation: '✓ stipulated',
+    closed_not_dispositive: '✓ moot',
+    closed_by_facts_absent: '∅ facts absent',
+    closed_by_preemption: '⊘ preempted',
+    deferred: 'deferred',
+  };
   const tone =
     s === 'open'
       ? 'text-blue-600 dark:text-blue-400'
-      : s === 'deferred'
-        ? 'text-amber-600 dark:text-amber-400'
-        : 'text-emerald-600 dark:text-emerald-400';
-  return <span className={`text-[10px] font-mono ${tone}`}>{label}</span>;
+      : s === 'kept'
+        ? 'text-violet-600 dark:text-violet-400 font-medium'
+        : s === 'deferred'
+          ? 'text-amber-600 dark:text-amber-400'
+          : 'text-emerald-600 dark:text-emerald-400';
+  return <span className={`text-[10px] font-mono ${tone}`}>{labels[s]}</span>;
 }
 
 function NodeRow({ node, depth }: { node: DeconstructionNode; depth: number }) {
@@ -304,6 +320,35 @@ export function DeconstructStageCard({
           <span className="text-ink-400 dark:text-ink-500">{durationMs}ms</span>
         </div>
       </div>
+
+      {/* PR-8 — contested-doctrine frame-choice surface. */}
+      {output.frame_choice_required && output.alternative_frames && (
+        <div className="border-l-2 border-violet-500 bg-violet-50 dark:bg-violet-950/30 dark:border-violet-400 rounded-r-md p-2.5">
+          <div className="text-xs font-medium text-violet-900 dark:text-violet-200 mb-1">
+            Frame choice required
+          </div>
+          {output.frame_choice_explanation && (
+            <p className="text-xs text-ink-700 dark:text-ink-300 mb-2">
+              {output.frame_choice_explanation}
+            </p>
+          )}
+          <ul className="space-y-1.5">
+            {output.alternative_frames.map((af) => (
+              <li key={af.frame_id} className="text-xs">
+                <div className="font-mono font-medium text-violet-800 dark:text-violet-200">
+                  {af.frame_label}
+                </div>
+                <p className="text-ink-700 dark:text-ink-300">{af.one_paragraph_summary}</p>
+                {af.materially_different_nodes && af.materially_different_nodes.length > 0 && (
+                  <p className="text-[10px] text-ink-500 dark:text-ink-400 mt-0.5">
+                    Materially different nodes: {af.materially_different_nodes.join(', ')}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* IRAC memo — the lawyer-facing deliverable. */}
       <div className="space-y-2">

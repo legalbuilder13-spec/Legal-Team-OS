@@ -12,6 +12,7 @@ import {
   bigint,
   boolean,
   customType,
+  numeric,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
@@ -240,6 +241,18 @@ export const lawyerDecision = pgEnum('lawyer_decision', [
   'accepted',
   'rejected',
   'escalated',
+]);
+
+// PR-A — research_depth modulates how hard every downstream stage
+// works. quick_take: 1 case-law strategy, no absence spotter, no
+// ensemble. client_advice: current default. filing_grade: enables
+// citator expansion + ensemble + verification pass. bet_the_company:
+// doubles down on every dimension. See packages/types/src/depth-policy.
+export const researchDepth = pgEnum('research_depth', [
+  'quick_take',
+  'client_advice',
+  'filing_grade',
+  'bet_the_company',
 ]);
 
 // M4 — Playbook canon tier. Promotes battle-tested playbooks to
@@ -987,6 +1000,10 @@ export const matterAnalyses = pgTable(
     status: analysisStatus('status').notNull().default('pending'),
     overallConfidence: analysisConfidence('overall_confidence').notNull().default('N_A'),
     escalationReason: text('escalation_reason'),
+    // PR-A — depth selector + Bayesian frame state.
+    researchDepth: researchDepth('research_depth').notNull().default('client_advice'),
+    doctrinalFrame: jsonb('doctrinal_frame').$type<DoctrinalFrameState>(),
+    escalatedAt: timestamp('escalated_at', { withTimezone: true }),
     startedAt: timestamp('started_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     totalTokens: integer('total_tokens').notNull().default(0),
@@ -996,6 +1013,71 @@ export const matterAnalyses = pgTable(
   (t) => ({
     matterIdx: index('matter_analyses_matter_idx').on(t.matterId, t.createdAt),
     statusIdx: index('matter_analyses_status_idx').on(t.status),
+    depthIdx: index('matter_analyses_depth_idx').on(t.researchDepth),
+    escalatedIdx: index('matter_analyses_escalated_idx').on(t.escalatedAt),
+  }),
+);
+
+// PR-A — doctrinal_frame jsonb shape. Stored on matter_analyses
+// rather than the stage row so all stages can read+update it.
+export type DoctrinalFrameState = {
+  primary_regime: string;
+  alternative_regimes: Array<{ regime: string; prior: number }>;
+  last_updated_by_stage: 'stage_0' | 'stage_1' | 'stage_2a' | 'stage_2b' | 'stage_3' | 'intake';
+  flip_count: number;
+};
+
+// PR-A — one row per proposed frame flip. Lawyer accepts or rejects;
+// on accept, matter_analyses.doctrinal_frame is rewritten and stages
+// downstream of the flip re-read.
+export const matterFrameFlips = pgTable(
+  'matter_frame_flips',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    matterAnalysisId: uuid('matter_analysis_id')
+      .notNull()
+      .references(() => matterAnalyses.id, { onDelete: 'cascade' }),
+    proposedByStage: text('proposed_by_stage').notNull(),
+    fromFrame: text('from_frame'),
+    toFrame: text('to_frame').notNull(),
+    evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull().default({}),
+    confidence: numeric('confidence', { precision: 3, scale: 2 }),
+    lawyerDecision: lawyerDecision('lawyer_decision').notNull().default('pending'),
+    lawyerDecidedAt: timestamp('lawyer_decided_at', { withTimezone: true }),
+    lawyerDecidedByUserId: uuid('lawyer_decided_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    matterIdx: index('matter_frame_flips_matter_idx').on(t.matterAnalysisId, t.createdAt),
+    pendingIdx: index('matter_frame_flips_pending_idx').on(t.lawyerDecision),
+  }),
+);
+
+// PR-6 — one row per absence the absence-spotter skill identified.
+export const matterAbsenceFindings = pgTable(
+  'matter_absence_findings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    matterAnalysisId: uuid('matter_analysis_id')
+      .notNull()
+      .references(() => matterAnalyses.id, { onDelete: 'cascade' }),
+    missingFact: text('missing_fact').notNull(),
+    whyDispositive: text('why_dispositive').notNull(),
+    severity: text('severity').notNull().$type<'high' | 'medium' | 'low'>(),
+    suggestedClarifyingQuestion: text('suggested_clarifying_question').notNull(),
+    resolved: boolean('resolved').notNull().default(false),
+    resolvedValue: text('resolved_value'),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedByUserId: uuid('resolved_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    dismissed: boolean('dismissed').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    matterIdx: index('matter_absence_findings_matter_idx').on(t.matterAnalysisId, t.severity),
   }),
 );
 
@@ -1396,6 +1478,10 @@ export type MatterAnalysisStage = typeof matterAnalysisStages.$inferSelect;
 export type NewMatterAnalysisStage = typeof matterAnalysisStages.$inferInsert;
 export type MatterAnalysisSource = typeof matterAnalysisSources.$inferSelect;
 export type NewMatterAnalysisSource = typeof matterAnalysisSources.$inferInsert;
+export type MatterFrameFlip = typeof matterFrameFlips.$inferSelect;
+export type NewMatterFrameFlip = typeof matterFrameFlips.$inferInsert;
+export type MatterAbsenceFinding = typeof matterAbsenceFindings.$inferSelect;
+export type NewMatterAbsenceFinding = typeof matterAbsenceFindings.$inferInsert;
 
 export type RejectionClusterRun = typeof rejectionClusterRuns.$inferSelect;
 export type NewRejectionClusterRun = typeof rejectionClusterRuns.$inferInsert;

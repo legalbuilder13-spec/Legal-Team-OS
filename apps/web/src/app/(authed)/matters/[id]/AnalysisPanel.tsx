@@ -7,6 +7,11 @@ import { StatutoryStageCard } from './StatutoryStageCard';
 import { CaseLawStageCard } from './CaseLawStageCard';
 import { DeconstructStageCard } from './DeconstructStageCard';
 import { PlainEnglishTrace } from './PlainEnglishTrace';
+import { FrameFlipBanner } from './FrameFlipBanner';
+import { DepthSelector } from './DepthSelector';
+import { AbsencePanel } from './AbsencePanel';
+import { EscalationBanner } from './EscalationBanner';
+import type { ResearchDepth } from '@legal/types';
 
 // PRD §6.1 — the matter detail page's Analysis panel. Two sections:
 // the auto-pipeline output (always present once analysis runs), and the
@@ -102,7 +107,7 @@ export function AnalysisPanel({ matterId }: Props) {
     );
   }
 
-  const { analysis, stages } = data;
+  const { analysis, stages, frameFlips, absenceFindings } = data;
   const preMeritsStage = stages.find((s) => s.stageName === 'pre_merits');
   const guidanceStage = stages.find((s) => s.stageName === 'guidance');
   const statutoryStages = stages.filter((s) => s.stageName === 'statutory');
@@ -129,6 +134,11 @@ export function AnalysisPanel({ matterId }: Props) {
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-medium">Analysis</h2>
         <div className="flex items-center gap-2">
+          <DepthSelector
+            matterId={matterId}
+            analysisId={analysis.id}
+            current={(analysis.researchDepth ?? 'client_advice') as ResearchDepth}
+          />
           <StatusPill status={status} />
           {analysis.overallConfidence !== 'N_A' && (
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border bg-ink-50 dark:bg-ink-800 text-ink-600 dark:text-ink-400">
@@ -137,6 +147,21 @@ export function AnalysisPanel({ matterId }: Props) {
           )}
         </div>
       </div>
+
+      {analysis.escalatedAt && (
+        <EscalationBanner
+          escalatedAt={analysis.escalatedAt}
+          reason={analysis.escalationReason}
+        />
+      )}
+
+      {frameFlips && frameFlips.length > 0 && (
+        <FrameFlipBanner matterId={matterId} flips={frameFlips} />
+      )}
+
+      {absenceFindings && absenceFindings.length > 0 && (
+        <AbsencePanel matterId={matterId} findings={absenceFindings} />
+      )}
 
       {status === 'matched' && headline && (
         <div className="border-l-2 border-emerald-500 pl-3">

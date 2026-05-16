@@ -27,9 +27,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from .analysis_schemas import FrameFlipProposal, PipelineContext
 from .config import settings
 from .domain_config import DomainConfig, domain_config_block
 from .llm.client import get_client
+from .pipeline_context import DEPTH_AND_FRAME_SYSTEM_ADDENDUM, render_context_block
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,8 @@ class StatuteAnalysisRequest(BaseModel):
     # user prompt when the org has customized terminology, verb rules,
     # high-scrutiny jurisdictions, or risk taxonomy.
     domain_config: DomainConfig | None = None
+    # PR-A — pipeline context (research_depth + carried doctrinal_frame).
+    context: PipelineContext = PipelineContext()
 
 
 AmbiguityType = Literal["semantic", "syntactic", "latent", "vagueness"]
@@ -143,6 +147,9 @@ class StatuteAnalysisResult(BaseModel):
     confidence_basis: str
     verify_flags: list[str] = Field(default_factory=list, max_length=3)
     self_audit: SelfAudit
+    # PR-A — optional doctrinal-frame flip proposal when statute analysis
+    # turns up authority inconsistent with the carried frame.
+    frame_flip_proposal: FrameFlipProposal | None = None
 
 
 # ----- Prompt -----
@@ -206,7 +213,7 @@ Before returning, run the self-audit checklist:
 - gap_check: did you note what the statute is silent on?
 - source_mixing_check: did you avoid presenting summary/inferred language as quoted statute?
 
-If any check fails, set its boolean to false and add a flags entry explaining why."""
+If any check fails, set its boolean to false and add a flags entry explaining why.""" + DEPTH_AND_FRAME_SYSTEM_ADDENDUM
 
 
 TOOL = {
@@ -246,6 +253,8 @@ def build_user_prompt(req: StatuteAnalysisRequest) -> str:
         parts.append(s.raw_text)
     # PR12 §15 — domain config (no-op when empty).
     parts.append(domain_config_block(req.domain_config))
+    # PR-A — pipeline context.
+    parts.append(render_context_block(req.context))
     return "\n".join(parts)
 
 
