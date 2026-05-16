@@ -1,9 +1,10 @@
+// PR-B follow-up — first-pass annotations added 2026-05-16; attorney review required.
 import type { InventoryItem } from './types.js';
 
 // PRD §12.1 — real estate inventory. Covers title + transfer +
 // development + financing + leasing.
 
-export const REAL_ESTATE_INVENTORY_VERSION = '1.0.0';
+export const REAL_ESTATE_INVENTORY_VERSION = '1.1.0';
 
 export const REAL_ESTATE_INVENTORY: InventoryItem[] = [
   // Title + ownership
@@ -12,30 +13,65 @@ export const REAL_ESTATE_INVENTORY: InventoryItem[] = [
     category: 'common_law',
     label: 'Estate type',
     description: 'Fee simple absolute vs. defeasible (determinable, condition subsequent) vs. life estate vs. leasehold.',
+    annotations: {
+      nodeType: 'classification',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'cotenancy',
     category: 'common_law',
     label: 'Cotenancy',
     description: 'Joint tenancy w/ROS, tenancy in common, tenancy by the entirety. Partition rights.',
+    annotations: {
+      nodeType: 'classification',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'easements',
     category: 'common_law',
     label: 'Easements',
     description: 'By grant, prescription, necessity, implication. Appurtenant vs. in gross. Recorded vs. unrecorded.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'restrictive_covenants',
     category: 'common_law',
     label: 'Restrictive covenants / equitable servitudes',
     description: 'Touch + concern + intent + notice. Race / discriminatory covenants unenforceable.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'adverse_possession',
     category: 'common_law',
     label: 'Adverse possession',
     description: 'Open + notorious + continuous + hostile + exclusive for statutory period.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'clear_and_convincing',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'clear_error',
+    },
   },
   // Transfer documents
   {
@@ -43,18 +79,39 @@ export const REAL_ESTATE_INVENTORY: InventoryItem[] = [
     category: 'contract_clauses',
     label: 'Purchase + sale agreement',
     description: 'Earnest money, due-diligence period, financing contingency, inspection, title objections, closing date, default remedies.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'deed_types',
     category: 'contract_clauses',
     label: 'Deed types',
     description: 'General warranty, special warranty, bargain + sale, quitclaim. Statutory deed forms vary by state.',
+    annotations: {
+      nodeType: 'classification',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'title_insurance',
     category: 'contract_clauses',
     label: 'Title insurance',
     description: 'Owner\'s vs. lender\'s. Exceptions (survey, easement, encroachment, mineral). ALTA endorsements.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   // Financing
   {
@@ -62,18 +119,39 @@ export const REAL_ESTATE_INVENTORY: InventoryItem[] = [
     category: 'contract_clauses',
     label: 'Mortgage / deed of trust',
     description: 'Lien vs. title theory state. Power of sale. Subordination, non-disturbance, attornment (SNDA).',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'commercial_loan_covenants',
     category: 'contract_clauses',
     label: 'Commercial loan covenants',
     description: 'DSCR, LTV, debt yield, cash management, recourse + bad-boy carve-outs (springing guaranty).',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'mezzanine_intercreditor',
     category: 'contract_clauses',
     label: 'Mezzanine + intercreditor',
     description: 'Pledge of equity in property-owning entity. UCC Article 9 foreclosure mechanics. Intercreditor priorities.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   // Leasing
   {
@@ -81,24 +159,52 @@ export const REAL_ESTATE_INVENTORY: InventoryItem[] = [
     category: 'contract_clauses',
     label: 'Commercial lease',
     description: 'Triple-net vs. modified-gross vs. full-service. OpEx / CAM, audit rights. Renewal options.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'subordination_snda',
     category: 'contract_clauses',
     label: 'SNDA',
     description: 'Subordination, non-disturbance, attornment between tenant + lender. Survives foreclosure.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'use_exclusivity',
     category: 'contract_clauses',
     label: 'Use + exclusivity',
     description: 'Permitted use, prohibited use, exclusive (in retail), co-tenancy. Continuous-operation covenant.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'assignment_subletting',
     category: 'contract_clauses',
     label: 'Assignment + subletting',
     description: 'Consent standards (reasonable / sole discretion / objective tests), recapture, profit-share.',
+    annotations: {
+      nodeType: 'standard',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   // Land use + environmental
   {
@@ -106,18 +212,39 @@ export const REAL_ESTATE_INVENTORY: InventoryItem[] = [
     category: 'local_ordinances',
     label: 'Zoning + entitlement',
     description: 'Permitted, special permit, variance, PUD. Nonconforming use grandfathering. Vested-rights doctrine.',
+    annotations: {
+      nodeType: 'procedural',
+      burdenOfPersuasion: 'movant',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'agency_proceeding',
+      appellateStandardOfReview: 'arbitrary_and_capricious',
+    },
   },
   {
     id: 'environmental_phase_1',
     category: 'federal_statutes',
     label: 'Environmental due diligence',
     description: 'Phase I ESA per ASTM E1527. Recognized environmental conditions (RECs). CERCLA innocent-landowner defense.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'defendant',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'pre_suit',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'wetlands_endangered_species',
     category: 'federal_statutes',
     label: 'Wetlands / endangered species',
     description: '404 permitting (Sackett v. EPA scope). ESA Section 7 + 9 prohibitions on take.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'agency',
+      standardOfProof: 'substantial_evidence',
+      defaultPosture: 'agency_proceeding',
+      appellateStandardOfReview: 'arbitrary_and_capricious',
+    },
   },
   // Tenant protections + fair housing
   {
@@ -125,18 +252,40 @@ export const REAL_ESTATE_INVENTORY: InventoryItem[] = [
     category: 'federal_statutes',
     label: 'Fair Housing Act',
     description: 'Protected classes; disparate impact (Inclusive Communities) + intent. Reasonable accommodation.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfProduction: 'shifting',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'summary_judgment',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'rent_regulation',
     category: 'state_statutes',
     label: 'Rent regulation',
     description: 'NYC rent stabilization, CA AB 1482, OR state-wide cap. Vacancy decontrol vs. continuing stabilization.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'agency',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'agency_proceeding',
+      appellateStandardOfReview: 'substantial_evidence',
+    },
   },
   {
     id: 'eviction',
     category: 'state_statutes',
     label: 'Eviction process',
     description: 'Notice + grounds + court process. Anti-retaliation. Just-cause-eviction ordinances (multiple cities).',
+    annotations: {
+      nodeType: 'procedural',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'trial',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   // Transfer + tax
   {
@@ -144,17 +293,38 @@ export const REAL_ESTATE_INVENTORY: InventoryItem[] = [
     category: 'state_statutes',
     label: 'Transfer + recording taxes',
     description: 'State transfer tax / doc stamps. NY mortgage recording tax. Mansion tax thresholds. Controlling-interest transfer tax.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'agency',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'agency_proceeding',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'firpta',
     category: 'federal_statutes',
     label: 'FIRPTA withholding',
     description: '15% (or 10% with certificate) withholding on disposition by foreign person. Substitute reporting / withholding certificate.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'agency',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'agency_proceeding',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
   {
     id: 'opportunity_zones',
     category: 'federal_statutes',
     label: 'Opportunity zone investments',
     description: 'QOZ-Fund + QOZ-Business structure. Substantial-improvement test for existing buildings. Deferral + step-up + exclusion.',
+    annotations: {
+      nodeType: 'rule',
+      burdenOfPersuasion: 'plaintiff',
+      standardOfProof: 'preponderance',
+      defaultPosture: 'agency_proceeding',
+      appellateStandardOfReview: 'de_novo',
+    },
   },
 ];
